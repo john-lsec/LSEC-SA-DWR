@@ -1,12 +1,10 @@
-// netlify/edge-functions/api.js
-import { neon } from 'https://deno.land/x/neon@0.3.0/mod.ts';
+const { neon } = require('@netlify/neon');
 
-export default async (request, context) => {
-  const url = new URL(request.url);
-  const path = url.pathname.replace('/api/', '');
+exports.handler = async (event, context) => {
+  const path = event.path.replace('/.netlify/functions/api/', '').replace('/.netlify/functions/api', '');
   
   // CORS headers
-  const corsHeaders = {
+  const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -14,49 +12,53 @@ export default async (request, context) => {
   };
   
   // Handle CORS preflight
-  if (request.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: corsHeaders });
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers, body: '' };
   }
   
   try {
-    const sql = neon(Deno.env.get('NETLIFY_DATABASE_URL'));
+    const sql = neon(process.env.NETLIFY_DATABASE_URL);
+    
+    // Parse query parameters
+    const params = event.queryStringParameters || {};
     
     // Route handling
     switch (path) {
+      case '':
       case 'foremen':
         const foremen = await sql`SELECT id, name FROM foremen WHERE is_active = true ORDER BY name`;
-        return new Response(JSON.stringify(foremen), { headers: corsHeaders });
+        return { statusCode: 200, headers, body: JSON.stringify(foremen) };
         
       case 'laborers':
         const laborers = await sql`SELECT id, name FROM laborers WHERE is_active = true ORDER BY name`;
-        return new Response(JSON.stringify(laborers), { headers: corsHeaders });
+        return { statusCode: 200, headers, body: JSON.stringify(laborers) };
         
       case 'projects':
         const projects = await sql`SELECT id, name FROM projects WHERE is_active = true ORDER BY name`;
-        return new Response(JSON.stringify(projects), { headers: corsHeaders });
+        return { statusCode: 200, headers, body: JSON.stringify(projects) };
         
       case 'equipment':
-        const type = url.searchParams.get('type');
+        const type = params.type;
         if (!type) {
-          return new Response(JSON.stringify({ error: 'Type required' }), { status: 400, headers: corsHeaders });
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'Type required' }) };
         }
         const equipment = await sql`SELECT id, name FROM equipment WHERE equipment_type = ${type} AND is_active = true ORDER BY name`;
-        return new Response(JSON.stringify(equipment), { headers: corsHeaders });
+        return { statusCode: 200, headers, body: JSON.stringify(equipment) };
         
       case 'project-items':
-        const projectId = url.searchParams.get('project_id');
+        const projectId = params.project_id;
         if (!projectId) {
-          return new Response(JSON.stringify({ error: 'Project ID required' }), { status: 400, headers: corsHeaders });
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'Project ID required' }) };
         }
         const items = await sql`SELECT item_name, unit FROM project_items WHERE project_id = ${projectId} AND is_active = true ORDER BY item_name`;
-        return new Response(JSON.stringify(items), { headers: corsHeaders });
+        return { statusCode: 200, headers, body: JSON.stringify(items) };
         
       case 'submit-dwr':
-        if (request.method !== 'POST') {
-          return new Response(JSON.stringify({ error: 'POST required' }), { status: 405, headers: corsHeaders });
+        if (event.httpMethod !== 'POST') {
+          return { statusCode: 405, headers, body: JSON.stringify({ error: 'POST required' }) };
         }
         
-        const data = await request.json();
+        const data = JSON.parse(event.body);
         const {
           work_date, foreman_id, project_id, arrival_time, departure_time,
           truck_id, trailer_id, billable_work, maybe_explanation, per_diem,
@@ -84,7 +86,7 @@ export default async (request, context) => {
           }
         }
         
-        // Insert machines
+        // Insert machines  
         if (machines?.length) {
           for (const machineId of machines) {
             await sql`INSERT INTO dwr_machines (dwr_id, machine_id) VALUES (${dwrId}, ${machineId})`;
@@ -109,25 +111,26 @@ export default async (request, context) => {
           }
         }
         
-        return new Response(JSON.stringify({ 
-          success: true, 
-          id: dwrId, 
-          message: 'DWR submitted successfully' 
-        }), { headers: corsHeaders });
+        return { 
+          statusCode: 200, 
+          headers, 
+          body: JSON.stringify({ 
+            success: true, 
+            id: dwrId, 
+            message: 'DWR submitted successfully' 
+          })
+        };
         
       default:
-        return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: corsHeaders });
+        return { statusCode: 404, headers, body: JSON.stringify({ error: 'Not found' }) };
     }
     
   } catch (error) {
     console.error('API Error:', error);
-    return new Response(JSON.stringify({ error: error.message }), { 
-      status: 500, 
-      headers: corsHeaders 
-    });
+    return { 
+      statusCode: 500, 
+      headers, 
+      body: JSON.stringify({ error: error.message })
+    };
   }
-};
-
-export const config = {
-  path: "/api/*"
 };
