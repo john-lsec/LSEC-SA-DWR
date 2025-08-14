@@ -128,17 +128,18 @@ exports.handler = async (event, context) => {
         return { statusCode: 200, headers, body: JSON.stringify(bidItems) };
       }
       
-      case 'bid-items': {
-        console.log('Loading all bid items...');
-        const bidItems = await sql`
-          SELECT id, item_code, item_name, category, description, material_cost 
-          FROM bid_items 
-          WHERE is_active = true 
-          ORDER BY item_code
-        `;
-        console.log('Bid items loaded:', bidItems.length);
-        return { statusCode: 200, headers, body: JSON.stringify(bidItems) };
-      }
+              // In your API's bid-items endpoint
+       case 'bid-items': {
+            console.log('Loading all bid items...');
+            const bidItems = await sql`
+                SELECT id, item_code, item_name, category, description, material_cost, default_unit 
+                FROM bid_items 
+                WHERE is_active = true 
+                ORDER BY item_code
+            `;
+            console.log('Bid items loaded:', bidItems.length);
+            return { statusCode: 200, headers, body: JSON.stringify(bidItems) };
+        }
       
       case 'add-project-bid-item': {
         if (event.httpMethod !== 'POST') {
