@@ -874,8 +874,13 @@
             tableBody.innerHTML = '';
             
             filteredItems.forEach(item => {
-                const markupPercent = item.current_cost > 0 
-                    ? ((item.rate - item.current_cost) / item.current_cost * 100).toFixed(2) 
+                // Ensure numeric values
+                const rate = Number(item.rate);
+                const cost = Number(item.current_cost);
+                
+                // Calculate markup percentage
+                const markupPercent = cost > 0 
+                    ? ((rate - cost) / cost * 100).toFixed(2) 
                     : 'N/A';
                 
                 const row = document.createElement('tr');
@@ -884,8 +889,8 @@
                     <td>${item.item_name}</td>
                     <td>${item.category}</td>
                     <td>${item.unit}</td>
-                    <td>$${item.rate.toFixed(2)}</td>
-                    <td>$${item.current_cost.toFixed(2)}</td>
+                    <td>$${rate.toFixed(2)}</td>
+                    <td>$${cost.toFixed(2)}</td>
                     <td>${markupPercent}%</td>
                     <td class="td-actions">
                         <button class="btn btn-secondary btn-sm edit-btn" data-id="${item.project_bid_item_id}">Edit</button>
@@ -920,10 +925,14 @@
             let totalValidMarkups = 0;
             
             projectBidItems.forEach(item => {
-                totalRate += item.rate;
-                totalCost += item.current_cost;
+                // Ensure numeric values
+                const rate = Number(item.rate);
+                const cost = Number(item.current_cost);
                 
-                if (item.current_cost > 0) {
+                totalRate += rate;
+                totalCost += cost;
+                
+                if (cost > 0) {
                     totalValidMarkups++;
                 }
             });
@@ -936,8 +945,12 @@
             if (totalValidMarkups > 0) {
                 let totalMarkupPercent = 0;
                 projectBidItems.forEach(item => {
-                    if (item.current_cost > 0) {
-                        const markupPercent = ((item.rate - item.current_cost) / item.current_cost * 100);
+                    // Ensure numeric values
+                    const rate = Number(item.rate);
+                    const cost = Number(item.current_cost);
+                    
+                    if (cost > 0) {
+                        const markupPercent = ((rate - cost) / cost * 100);
                         totalMarkupPercent += markupPercent;
                     }
                 });
