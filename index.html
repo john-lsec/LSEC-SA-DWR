@@ -5,8 +5,657 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LSEC SA Daily Work Report</title>
     <style>
-        /* Same styles as original, no changes needed here */
-        /* ... all the original CSS remains unchanged ... */
+        /* Reset and base styles */
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, Arial, sans-serif;
+            line-height: 1.5;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #121212;
+            min-height: 100vh;
+            box-shadow: 0 0 40px rgba(0,0,0,0.5);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #4a9eff;
+        }
+        
+        .header h1 {
+            color: #4a9eff;
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(74, 158, 255, 0.3);
+        }
+        
+        .header p {
+            color: #b0b0b0;
+            margin: 10px 0 0 0;
+            font-size: 1.1rem;
+        }
+        
+        /* Form sections */
+        .section {
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-left: 5px solid #4a9eff;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            border: 1px solid #333;
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #e0e0e0;
+        }
+        
+        .section-number {
+            background: #4a9eff;
+            color: #000;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(74, 158, 255, 0.4);
+        }
+        
+        /* Form inputs */
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #c0c0c0;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #404040;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            background: #2a2a2a;
+            color: #e0e0e0;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #4a9eff;
+            box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.2);
+            background: #333;
+        }
+        
+        select {
+            cursor: pointer;
+        }
+        
+        option {
+            background: #2a2a2a;
+            color: #e0e0e0;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        input::placeholder, textarea::placeholder {
+            color: #777;
+        }
+        
+        /* Multi-select containers */
+        .multi-select {
+            border: 2px solid #404040;
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            background: #2a2a2a;
+        }
+        
+        .multi-select-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #404040;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            color: #e0e0e0;
+        }
+        
+        .multi-select-item:hover {
+            background-color: #333;
+        }
+        
+        .multi-select-item:last-child {
+            border-bottom: none;
+        }
+        
+        .multi-select-item input[type="checkbox"] {
+            width: auto;
+            margin-right: 12px;
+            cursor: pointer;
+            accent-color: #4a9eff;
+        }
+        
+        .multi-select-item label {
+            margin: 0;
+            cursor: pointer;
+            flex: 1;
+            font-weight: normal;
+            color: #e0e0e0;
+        }
+        
+        /* Selected items display */
+        .selected-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+            min-height: 40px;
+            padding: 8px;
+            border: 2px solid #404040;
+            border-radius: 8px;
+            background: #1a1a1a;
+        }
+        
+        .selected-items.empty {
+            align-items: center;
+            justify-content: center;
+            color: #777;
+            font-style: italic;
+        }
+        
+        .selected-tag {
+            background: linear-gradient(135deg, #4a9eff 0%, #357abd 100%);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 8px rgba(74, 158, 255, 0.3);
+        }
+        
+        .selected-tag .remove {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            transition: background-color 0.2s ease;
+        }
+        
+        .selected-tag .remove:hover {
+            background: rgba(255,255,255,0.4);
+        }
+
+        /* Item type toggle */
+        .item-type-toggle {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #242424;
+            border-radius: 8px;
+            border: 1px solid #404040;
+        }
+
+        .toggle-label {
+            font-weight: 600;
+            color: #c0c0c0;
+        }
+
+        .toggle-buttons {
+            display: flex;
+            background: #1a1a1a;
+            border-radius: 6px;
+            border: 1px solid #404040;
+            overflow: hidden;
+        }
+
+        .toggle-btn {
+            padding: 8px 16px;
+            background: transparent;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .toggle-btn.active {
+            background: #4a9eff;
+            color: #000;
+        }
+
+        .toggle-btn:hover:not(.active) {
+            background: #333;
+            color: #e0e0e0;
+        }
+
+        /* Bid item info display */
+        .bid-item-info {
+            display: none;
+            background: #242424;
+            border: 1px solid #404040;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .bid-item-info.show {
+            display: block;
+        }
+
+        .bid-info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .bid-info-label {
+            color: #888;
+        }
+
+        .bid-info-value {
+            color: #e0e0e0;
+            font-weight: 500;
+        }
+
+        .bid-info-value.revenue {
+            color: #4ade80;
+        }
+
+        .bid-info-value.cost {
+            color: #f87171;
+        }
+
+        .bid-info-value.profit {
+            color: #60a5fa;
+        }
+
+        /* Line totals in items */
+        .line-totals {
+            background: #1a1a1a;
+            border: 1px solid #404040;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .line-totals.show {
+            display: block;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        .total-label {
+            color: #888;
+        }
+
+        .total-value {
+            font-weight: 600;
+        }
+
+        .total-value.revenue {
+            color: #4ade80;
+        }
+
+        .total-value.cost {
+            color: #f87171;
+        }
+
+        .total-value.profit {
+            color: #60a5fa;
+        }
+        
+        /* Location input with map button */
+        .location-container {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .location-container input {
+            flex: 1;
+        }
+        
+        .map-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20924c 100%);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            white-space: nowrap;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+        }
+        
+        .map-btn:hover {
+            background: linear-gradient(135deg, #218838 0%, #1e7e34 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+        }
+        
+        /* Buttons */
+        .btn {
+            background: linear-gradient(135deg, #4a9eff 0%, #357abd 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 8px rgba(74, 158, 255, 0.3);
+        }
+        
+        .btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #357abd 0%, #2968a3 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(74, 158, 255, 0.4);
+        }
+        
+        .btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20924c 100%);
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+        }
+        
+        .btn-success:hover:not(:disabled) {
+            background: linear-gradient(135deg, #218838 0%, #1e7e34 100%);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+        }
+        
+        .btn-danger:hover:not(:disabled) {
+            background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+            box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            background: linear-gradient(135deg, #5a6268 0%, #4e555b 100%);
+            box-shadow: 0 4px 12px rgba(108, 117, 125, 0.4);
+        }
+        
+        .btn-block {
+            width: 100%;
+            justify-content: center;
+        }
+        
+        /* Item sections */
+        .item-section {
+            background: #242424;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 2px solid #404040;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+        }
+        
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #404040;
+        }
+        
+        .item-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #4a9eff;
+        }
+        
+        /* Loading and messages */
+        .loading {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #888;
+            font-style: italic;
+        }
+        
+        .loading::after {
+            content: '';
+            width: 16px;
+            height: 16px;
+            border: 2px solid #333;
+            border-top: 2px solid #4a9eff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        
+        .alert-success {
+            background: linear-gradient(135deg, #1e3d29 0%, #2d5a41 100%);
+            color: #4ade80;
+            border: 1px solid #16a34a;
+            box-shadow: 0 2px 8px rgba(74, 222, 128, 0.2);
+        }
+        
+        .alert-error {
+            background: linear-gradient(135deg, #3d1e1e 0%, #5a2d2d 100%);
+            color: #f87171;
+            border: 1px solid #dc2626;
+            box-shadow: 0 2px 8px rgba(248, 113, 113, 0.2);
+        }
+        
+        .alert-warning {
+            background: linear-gradient(135deg, #3d3a1e 0%, #5a5330 100%);
+            color: #fbbf24;
+            border: 1px solid #d97706;
+            box-shadow: 0 2px 8px rgba(251, 191, 36, 0.2);
+        }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .modal.show {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 1px solid #404040;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #404040;
+        }
+        
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #e0e0e0;
+            margin: 0;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #888;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+        }
+        
+        .close-btn:hover {
+            color: #e0e0e0;
+            background: #333;
+        }
+        
+        /* Hidden utility */
+        .hidden {
+            display: none !important;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .section {
+                padding: 20px;
+            }
+            
+            .form-row {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            
+            .location-container {
+                flex-direction: column;
+            }
+            
+            .selected-items {
+                min-height: 60px;
+            }
+        }
+        
+        /* Map styles */
+        #map {
+            height: 400px;
+            width: 100%;
+            border-radius: 8px;
+            border: 2px solid #404040;
+        }
+        
+        .map-info {
+            background: #242424;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid #4a9eff;
+            color: #c0c0c0;
+            border: 1px solid #404040;
+        }
+        
+        .coordinates-display {
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+            margin-top: 10px;
+            color: #4a9eff;
+            border: 1px solid #404040;
+        }
     </style>
 </head>
 <body>
@@ -15,15 +664,102 @@
             <h1>Daily Work Report</h1>
             <p>LSEC SA Quantity Input Form</p>
         </div>
+
         <form id="dwrForm">
-            <!-- General Information Section - no changes needed -->
+            <!-- General Information Section -->
             <div class="section">
                 <div class="section-header">
                     <span class="section-number">1</span>
                     General Information
                 </div>
-                <!-- All the original form fields remain unchanged -->
+
+                <div class="form-group">
+                    <label for="workDate">Date this work was performed:</label>
+                    <input type="date" id="workDate" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="foreman">Who is filling out this form?</label>
+                    <select id="foreman" required>
+                        <option value="">-- Select Foreman --</option>
+                    </select>
+                    <div id="foremanLoader" class="loading hidden">Loading foremen</div>
+                </div>
+
+                <div class="form-group">
+                    <label>Who is on your crew? (Optional)</label>
+                    <div id="selectedLaborers" class="selected-items empty">No crew members selected</div>
+                    <div id="laborersContainer" class="multi-select">
+                        <div id="laborerLoader" class="loading">Loading laborers</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="perDiem">Are you supposed to receive a per diem today?</label>
+                    <select id="perDiem" required>
+                        <option value="">-- Select Option --</option>
+                        <option value="true">Yes</option>
+                        <option value="false">No</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="truck">Which truck did you use today?</label>
+                    <select id="truck" required>
+                        <option value="">-- Select Truck --</option>
+                    </select>
+                    <div id="truckLoader" class="loading hidden">Loading trucks</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="trailer">Which trailer did you use today? (Optional)</label>
+                    <select id="trailer">
+                        <option value="">-- Select Trailer --</option>
+                    </select>
+                    <div id="trailerLoader" class="loading hidden">Loading trailers</div>
+                </div>
+
+                <div class="form-group">
+                    <label>Which machine(s) did you use today? (Optional)</label>
+                    <div id="selectedMachines" class="selected-items empty">No machines selected</div>
+                    <div id="machinesContainer" class="multi-select">
+                        <div id="machineLoader" class="loading">Loading machines</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="project">What project are you working on?</label>
+                    <select id="project" required>
+                        <option value="">-- Select Project --</option>
+                    </select>
+                    <div id="projectLoader" class="loading hidden">Loading projects</div>
+                </div>
+
+                <div class="form-group">
+                    <label>What time did you arrive on site and leave the project?</label>
+                    <div class="form-row">
+                        <div>
+                            <label for="arrivalTime">Arrival Time:</label>
+                            <input type="time" id="arrivalTime" required>
+                        </div>
+                        <div>
+                            <label for="departureTime">Departure Time:</label>
+                            <input type="time" id="departureTime" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="billableWork">Was any billable work performed today?</label>
+                    <select id="billableWork" required>
+                        <option value="">-- Select Option --</option>
+                        <option value="Yes">Yes</option>
+                        <option value="Maybe">Maybe</option>
+                        <option value="No">No</option>
+                    </select>
+                </div>
             </div>
+
             <!-- Items Section (Hidden initially) -->
             <div id="itemsSection" class="section hidden">
                 <div class="section-header">
@@ -39,6 +775,7 @@
                     ➕ Add Another Item
                 </button>
             </div>
+
             <!-- Submit Section -->
             <div class="form-group">
                 <button type="submit" id="submitBtn" class="btn btn-success btn-block">
@@ -47,9 +784,11 @@
                 <div id="submitLoader" class="loading hidden">Submitting report</div>
             </div>
         </form>
+
         <!-- Result Messages -->
         <div id="resultMessage"></div>
     </div>
+
     <!-- Maybe Work Explanation Modal -->
     <div id="maybeModal" class="modal">
         <div class="modal-content">
@@ -66,6 +805,7 @@
             </div>
         </div>
     </div>
+
     <!-- Map Modal -->
     <div id="mapModal" class="modal">
         <div class="modal-content" style="max-width: 800px;">
@@ -84,23 +824,25 @@
             </div>
         </div>
     </div>
+
     <script>
         // Configuration - Update for your deployment
         const API_BASE = '/.netlify/functions/';
         const GOOGLE_MAPS_API_KEY = 'AIzaSyBQq_tXLv0APu8LFfjLogSh4cIqo49yJVg'; // Optional
+
         // Global variables
         let currentItemCount = 0;
         let projectBidItemsMap = {};
         let selectedLaborers = new Set();
         let selectedMachines = new Set();
         let map, selectedMarker, selectedLatLng, currentLocationInputId;
-        
+
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
             loadMasterData();
             setupEventListeners();
         });
-        
+
         // API Helper function
         async function apiCall(endpoint, options = {}) {
             try {
@@ -122,7 +864,7 @@
                 throw error;
             }
         }
-        
+
         // Load all master data
         async function loadMasterData() {
             try {
@@ -137,7 +879,7 @@
                 showMessage('Error loading form data. Please refresh the page.', 'error');
             }
         }
-        
+
         // Load foremen
         async function loadForemen() {
             const loader = document.getElementById('foremanLoader');
@@ -147,6 +889,7 @@
                 loader.classList.remove('hidden');
                 
                 const foremen = await apiCall('foremen');
+
                 foremen.forEach(foreman => {
                     const option = document.createElement('option');
                     option.value = foreman.id;
@@ -160,7 +903,7 @@
                 loader.classList.add('hidden');
             }
         }
-        
+
         // Load laborers
         async function loadLaborers() {
             const loader = document.getElementById('laborerLoader');
@@ -168,6 +911,7 @@
             
             try {
                 const laborers = await apiCall('laborers');
+
                 container.innerHTML = '';
                 laborers.forEach(laborer => {
                     const item = createMultiSelectItem(laborer.id, laborer.name, 'laborer');
@@ -178,7 +922,7 @@
                 container.innerHTML = '<div style="padding: 15px; color: #dc3545;">Error loading laborers</div>';
             }
         }
-        
+
         // Load projects
         async function loadProjects() {
             const loader = document.getElementById('projectLoader');
@@ -188,6 +932,7 @@
                 loader.classList.remove('hidden');
                 
                 const projects = await apiCall('projects');
+
                 projects.forEach(project => {
                     const option = document.createElement('option');
                     option.value = project.id;
@@ -201,7 +946,7 @@
                 loader.classList.add('hidden');
             }
         }
-        
+
         // Load equipment by type
         async function loadEquipment() {
             try {
@@ -214,7 +959,7 @@
                 console.error('Error loading equipment:', error);
             }
         }
-        
+
         async function loadEquipmentByType(type, selectId, loaderId) {
             const loader = document.getElementById(loaderId);
             const select = document.getElementById(selectId);
@@ -223,6 +968,7 @@
                 loader.classList.remove('hidden');
                 
                 const equipment = await apiCall(`equipment?type=${encodeURIComponent(type)}`);
+
                 equipment.forEach(item => {
                     const option = document.createElement('option');
                     option.value = item.id;
@@ -235,13 +981,14 @@
                 loader.classList.add('hidden');
             }
         }
-        
+
         async function loadMachines() {
             const loader = document.getElementById('machineLoader');
             const container = document.getElementById('machinesContainer');
             
             try {
                 const machines = await apiCall('equipment?type=MACHINE');
+
                 container.innerHTML = '';
                 machines.forEach(machine => {
                     const item = createMultiSelectItem(machine.id, machine.name, 'machine');
@@ -252,10 +999,11 @@
                 container.innerHTML = '<div style="padding: 15px; color: #dc3545;">Error loading machines</div>';
             }
         }
-        
+
         // Load project bid items
         async function loadProjectBidItems(projectId) {
             if (!projectId) return;
+
             try {
                 const bidItems = await apiCall(`project-bid-items?project_id=${projectId}`);
                 projectBidItemsMap[projectId] = bidItems;
@@ -265,7 +1013,7 @@
                 showMessage('Error loading project bid items.', 'error');
             }
         }
-        
+
         // Create multi-select item
         function createMultiSelectItem(id, name, type) {
             const item = document.createElement('div');
@@ -286,7 +1034,7 @@
             
             return item;
         }
-        
+
         // Update selected items display
         function updateSelectedItems(type) {
             const container = type === 'laborer' ? selectedLaborers : selectedMachines;
@@ -304,7 +1052,7 @@
             
             updateSelectedDisplay(displayId, container, type);
         }
-        
+
         function updateSelectedDisplay(displayId, selectedSet, type) {
             const display = document.getElementById(displayId);
             
@@ -321,7 +1069,7 @@
                 ).join('');
             }
         }
-        
+
         function removeSelected(type, id) {
             const checkbox = document.getElementById(`${type}_${id}`);
             if (checkbox) {
@@ -329,7 +1077,7 @@
                 updateSelectedItems(type);
             }
         }
-        
+
         // Setup event listeners
         function setupEventListeners() {
             document.getElementById('project').addEventListener('change', function() {
@@ -337,11 +1085,12 @@
                     loadProjectBidItems(this.value);
                 }
             });
+
             document.getElementById('billableWork').addEventListener('change', handleBillableWorkChange);
             document.getElementById('addItemBtn').addEventListener('click', addItemSection);
             document.getElementById('dwrForm').addEventListener('submit', handleSubmit);
         }
-        
+
         // Handle billable work selection
         function handleBillableWorkChange() {
             const value = document.getElementById('billableWork').value;
@@ -360,11 +1109,11 @@
                 itemsSection.classList.add('hidden');
             }
         }
-        
+
         function closeMaybeModal() {
             document.getElementById('maybeModal').classList.remove('show');
         }
-        
+
         function continueMaybe() {
             const explanation = document.getElementById('maybeExplanation').value.trim();
             if (!explanation) {
@@ -378,7 +1127,7 @@
                 addItemSection();
             }
         }
-        
+
         // Add item section
         function addItemSection() {
             currentItemCount++;
@@ -486,6 +1235,7 @@
                         <option value="12">12 hours</option>
                     </select>
                 </div>
+
                 <div id="lineTotals_${currentItemCount}" class="line-totals">
                     <div class="total-row">
                         <span class="total-label">Line Revenue:</span>
@@ -519,7 +1269,7 @@
                 updateLineTotals(currentItemCount);
             });
         }
-        
+
         function removeItemSection(index) {
             const section = document.querySelector(`[data-item-index="${index}"]`);
             if (section) {
@@ -531,12 +1281,12 @@
                 addItemSection();
             }
         }
-        
+
         // Update all item dropdowns
         function updateAllItemDropdowns() {
             const projectId = document.getElementById('project').value;
             if (!projectId) return;
-            
+
             document.querySelectorAll('.item-section').forEach(section => {
                 const index = section.dataset.itemIndex;
                 const select = document.getElementById(`item_${index}`);
@@ -574,7 +1324,7 @@
                 updateItemInfo(index);
             });
         }
-        
+
         function updateItemInfo(index) {
             const select = document.getElementById(`item_${index}`);
             const unitLabel = document.querySelector(`[data-item-index="${index}"] .unit-label`);
@@ -604,7 +1354,7 @@
                 lineTotals.classList.remove('show');
             }
         }
-        
+
         function updateLineTotals(index) {
             const select = document.getElementById(`item_${index}`);
             const quantityInput = document.getElementById(`quantity_${index}`);
@@ -625,7 +1375,7 @@
                 document.getElementById(`lineProfit_${index}`).textContent = `$${profit.toFixed(2)}`;
             }
         }
-        
+
         // Map functionality
         function openMapModal(itemIndex) {
             currentLocationInputId = `location_${itemIndex}`;
@@ -638,11 +1388,11 @@
             
             resetMapSelection();
         }
-        
+
         function closeMapModal() {
             document.getElementById('mapModal').classList.remove('show');
         }
-        
+
         function initializeMap() {
             // Default to center of USA
             const defaultLocation = { lat: 39.8283, lng: -98.5795 };
@@ -669,7 +1419,7 @@
                 });
             }
         }
-        
+
         function selectLocation(latLng) {
             selectedLatLng = latLng;
             
@@ -693,7 +1443,7 @@
             document.getElementById('coordinatesDisplay').classList.remove('hidden');
             document.getElementById('confirmLocationBtn').disabled = false;
         }
-        
+
         function confirmLocation() {
             if (selectedLatLng && currentLocationInputId) {
                 const lat = selectedLatLng.lat().toFixed(6);
@@ -702,7 +1452,7 @@
                 closeMapModal();
             }
         }
-        
+
         function resetMapSelection() {
             selectedLatLng = null;
             if (selectedMarker) {
@@ -712,7 +1462,7 @@
             document.getElementById('coordinatesDisplay').classList.add('hidden');
             document.getElementById('confirmLocationBtn').disabled = true;
         }
-        
+
         // Form submission
         async function handleSubmit(event) {
             event.preventDefault();
@@ -753,7 +1503,7 @@
                 submitLoader.classList.add('hidden');
             }
         }
-        
+
         function collectFormData() {
             const billableWork = document.getElementById('billableWork').value;
             
@@ -810,7 +1560,7 @@
                             bid_item_id: option.dataset.bidItemId,
                             project_bid_item_id: option.dataset.projectBidItemId
                         };
-                        
+
                         formData.items.push(itemData);
                     }
                 });
@@ -818,7 +1568,7 @@
             
             return formData;
         }
-        
+
         function validateFormData(formData) {
             const required = ['work_date', 'foreman_id', 'project_id', 'arrival_time', 'departure_time', 'billable_work'];
             
@@ -841,7 +1591,7 @@
             
             return true;
         }
-        
+
         function resetForm() {
             document.getElementById('dwrForm').reset();
             document.getElementById('itemsSection').classList.add('hidden');
@@ -855,7 +1605,7 @@
             // Uncheck all checkboxes
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
         }
-        
+
         function showMessage(message, type) {
             const resultDiv = document.getElementById('resultMessage');
             resultDiv.className = `alert alert-${type}`;
@@ -869,7 +1619,7 @@
                 }, 5000);
             }
         }
-        
+
         // Load Google Maps API
         function loadGoogleMaps() {
             if (GOOGLE_MAPS_API_KEY && GOOGLE_MAPS_API_KEY !== 'YOUR_GOOGLE_MAPS_API_KEY') {
@@ -880,11 +1630,11 @@
                 document.head.appendChild(script);
             }
         }
-        
+
         window.initGoogleMaps = function() {
             console.log('Google Maps API loaded');
         };
-        
+
         // Load maps when page loads
         loadGoogleMaps();
     </script>
