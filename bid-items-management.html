@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LSEC SA Bid Items Management</title>
+    <style>
+        /* Reset and base styles */
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, Arial, sans-serif;
+            line-height: 1.5;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #121212;
+            min-height: 100vh;
+            box-shadow: 0 0 40px rgba(0,0,0,0.5);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #4a9eff;
+        }
+        
+        .header h1 {
+            color: #4a9eff;
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(74, 158, 255, 0.3);
+        }
+        
+        .header p {
+            color: #b0b0b0;
+            margin: 10px 0 0 0;
+            font-size: 1.1rem;
+        }
+        
+        /* Form sections */
+        .section {
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-left: 5px solid #4a9eff;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            border: 1px solid #333;
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #e0e0e0;
+        }
+        
+        .section-number {
+            background: #4a9eff;
+            color: #000;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(74, 158, 255, 0.4);
+        }
+        
+        /* Form inputs */
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .form-row-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #c0c0c0;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #404040;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            background: #2a2a2a;
+            color: #e0e0e0;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #4a9eff;
+            box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.2);
+            background: #333;
+        }
+        
+        select {
+            cursor: pointer;
+        }
+        
+        option {
+            background: #2a2a2a;
+            color: #e0e0e0;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        input::placeholder, textarea::placeholder {
+            color: #777;
+        }
+        
+        /* Buttons */
+        .btn {
+            background: linear-gradient(135deg, #4a9eff 0%, #357abd 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 8px rgba(74, 158, 255, 0.3);
+        }
+        
+        .btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #357abd 0%, #2968a3 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(74, 158, 255, 0.4);
+        }
+        
+        .btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20924c 100%);
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+        }
+        
+        .btn-success:hover:not(:disabled) {
+            background: linear-gradient(135deg, #218838 0%, #1e7e34 100%);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+        }
+        
+        .btn-danger:hover:not(:disabled) {
+            background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+            box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            background: linear-gradient(135deg, #5a6268 0%, #4e555b 100%);
+            box-shadow: 0 4px 12px rgba(108, 117, 125, 0.4);
+        }
+        
+        .btn-block {
+            width: 100%;
+            justify-content: center;
+        }
+        
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+        
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            border: 1px solid #404040;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #1e1e1e;
+        }
+        
+        table th,
+        table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #404040;
+        }
+        
+        table th {
+            background: #242424;
+            font-weight: 600;
+            color: #4a9eff;
+            position: sticky;
+            top: 0;
+        }
+        
+        table tr:hover {
+            background: #242424;
+        }
+        
+        table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .td-actions {
+            white-space: nowrap;
+            text-align: right;
+        }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .modal.show {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 1px solid #404040;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #404040;
+        }
+        
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #e0e0e0;
+            margin: 0;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #888;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+        }
+        
+        .close-btn:hover {
+            color: #e0e0e0;
+            background: #333;
+        }
+        
+        /* Loading and messages */
+        .loading {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #888;
+            font-style: italic;
+        }
+        
+        .loading::after {
+            content: '';
+            width: 16px;
+            height: 16px;
+            border: 2px solid #333;
+            border-top: 2px solid #4a9eff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        
+        .alert-success {
+            background: linear-gradient(135deg, #1e3d29 0%, #2d5a41 100%);
+            color: #4ade80;
+            border: 1px solid #16a34a;
+            box-shadow: 0 2px 8px rgba(74, 222, 128, 0.2);
+        }
+        
+        .alert-error {
+            background: linear-gradient(135deg, #3d1e1e 0%, #5a2d2d 100%);
+            color: #f87171;
+            border: 1px solid #dc2626;
+            box-shadow: 0 2px 8px rgba(248, 113, 113, 0.2);
+        }
+        
+        .alert-warning {
+            background: linear-gradient(135deg, #3d3a1e 0%, #5a5330 100%);
+            color: #fbbf24;
+            border: 1px solid #d97706;
+            box-shadow: 0 2px 8px rgba(251, 191, 36, 0.2);
+        }
+        
+        /* Hidden utility */
+        .hidden {
+            display: none !important;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .section {
+                padding: 20px;
+            }
+            
+            .form-row, .form-row-3 {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            
+            .table-container {
+                font-size: 14px;
+            }
+            
+            table th, table td {
+                padding: 8px 12px;
+            }
+        }
+        
+        /* Stats Card */
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: #242424;
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+            border: 1px solid #404040;
+        }
+        
+        .stat-title {
+            font-size: 0.9rem;
+            color: #888;
+            margin-bottom: 5px;
+        }
+        
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #4a9eff;
+            margin-bottom: 5px;
+        }
+        
+        .stat-revenue {
+            color: #4ade80;
+        }
+        
+        .stat-cost {
+            color: #f87171;
+        }
+        
+        .stat-profit {
+            color: #60a5fa;
+        }
+        
+        .table-pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding: 10px;
+            background: #1e1e1e;
+            border-radius: 8px;
+            border: 1px solid #404040;
+        }
+        
+        .pagination-info {
+            color: #888;
+            font-size: 14px;
+        }
+        
+        .pagination-controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        /* Badge status indicators */
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        .badge-success {
+            background-color: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.4);
+        }
+        
+        .badge-warning {
+            background-color: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+            border: 1px solid rgba(251, 191, 36, 0.4);
+        }
+        
+        .badge-danger {
+            background-color: rgba(248, 113, 113, 0.2);
+            color: #f87171;
+            border: 1px solid rgba(248, 113, 113, 0.4);
+        }
+        
+        .badge-info {
+            background-color: rgba(96, 165, 250, 0.2);
+            color: #60a5fa;
+            border: 1px solid rgba(96, 165, 250, 0.4);
+        }
+        
+        /* Search and filter bar */
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .filter-bar input,
+        .filter-bar select {
+            max-width: 200px;
+        }
+        
+        .actions-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Bid Items Management</h1>
+            <p>LSEC SA Project Bid Items</p>
+        </div>
+        
+        <!-- Project Selection -->
+        <div class="section">
+            <div class="section-header">
+                <span class="section-number">1</span>
+                Select Project
+            </div>
+            
+            <div class="form-group">
+                <label for="project">Project:</label>
+                <select id="project" required>
+                    <option value="">-- Select Project --</option>
+                </select>
+                <div id="projectLoader" class="loading hidden">Loading projects</div>
+            </div>
+        </div>
+        
+        <!-- Project Bid Items Section -->
+        <div id="bidItemsSection" class="section hidden">
+            <div class="section-header">
+                <span class="section-number">2</span>
+                Project Bid Items
+            </div>
+            
+            <div class="stats-container">
+                <div class="stat-card">
+                    <div class="stat-title">Total Items</div>
+                    <div class="stat-value" id="totalItems">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Average Rate</div>
+                    <div class="stat-value stat-revenue" id="avgRate">$0.00</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Average Cost</div>
+                    <div class="stat-value stat-cost" id="avgCost">$0.00</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Average Markup</div>
+                    <div class="stat-value stat-profit" id="avgMarkup">0.00%</div>
+                </div>
+            </div>
+            
+            <div class="actions-bar">
+                <div class="filter-bar">
+                    <input type="text" id="searchInput" placeholder="Search items..." class="search-input">
+                    <select id="categoryFilter">
+                        <option value="">All Categories</option>
+                    </select>
+                </div>
+                
+                <button type="button" id="addBidItemBtn" class="btn btn-success">
+                    ➕ Add Bid Item
+                </button>
+            </div>
+            
+            <div class="table-container">
+                <table id="bidItemsTable">
+                    <thead>
+                        <tr>
+                            <th>Item Code</th>
+                            <th>Item Name</th>
+                            <th>Category</th>
+                            <th>Unit</th>
+                            <th>Rate</th>
+                            <th>Cost</th>
+                            <th>Markup</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bidItemsTableBody">
+                        <tr>
+                            <td colspan="8" class="loading">Loading bid items...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Result Messages -->
+        <div id="resultMessage"></div>
+    </div>
+    
+    <!-- Add/Edit Bid Item Modal -->
+    <div id="bidItemModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">Add Bid Item</h3>
+                <button type="button" class="close-btn" onclick="closeBidItemModal()">&times;</button>
+            </div>
+            
+            <form id="bidItemForm">
+                <input type="hidden" id="projectBidItemId" value="">
+                
+                <div class="form-group">
+                    <label for="bidItem">Bid Item:</label>
+                    <select id="bidItem" required>
+                        <option value="">-- Select Bid Item --</option>
+                    </select>
+                </div>
+                
+                <div class="form-row-3">
+                    <div class="form-group">
+                        <label for="itemRate">Rate ($):</label>
+                        <input type="number" id="itemRate" min="0" step="0.01" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="itemCost">Cost ($):</label>
+                        <input type="number" id="itemCost" min="0" step="0.01" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="itemUnit">Unit:</label>
+                        <select id="itemUnit" required>
+                            <option value="EA">Each (EA)</option>
+                            <option value="LF">Linear Feet (LF)</option>
+                            <option value="SY">Square Yard (SY)</option>
+                            <option value="SF">Square Feet (SF)</option>
+                            <option value="CY">Cubic Yard (CY)</option>
+                            <option value="AC">Acre (AC)</option>
+                            <option value="HR">Hour (HR)</option>
+                            <option value="DAY">Day (DAY)</option>
+                            <option value="MO">Month (MO)</option>
+                            <option value="TON">Ton (TON)</option>
+                            <option value="LS">Lump Sum (LS)</option>
+                            <option value="GAL">Gallon (GAL)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="itemMarkup">Markup %:</label>
+                    <input type="text" id="itemMarkup" readonly>
+                    <small style="color: #888; display: block; margin-top: 5px;">Auto-calculated based on rate and cost</small>
+                </div>
+                
+                <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeBidItemModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success">Save Bid Item</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3 class="modal-title">Confirm Delete</h3>
+                <button type="button" class="close-btn" onclick="closeDeleteModal()">&times;</button>
+            </div>
+            
+            <p>Are you sure you want to delete this bid item from the project?</p>
+            <p id="deleteItemDetails" style="font-weight: 600; color: #f87171;"></p>
+            
+            <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+                <button type="button" id="confirmDeleteBtn" class="btn btn-danger">Delete</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Configuration
+        const API_BASE = '/.netlify/functions/';
+        
+        // Global variables
+        let allBidItems = [];
+        let projectBidItems = [];
+        let selectedProjectId = null;
+        let itemToDeleteId = null;
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            loadProjects();
+            setupEventListeners();
+        });
+        
+        // API Helper function
+        async function apiCall(endpoint, options = {}) {
+            try {
+                const response = await fetch(API_BASE + 'api/' + endpoint, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error(`API call failed for ${endpoint}:`, error);
+                throw error;
+            }
+        }
+        
+        // Load projects
+        async function loadProjects() {
+            const loader = document.getElementById('projectLoader');
+            const select = document.getElementById('project');
+            
+            try {
+                loader.classList.remove('hidden');
+                
+                const projects = await apiCall('projects');
+                
+                projects.forEach(project => {
+                    const option = document.createElement('option');
+                    option.value = project.id;
+                    option.textContent = project.name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading projects:', error);
+                showMessage('Error loading projects data.', 'error');
+            } finally {
+                loader.classList.add('hidden');
+            }
+        }
+        
+        // Load all bid items
+        async function loadAllBidItems() {
+            try {
+                allBidItems = await apiCall('bid-items');
+                
+                // Populate the bid item dropdown in the modal
+                const select = document.getElementById('bidItem');
+                
+                // Clear existing options except first
+                while (select.options.length > 1) {
+                    select.remove(1);
+                }
+                
+                // Group items by category
+                const itemsByCategory = {};
+                allBidItems.forEach(item => {
+                    if (!itemsByCategory[item.category]) {
+                        itemsByCategory[item.category] = [];
+                    }
+                    itemsByCategory[item.category].push(item);
+                });
+                
+                // Create option groups for each category
+                Object.keys(itemsByCategory).sort().forEach(category => {
+                    const group = document.createElement('optgroup');
+                    group.label = category;
+                    
+                    itemsByCategory[category].sort((a, b) => a.item_code.localeCompare(b.item_code)).forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.id;
+                        option.textContent = `${item.item_code} - ${item.item_name}`;
+                        option.dataset.itemCode = item.item_code;
+                        option.dataset.itemName = item.item_name;
+                        option.dataset.category = item.category;
+                        group.appendChild(option);
+                    });
+                    
+                    select.appendChild(group);
+                });
+                
+                // Also populate the category filter dropdown
+                populateCategoryFilter(Object.keys(itemsByCategory).sort());
+                
+            } catch (error) {
+                console.error('Error loading bid items:', error);
+                showMessage('Error loading bid items.', 'error');
+            }
+        }
+        
+        // Populate category filter dropdown
+        function populateCategoryFilter(categories) {
+            const select = document.getElementById('categoryFilter');
+            
+            // Clear existing options except first
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+            
+            categories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                select.appendChild(option);
+            });
+        }
+        
+        // Load project bid items
+        async function loadProjectBidItems(projectId) {
+            if (!projectId) return;
+            
+            try {
+                document.getElementById('bidItemsTableBody').innerHTML = '<tr><td colspan="8" class="loading">Loading bid items...</td></tr>';
+                
+                projectBidItems = await apiCall(`project-bid-items?project_id=${projectId}`);
+                renderBidItemsTable();
+                updateStats();
+                
+                document.getElementById('bidItemsSection').classList.remove('hidden');
+            } catch (error) {
+                console.error('Error loading project bid items:', error);
+                showMessage('Error loading project bid items.', 'error');
+            }
+        }
+        
+        // Render bid items table
+        function renderBidItemsTable() {
+            const tableBody = document.getElementById('bidItemsTableBody');
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const categoryFilter = document.getElementById('categoryFilter').value;
+            
+            // Filter items
+            let filteredItems = projectBidItems;
+            
+            if (searchTerm) {
+                filteredItems = filteredItems.filter(item => 
+                    item.item_code.toLowerCase().includes(searchTerm) ||
+                    item.item_name.toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            if (categoryFilter) {
+                filteredItems = filteredItems.filter(item => item.category === categoryFilter);
+            }
+            
+            // Sort items by item_code
+            filteredItems.sort((a, b) => a.item_code.localeCompare(b.item_code));
+            
+            if (filteredItems.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 20px;">No bid items found.</td></tr>`;
+                return;
+            }
+            
+            tableBody.innerHTML = '';
+            
+            filteredItems.forEach(item => {
+                const markupPercent = item.current_cost > 0 
+                    ? ((item.rate - item.current_cost) / item.current_cost * 100).toFixed(2) 
+                    : 'N/A';
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.item_code}</td>
+                    <td>${item.item_name}</td>
+                    <td>${item.category}</td>
+                    <td>${item.unit}</td>
+                    <td>$${item.rate.toFixed(2)}</td>
+                    <td>$${item.current_cost.toFixed(2)}</td>
+                    <td>${markupPercent}%</td>
+                    <td class="td-actions">
+                        <button class="btn btn-secondary btn-sm edit-btn" data-id="${item.project_bid_item_id}">Edit</button>
+                        <button class="btn btn-danger btn-sm delete-btn" data-id="${item.project_bid_item_id}" 
+                                data-code="${item.item_code}" data-name="${item.item_name}">Delete</button>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+            
+            // Add event listeners to buttons
+            document.querySelectorAll('.edit-btn').forEach(btn => {
+                btn.addEventListener('click', () => editBidItem(btn.dataset.id));
+            });
+            
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', () => showDeleteConfirmation(
+                    btn.dataset.id, 
+                    btn.dataset.code, 
+                    btn.dataset.name
+                ));
+            });
+        }
+        
+        // Update statistics
+        function updateStats() {
+            const totalItems = projectBidItems.length;
+            
+            let totalRate = 0;
+            let totalCost = 0;
+            let totalValidMarkups = 0;
+            
+            projectBidItems.forEach(item => {
+                totalRate += item.rate;
+                totalCost += item.current_cost;
+                
+                if (item.current_cost > 0) {
+                    totalValidMarkups++;
+                }
+            });
+            
+            const avgRate = totalItems > 0 ? totalRate / totalItems : 0;
+            const avgCost = totalItems > 0 ? totalCost / totalItems : 0;
+            
+            // Calculate average markup
+            let avgMarkup = 0;
+            if (totalValidMarkups > 0) {
+                let totalMarkupPercent = 0;
+                projectBidItems.forEach(item => {
+                    if (item.current_cost > 0) {
+                        const markupPercent = ((item.rate - item.current_cost) / item.current_cost * 100);
+                        totalMarkupPercent += markupPercent;
+                    }
+                });
+                avgMarkup = totalMarkupPercent / totalValidMarkups;
+            }
+            
+            document.getElementById('totalItems').textContent = totalItems;
+            document.getElementById('avgRate').textContent = `$${avgRate.toFixed(2)}`;
+            document.getElementById('avgCost').textContent = `$${avgCost.toFixed(2)}`;
+            document.getElementById('avgMarkup').textContent = `${avgMarkup.toFixed(2)}%`;
+        }
+        
+        // Setup event listeners
+        function setupEventListeners() {
+            // Project change
+            document.getElementById('project').addEventListener('change', function() {
+                selectedProjectId = this.value;
+                
+                if (selectedProjectId) {
+                    loadAllBidItems();  // Load bid items for the dropdown
+                    loadProjectBidItems(selectedProjectId);
+                } else {
+                    document.getElementById('bidItemsSection').classList.add('hidden');
+                }
+            });
+            
+            // Search and filter
+            document.getElementById('searchInput').addEventListener('input', renderBidItemsTable);
+            document.getElementById('categoryFilter').addEventListener('change', renderBidItemsTable);
+            
+            // Add bid item button
+            document.getElementById('addBidItemBtn').addEventListener('click', showAddBidItemModal);
+            
+            // Bid item form submission
+            document.getElementById('bidItemForm').addEventListener('submit', saveBidItem);
+            
+            // Auto-calculate markup
+            document.getElementById('itemRate').addEventListener('input', calculateMarkup);
+            document.getElementById('itemCost').addEventListener('input', calculateMarkup);
+            
+            // Delete confirmation
+            document.getElementById('confirmDeleteBtn').addEventListener('click', deleteBidItem);
+        }
+        
+        // Calculate markup
+        function calculateMarkup() {
+            const rate = parseFloat(document.getElementById('itemRate').value) || 0;
+            const cost = parseFloat(document.getElementById('itemCost').value) || 0;
+            
+            let markup = 0;
+            if (cost > 0) {
+                markup = ((rate - cost) / cost * 100).toFixed(2);
+            } else {
+                markup = 'N/A';
+            }
+            
+            document.getElementById('itemMarkup').value = markup + '%';
+        }
+        
+        // Show add bid item modal
+        function showAddBidItemModal() {
+            document.getElementById('modalTitle').textContent = 'Add Bid Item';
+            document.getElementById('projectBidItemId').value = '';
+            document.getElementById('bidItemForm').reset();
+            document.getElementById('bidItem').disabled = false;
+            document.getElementById('bidItemModal').classList.add('show');
+        }
+        
+        // Edit bid item
+        function editBidItem(id) {
+            const item = projectBidItems.find(item => item.project_bid_item_id == id);
+            
+            if (!item) {
+                showMessage('Item not found.', 'error');
+                return;
+            }
+            
+            document.getElementById('modalTitle').textContent = 'Edit Bid Item';
+            document.getElementById('projectBidItemId').value = id;
+            document.getElementById('bidItem').value = item.bid_item_id;
+            document.getElementById('bidItem').disabled = true; // Can't change the bid item
+            document.getElementById('itemRate').value = item.rate;
+            document.getElementById('itemCost').value = item.current_cost;
+            document.getElementById('itemUnit').value = item.unit;
+            
+            // Calculate markup
+            calculateMarkup();
+            
+            document.getElementById('bidItemModal').classList.add('show');
+        }
+        
+        // Close bid item modal
+        function closeBidItemModal() {
+            document.getElementById('bidItemModal').classList.remove('show');
+        }
+        
+        // Save bid item
+        async function saveBidItem(event) {
+            event.preventDefault();
+            
+            const projectBidItemId = document.getElementById('projectBidItemId').value;
+            const bidItemId = document.getElementById('bidItem').value;
+            const rate = parseFloat(document.getElementById('itemRate').value);
+            const cost = parseFloat(document.getElementById('itemCost').value);
+            const unit = document.getElementById('itemUnit').value;
+            
+            if (!bidItemId) {
+                showMessage('Please select a bid item.', 'error');
+                return;
+            }
+            
+            try {
+                const itemData = {
+                    project_id: selectedProjectId,
+                    bid_item_id: bidItemId,
+                    rate: rate,
+                    current_cost: cost,
+                    unit: unit
+                };
+                
+                let result;
+                
+                if (projectBidItemId) {
+                    // Update existing item
+                    result = await apiCall(`update-project-bid-item/${projectBidItemId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify(itemData)
+                    });
+                    
+                    showMessage('Bid item updated successfully.', 'success');
+                } else {
+                    // Check if item already exists in project
+                    const exists = projectBidItems.some(item => item.bid_item_id == bidItemId);
+                    
+                    if (exists) {
+                        showMessage('This bid item is already in the project.', 'error');
+                        return;
+                    }
+                    
+                    // Add new item
+                    result = await apiCall('add-project-bid-item', {
+                        method: 'POST',
+                        body: JSON.stringify(itemData)
+                    });
+                    
+                    showMessage('Bid item added successfully.', 'success');
+                }
+                
+                // Refresh bid items
+                loadProjectBidItems(selectedProjectId);
+                
+                // Close modal
+                closeBidItemModal();
+                
+            } catch (error) {
+                console.error('Error saving bid item:', error);
+                showMessage('Error saving bid item: ' + error.message, 'error');
+            }
+        }
+        
+        // Show delete confirmation
+        function showDeleteConfirmation(id, code, name) {
+            itemToDeleteId = id;
+            document.getElementById('deleteItemDetails').textContent = `${code} - ${name}`;
+            document.getElementById('deleteModal').classList.add('show');
+        }
+        
+        // Close delete modal
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').classList.remove('show');
+            itemToDeleteId = null;
+        }
+        
+        // Delete bid item
+        async function deleteBidItem() {
+            if (!itemToDeleteId) return;
+            
+            try {
+                await apiCall(`delete-project-bid-item/${itemToDeleteId}`, {
+                    method: 'DELETE'
+                });
+                
+                showMessage('Bid item removed from project successfully.', 'success');
+                
+                // Refresh bid items
+                loadProjectBidItems(selectedProjectId);
+                
+                // Close modal
+                closeDeleteModal();
+                
+            } catch (error) {
+                console.error('Error deleting bid item:', error);
+                showMessage('Error deleting bid item: ' + error.message, 'error');
+            }
+        }
+        
+        // Show message
+        function showMessage(message, type) {
+            const resultDiv = document.getElementById('resultMessage');
+            resultDiv.className = `alert alert-${type}`;
+            resultDiv.textContent = message;
+            
+            // Auto-hide success messages
+            if (type === 'success') {
+                setTimeout(() => {
+                    resultDiv.innerHTML = '';
+                    resultDiv.className = '';
+                }, 5000);
+            }
+        }
+    </script>
+</body>
+</html>
