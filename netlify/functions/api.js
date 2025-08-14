@@ -122,7 +122,7 @@ exports.handler = async (event, context) => {
           JOIN bid_items bi ON pbi.bid_item_id = bi.id
           WHERE pbi.project_id = ${bidProjectId} 
             AND pbi.is_active = true
-          ORDER BY bi.item_code
+          ORDER BY bi.category, bi.item_code
         `;
         console.log('Project bid items loaded:', bidItems.length);
         return { statusCode: 200, headers, body: JSON.stringify(bidItems) };
@@ -134,7 +134,7 @@ exports.handler = async (event, context) => {
           SELECT id, item_code, item_name, category, description, material_cost, default_unit 
           FROM bid_items 
           WHERE is_active = true 
-          ORDER BY item_code
+          ORDER BY category, item_code
         `;
         console.log('Bid items loaded:', bidItems.length);
         return { statusCode: 200, headers, body: JSON.stringify(bidItems) };
@@ -150,7 +150,6 @@ exports.handler = async (event, context) => {
               item_code,
               item_name,
               category,
-              subcategory,
               default_unit,
               material_cost,
               description,
