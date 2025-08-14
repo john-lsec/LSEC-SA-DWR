@@ -1036,6 +1036,7 @@
                 
                 showMessage(`Successfully updated ${updates.length} item(s)`, 'success');
                 modifiedItems = {};
+                updateSaveBar(); // Hide the save bar immediately
                 await loadBidItems();
                 
             } catch (error) {
