@@ -624,8 +624,8 @@
                     <div class="stat-value stat-revenue" id="avgRate">$0.00</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-title">Average Cost</div>
-                    <div class="stat-value stat-cost" id="avgCost">$0.00</div>
+                    <div class="stat-title">Average Material Cost</div>
+                    <div class="stat-value stat-cost" id="avgMaterialCost">$0.00</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-title">Average Markup</div>
@@ -655,7 +655,7 @@
                             <th>Category</th>
                             <th>Unit</th>
                             <th>Rate</th>
-                            <th>Cost</th>
+                            <th>Material Cost</th>
                             <th>Markup</th>
                             <th>Actions</th>
                         </tr>
@@ -700,8 +700,8 @@
                     </div>
                     
                     <div class="form-group">
-                        <label for="itemCost">Cost ($):</label>
-                        <input type="number" id="itemCost" min="0" step="0.01" required>
+                        <label for="itemMaterialCost">Material Cost ($):</label>
+                        <input type="number" id="itemMaterialCost" min="0" step="0.01" required>
                     </div>
                     
                     <div class="form-group">
@@ -726,7 +726,7 @@
                 <div class="form-group">
                     <label for="itemMarkup">Markup %:</label>
                     <input type="text" id="itemMarkup" readonly>
-                    <small style="color: #888; display: block; margin-top: 5px;">Auto-calculated based on rate and cost</small>
+                    <small style="color: #888; display: block; margin-top: 5px;">Auto-calculated based on rate and material cost</small>
                 </div>
                 
                 <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
@@ -1042,11 +1042,11 @@
             filteredItems.forEach(item => {
                 // Ensure numeric values
                 const rate = Number(item.rate);
-                const cost = Number(item.current_cost);
+                const materialCost = Number(item.material_cost);
                 
                 // Calculate markup percentage
-                const markupPercent = cost > 0 
-                    ? ((rate - cost) / cost * 100).toFixed(2) 
+                const markupPercent = materialCost > 0 
+                    ? ((rate - materialCost) / materialCost * 100).toFixed(2) 
                     : 'N/A';
                 
                 const row = document.createElement('tr');
@@ -1055,8 +1055,8 @@
                     <td>${item.item_name}</td>
                     <td>${item.category}</td>
                     <td>${item.unit}</td>
-                    <td>$${rate.toFixed(2)}</td>
-                    <td>$${cost.toFixed(2)}</td>
+                    <td>${rate.toFixed(2)}</td>
+                    <td>${materialCost.toFixed(2)}</td>
                     <td>${markupPercent}%</td>
                     <td class="td-actions">
                         <button class="btn btn-secondary btn-sm edit-btn" data-id="${item.project_bid_item_id}">Edit</button>
@@ -1087,24 +1087,24 @@
             const totalItems = projectBidItems.length;
             
             let totalRate = 0;
-            let totalCost = 0;
+            let totalMaterialCost = 0;
             let totalValidMarkups = 0;
             
             projectBidItems.forEach(item => {
                 // Ensure numeric values
                 const rate = Number(item.rate);
-                const cost = Number(item.current_cost);
+                const materialCost = Number(item.material_cost);
                 
                 totalRate += rate;
-                totalCost += cost;
+                totalMaterialCost += materialCost;
                 
-                if (cost > 0) {
+                if (materialCost > 0) {
                     totalValidMarkups++;
                 }
             });
             
             const avgRate = totalItems > 0 ? totalRate / totalItems : 0;
-            const avgCost = totalItems > 0 ? totalCost / totalItems : 0;
+            const avgMaterialCost = totalItems > 0 ? totalMaterialCost / totalItems : 0;
             
             // Calculate average markup
             let avgMarkup = 0;
@@ -1113,10 +1113,10 @@
                 projectBidItems.forEach(item => {
                     // Ensure numeric values
                     const rate = Number(item.rate);
-                    const cost = Number(item.current_cost);
+                    const materialCost = Number(item.material_cost);
                     
-                    if (cost > 0) {
-                        const markupPercent = ((rate - cost) / cost * 100);
+                    if (materialCost > 0) {
+                        const markupPercent = ((rate - materialCost) / materialCost * 100);
                         totalMarkupPercent += markupPercent;
                     }
                 });
@@ -1124,8 +1124,8 @@
             }
             
             document.getElementById('totalItems').textContent = totalItems;
-            document.getElementById('avgRate').textContent = `$${avgRate.toFixed(2)}`;
-            document.getElementById('avgCost').textContent = `$${avgCost.toFixed(2)}`;
+            document.getElementById('avgRate').textContent = `${avgRate.toFixed(2)}`;
+            document.getElementById('avgMaterialCost').textContent = `${avgMaterialCost.toFixed(2)}`;
             document.getElementById('avgMarkup').textContent = `${avgMarkup.toFixed(2)}%`;
         }
         
@@ -1155,7 +1155,7 @@
             
             // Auto-calculate markup
             document.getElementById('itemRate').addEventListener('input', calculateMarkup);
-            document.getElementById('itemCost').addEventListener('input', calculateMarkup);
+            document.getElementById('itemMaterialCost').addEventListener('input', calculateMarkup);
             
             // Delete confirmation
             document.getElementById('confirmDeleteBtn').addEventListener('click', deleteBidItem);
@@ -1164,11 +1164,11 @@
         // Calculate markup
         function calculateMarkup() {
             const rate = parseFloat(document.getElementById('itemRate').value) || 0;
-            const cost = parseFloat(document.getElementById('itemCost').value) || 0;
+            const materialCost = parseFloat(document.getElementById('itemMaterialCost').value) || 0;
             
             let markup = 0;
-            if (cost > 0) {
-                markup = ((rate - cost) / cost * 100).toFixed(2);
+            if (materialCost > 0) {
+                markup = ((rate - materialCost) / materialCost * 100).toFixed(2);
             } else {
                 markup = 'N/A';
             }
@@ -1205,7 +1205,7 @@
             document.getElementById('bidItem').disabled = true; // Can't change the bid item
             
             document.getElementById('itemRate').value = item.rate;
-            document.getElementById('itemCost').value = item.current_cost;
+            document.getElementById('itemMaterialCost').value = item.material_cost;
             document.getElementById('itemUnit').value = item.unit;
             
             // Calculate markup
@@ -1229,7 +1229,7 @@
             const projectBidItemId = document.getElementById('projectBidItemId').value;
             const bidItemId = document.getElementById('bidItemId').value;
             const rate = parseFloat(document.getElementById('itemRate').value);
-            const cost = parseFloat(document.getElementById('itemCost').value);
+            const materialCost = parseFloat(document.getElementById('itemMaterialCost').value);
             const unit = document.getElementById('itemUnit').value;
             
             if (!bidItemId) {
@@ -1242,7 +1242,7 @@
                     project_id: selectedProjectId,
                     bid_item_id: bidItemId,
                     rate: rate,
-                    current_cost: cost,
+                    material_cost: materialCost,
                     unit: unit
                 };
                 
