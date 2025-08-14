@@ -701,25 +701,14 @@
                     
                     <div class="form-group">
                         <label for="itemMaterialCost">Material Cost ($):</label>
-                        <input type="number" id="itemMaterialCost" min="0" step="0.01" required>
+                        <input type="number" id="itemMaterialCost" min="0" step="0.01" readonly style="background: #1a1a1a; cursor: not-allowed;">
+                        <small style="color: #666; display: block; margin-top: 5px;">From master bid item</small>
                     </div>
                     
                     <div class="form-group">
                         <label for="itemUnit">Unit:</label>
-                        <select id="itemUnit" required>
-                            <option value="EA">Each (EA)</option>
-                            <option value="LF">Linear Feet (LF)</option>
-                            <option value="SY">Square Yard (SY)</option>
-                            <option value="SF">Square Feet (SF)</option>
-                            <option value="CY">Cubic Yard (CY)</option>
-                            <option value="AC">Acre (AC)</option>
-                            <option value="HR">Hour (HR)</option>
-                            <option value="DAY">Day (DAY)</option>
-                            <option value="MO">Month (MO)</option>
-                            <option value="TON">Ton (TON)</option>
-                            <option value="LS">Lump Sum (LS)</option>
-                            <option value="GAL">Gallon (GAL)</option>
-                        </select>
+                        <input type="text" id="itemUnit" readonly style="background: #1a1a1a; cursor: not-allowed;">
+                        <small style="color: #666; display: block; margin-top: 5px;">From master bid item</small>
                     </div>
                 </div>
                 
@@ -912,6 +901,14 @@
                         itemDiv.addEventListener('click', function() {
                             input.value = displayText;
                             hiddenInput.value = item.id;
+                            
+                            // Auto-populate material cost and unit from the selected bid item
+                            document.getElementById('itemMaterialCost').value = item.material_cost || 0;
+                            document.getElementById('itemUnit').value = item.default_unit || 'EA';
+                            
+                            // Trigger markup calculation
+                            calculateMarkup();
+                            
                             autocompleteDiv.innerHTML = '';
                             autocompleteDiv.style.display = 'none';
                         });
@@ -1153,9 +1150,8 @@
             // Bid item form submission
             document.getElementById('bidItemForm').addEventListener('submit', saveBidItem);
             
-            // Auto-calculate markup
+            // Auto-calculate markup (only listens to rate changes now)
             document.getElementById('itemRate').addEventListener('input', calculateMarkup);
-            document.getElementById('itemMaterialCost').addEventListener('input', calculateMarkup);
             
             // Delete confirmation
             document.getElementById('confirmDeleteBtn').addEventListener('click', deleteBidItem);
@@ -1166,14 +1162,12 @@
             const rate = parseFloat(document.getElementById('itemRate').value) || 0;
             const materialCost = parseFloat(document.getElementById('itemMaterialCost').value) || 0;
             
-            let markup = 0;
+            let markup = 'N/A';
             if (materialCost > 0) {
-                markup = ((rate - materialCost) / materialCost * 100).toFixed(2);
-            } else {
-                markup = 'N/A';
+                markup = ((rate - materialCost) / materialCost * 100).toFixed(2) + '%';
             }
             
-            document.getElementById('itemMarkup').value = markup + '%';
+            document.getElementById('itemMarkup').value = markup;
         }
         
         // Show add bid item modal
@@ -1183,6 +1177,8 @@
             document.getElementById('bidItemForm').reset();
             document.getElementById('bidItem').disabled = false;
             document.getElementById('bidItemId').value = '';
+            document.getElementById('itemMaterialCost').value = '';
+            document.getElementById('itemUnit').value = '';
             document.getElementById('bidItemModal').classList.add('show');
         }
         
@@ -1205,6 +1201,8 @@
             document.getElementById('bidItem').disabled = true; // Can't change the bid item
             
             document.getElementById('itemRate').value = item.rate;
+            
+            // Material cost and unit are read-only and come from the project bid item record
             document.getElementById('itemMaterialCost').value = item.material_cost;
             document.getElementById('itemUnit').value = item.unit;
             
@@ -1229,13 +1227,21 @@
             const projectBidItemId = document.getElementById('projectBidItemId').value;
             const bidItemId = document.getElementById('bidItemId').value;
             const rate = parseFloat(document.getElementById('itemRate').value);
-            const materialCost = parseFloat(document.getElementById('itemMaterialCost').value);
-            const unit = document.getElementById('itemUnit').value;
             
             if (!bidItemId) {
                 showMessage('Please select a bid item.', 'error');
                 return;
             }
+            
+            // Get material cost and unit from the bid items lookup
+            const selectedBidItem = bidItemsLookup[bidItemId];
+            if (!selectedBidItem) {
+                showMessage('Invalid bid item selected.', 'error');
+                return;
+            }
+            
+            const materialCost = selectedBidItem.material_cost || 0;
+            const unit = selectedBidItem.default_unit || 'EA';
             
             try {
                 const itemData = {
@@ -1249,7 +1255,7 @@
                 let result;
                 
                 if (projectBidItemId) {
-                    // Update existing item
+                    // Update existing item (only rate can be updated)
                     result = await apiCall(`update-project-bid-item/${projectBidItemId}`, {
                         method: 'PUT',
                         body: JSON.stringify(itemData)
