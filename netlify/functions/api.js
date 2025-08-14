@@ -17,7 +17,7 @@ exports.handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS, DELETE',
     'Content-Type': 'application/json'
   };
   
@@ -130,6 +130,57 @@ exports.handler = async (event, context) => {
         return { statusCode: 200, headers, body: JSON.stringify(bidItems) };
       }
 
+      case 'bid-items': {
+        console.log('Loading all bid items...');
+        const bidItems = await sql`
+          SELECT id, item_code, item_name, category, description 
+          FROM bid_items 
+          WHERE is_active = true 
+          ORDER BY item_code
+        `;
+        console.log('Bid items loaded:', bidItems.length);
+        return { statusCode: 200, headers, body: JSON.stringify(bidItems) };
+      }
+      
+      case 'add-project-bid-item': {
+        if (event.httpMethod !== 'POST') {
+          return { statusCode: 405, headers, body: JSON.stringify({ error: 'POST required' }) };
+        }
+        
+        console.log('Adding project bid item...');
+        const data = JSON.parse(event.body);
+        const { project_id, bid_item_id, rate, current_cost, unit } = data;
+        
+        // Validate required fields
+        if (!project_id || !bid_item_id || rate === undefined || current_cost === undefined || !unit) {
+          return { 
+            statusCode: 400, 
+            headers, 
+            body: JSON.stringify({ error: 'Missing required fields' }) 
+          };
+        }
+        
+        // Insert project bid item
+        const [projectBidItem] = await sql`
+          INSERT INTO project_bid_items (
+            project_id, bid_item_id, rate, current_cost, unit, is_active
+          ) VALUES (
+            ${project_id}, ${bid_item_id}, ${rate}, ${current_cost}, ${unit}, true
+          ) RETURNING id
+        `;
+        
+        console.log('Project bid item added with ID:', projectBidItem.id);
+        return { 
+          statusCode: 200, 
+          headers, 
+          body: JSON.stringify({ 
+            success: true, 
+            id: projectBidItem.id,
+            message: 'Project bid item added successfully' 
+          }) 
+        };
+      }
+
       case 'submit-dwr': {
         if (event.httpMethod !== 'POST') {
           return { statusCode: 405, headers, body: JSON.stringify({ error: 'POST required' }) };
@@ -210,6 +261,81 @@ exports.handler = async (event, context) => {
       }
         
       default: {
+        // Check if the path starts with "update-project-bid-item/"
+        if (path.startsWith('update-project-bid-item/')) {
+          const projectBidItemId = path.replace('update-project-bid-item/', '');
+          
+          if (!projectBidItemId) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Item ID required' }) };
+          }
+          
+          if (event.httpMethod !== 'PUT') {
+            return { statusCode: 405, headers, body: JSON.stringify({ error: 'PUT required' }) };
+          }
+          
+          console.log('Updating project bid item:', projectBidItemId);
+          const data = JSON.parse(event.body);
+          const { rate, current_cost, unit } = data;
+          
+          // Validate required fields
+          if (rate === undefined || current_cost === undefined || !unit) {
+            return { 
+              statusCode: 400, 
+              headers, 
+              body: JSON.stringify({ error: 'Missing required fields' }) 
+            };
+          }
+          
+          // Update project bid item
+          await sql`
+            UPDATE project_bid_items 
+            SET rate = ${rate}, current_cost = ${current_cost}, unit = ${unit}
+            WHERE id = ${projectBidItemId}
+          `;
+          
+          console.log('Project bid item updated successfully');
+          return { 
+            statusCode: 200, 
+            headers, 
+            body: JSON.stringify({ 
+              success: true, 
+              message: 'Project bid item updated successfully' 
+            }) 
+          };
+        }
+        
+        // Check if the path starts with "delete-project-bid-item/"
+        if (path.startsWith('delete-project-bid-item/')) {
+          const projectBidItemId = path.replace('delete-project-bid-item/', '');
+          
+          if (!projectBidItemId) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Item ID required' }) };
+          }
+          
+          if (event.httpMethod !== 'DELETE') {
+            return { statusCode: 405, headers, body: JSON.stringify({ error: 'DELETE required' }) };
+          }
+          
+          console.log('Deleting project bid item:', projectBidItemId);
+          
+          // Soft delete project bid item
+          await sql`
+            UPDATE project_bid_items 
+            SET is_active = false
+            WHERE id = ${projectBidItemId}
+          `;
+          
+          console.log('Project bid item deleted successfully');
+          return { 
+            statusCode: 200, 
+            headers, 
+            body: JSON.stringify({ 
+              success: true, 
+              message: 'Project bid item deleted successfully' 
+            }) 
+          };
+        }
+        
         console.log('Unknown path:', path);
         return { statusCode: 404, headers, body: JSON.stringify({ error: 'Not found' }) };
       }
