@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #404040;
+        }
+        .test-button {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #357abd;
+        }
+        .result {
+            background: #1a1a1a;
+            border: 1px solid #404040;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success {
+            border-color: #4ade80;
+            color: #4ade80;
+        }
+        .error {
+            border-color: #f87171;
+            color: #f87171;
+        }
+        .info {
+            color: #60a5fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>DWR API Test Page</h1>
+        <p>Use this page to test your API endpoints and diagnose issues.</p>
+
+        <div class="test-section">
+            <h2>Basic Connectivity Tests</h2>
+            <button class="test-button" onclick="testEndpoint('test')">Test API Connection</button>
+            <button class="test-button" onclick="testCORS()">Test CORS</button>
+            <div id="basic-results" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Database Tests</h2>
+            <button class="test-button" onclick="testEndpoint('foremen')">Test Foremen</button>
+            <button class="test-button" onclick="testEndpoint('laborers')">Test Laborers</button>
+            <button class="test-button" onclick="testEndpoint('projects')">Test Projects</button>
+            <div id="db-results" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Equipment Tests</h2>
+            <button class="test-button" onclick="testEquipment('CREW TRUCK')">Test Crew Trucks</button>
+            <button class="test-button" onclick="testEquipment('TRAILER')">Test Trailers</button>
+            <button class="test-button" onclick="testEquipment('MACHINE')">Test Machines</button>
+            <div id="equipment-results" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Environment Check</h2>
+            <button class="test-button" onclick="checkEnvironment()">Check Environment</button>
+            <div id="env-results" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/.netlify/functions/';
+        
+        function log(message, type = 'info', containerId = 'basic-results') {
+            const container = document.getElementById(containerId);
+            const timestamp = new Date().toLocaleTimeString();
+            
+            container.className = `result ${type}`;
+            container.textContent += `[${timestamp}] ${message}\n`;
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function clearResults(containerId) {
+            document.getElementById(containerId).textContent = '';
+        }
+
+        async function testEndpoint(endpoint, containerId = 'basic-results') {
+            clearResults(containerId);
+            log(`Testing endpoint: ${endpoint}`, 'info', containerId);
+            
+            try {
+                const response = await fetch(`${API_BASE}api/${endpoint}`);
+                
+                log(`Response status: ${response.status}`, 'info', containerId);
+                log(`Response headers: ${JSON.stringify(Object.fromEntries(response.headers))}`, 'info', containerId);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`Success! Data: ${JSON.stringify(data, null, 2)}`, 'success', containerId);
+                } else {
+                    const errorText = await response.text();
+                    log(`Error ${response.status}: ${errorText}`, 'error', containerId);
+                }
+            } catch (error) {
+                log(`Network Error: ${error.message}`, 'error', containerId);
+                log(`Error details: ${error.stack}`, 'error', containerId);
+            }
+        }
+
+        async function testEquipment(type) {
+            clearResults('equipment-results');
+            log(`Testing equipment type: ${type}`, 'info', 'equipment-results');
+            
+            try {
+                const response = await fetch(`${API_BASE}api/equipment?type=${encodeURIComponent(type)}`);
+                
+                log(`Response status: ${response.status}`, 'info', 'equipment-results');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`Success! Found ${data.length} items: ${JSON.stringify(data, null, 2)}`, 'success', 'equipment-results');
+                } else {
+                    const errorText = await response.text();
+                    log(`Error ${response.status}: ${errorText}`, 'error', 'equipment-results');
+                }
+            } catch (error) {
+                log(`Network Error: ${error.message}`, 'error', 'equipment-results');
+            }
+        }
+
+        async function testCORS() {
+            log('Testing CORS preflight...', 'info', 'basic-results');
+            
+            try {
+                const response = await fetch(`${API_BASE}api/test`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                log(`CORS preflight status: ${response.status}`, response.ok ? 'success' : 'error', 'basic-results');
+                log(`CORS headers: ${JSON.stringify(Object.fromEntries(response.headers))}`, 'info', 'basic-results');
+            } catch (error) {
+                log(`CORS Error: ${error.message}`, 'error', 'basic-results');
+            }
+        }
+
+        async function checkEnvironment() {
+            clearResults('env-results');
+            log('Checking environment...', 'info', 'env-results');
+            log(`Current URL: ${window.location.href}`, 'info', 'env-results');
+            log(`API Base: ${API_BASE}`, 'info', 'env-results');
+            log(`User Agent: ${navigator.userAgent}`, 'info', 'env-results');
+            
+            // Test basic fetch capability
+            try {
+                const response = await fetch('/');
+                log(`Base site accessible: ${response.ok}`, response.ok ? 'success' : 'error', 'env-results');
+            } catch (error) {
+                log(`Base site error: ${error.message}`, 'error', 'env-results');
+            }
+        }
+
+        // Auto-run basic connectivity test on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => testEndpoint('test'), 1000);
+        });
+    </script>
+</body>
+</html>
