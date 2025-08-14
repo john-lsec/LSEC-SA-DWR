@@ -848,30 +848,52 @@
                 
                 const materialCost = parseFloat(item.material_cost) || 0;
                 
-                // Create category options
-                const categoryOptions = ['CLEARING', 'DEMOLITION', 'EARTHWORK', 'EROSION CONTROL', 
+                // Get all unique categories from the data
+                const allCategories = Array.from(categories).sort();
+                // Add common categories that might not be in the current data
+                const standardCategories = ['CLEARING', 'DEMOLITION', 'EARTHWORK', 'EROSION CONTROL', 
                     'LANDSCAPING', 'MASONRY', 'MISC METALS', 'PAINTING', 'PAVING', 
                     'SITE CONCRETE', 'SPECIALTIES', 'STORM DRAINAGE', 'STRUCTURES', 
-                    'TRAFFIC', 'UTILITIES', 'WATERWORKS']
-                    .map(cat => `<option value="${cat}" ${item.category === cat ? 'selected' : ''}>${cat}</option>`)
+                    'TRAFFIC', 'UTILITIES', 'WATERWORKS'];
+                
+                // Combine and deduplicate categories
+                const combinedCategories = [...new Set([...allCategories, ...standardCategories])].sort();
+                
+                // Create category options with proper selection
+                const categoryOptions = combinedCategories
+                    .map(cat => {
+                        // Handle case-insensitive comparison and trim spaces
+                        const isSelected = item.category && 
+                                         item.category.trim().toUpperCase() === cat.trim().toUpperCase();
+                        return `<option value="${cat}" ${isSelected ? 'selected' : ''}>${cat}</option>`;
+                    })
                     .join('');
                 
-                // Create unit options
-                const unitOptions = ['EA', 'LF', 'SF', 'SY', 'CY', 'TON', 'GAL', 'HR', 'DAY', 'MO', 'LS', 'AC']
-                    .map(unit => `<option value="${unit}" ${item.default_unit === unit ? 'selected' : ''}>${unit}</option>`)
+                // Get all unique units from the data
+                const allUnits = Array.from(units).sort();
+                const standardUnits = ['EA', 'LF', 'SF', 'SY', 'CY', 'TON', 'GAL', 'HR', 'DAY', 'MO', 'LS', 'AC'];
+                const combinedUnits = [...new Set([...allUnits, ...standardUnits])].sort();
+                
+                // Create unit options with proper selection
+                const unitOptions = combinedUnits
+                    .map(unit => {
+                        const isSelected = item.default_unit && 
+                                         item.default_unit.trim().toUpperCase() === unit.trim().toUpperCase();
+                        return `<option value="${unit}" ${isSelected ? 'selected' : ''}>${unit}</option>`;
+                    })
                     .join('');
                 
                 row.innerHTML = `
                     <td>
                         <input type="text" class="editable ${modifiedItems[item.id]?.item_code ? 'changed' : ''}" 
-                               value="${item.item_code}" 
+                               value="${item.item_code || ''}" 
                                data-id="${item.id}" 
                                data-field="item_code"
                                maxlength="20">
                     </td>
                     <td>
                         <input type="text" class="editable ${modifiedItems[item.id]?.item_name ? 'changed' : ''}" 
-                               value="${item.item_name}" 
+                               value="${item.item_name || ''}" 
                                data-id="${item.id}" 
                                data-field="item_name"
                                maxlength="200">
@@ -880,6 +902,7 @@
                         <select class="editable ${modifiedItems[item.id]?.category ? 'changed' : ''}" 
                                 data-id="${item.id}" 
                                 data-field="category">
+                            <option value="">-- Select Category --</option>
                             ${categoryOptions}
                         </select>
                     </td>
@@ -887,6 +910,7 @@
                         <select class="editable ${modifiedItems[item.id]?.default_unit ? 'changed' : ''}" 
                                 data-id="${item.id}" 
                                 data-field="default_unit">
+                            <option value="">-- Select Unit --</option>
                             ${unitOptions}
                         </select>
                     </td>
