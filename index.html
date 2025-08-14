@@ -228,6 +228,134 @@
         .selected-tag .remove:hover {
             background: rgba(255,255,255,0.4);
         }
+
+        /* Item type toggle */
+        .item-type-toggle {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #242424;
+            border-radius: 8px;
+            border: 1px solid #404040;
+        }
+
+        .toggle-label {
+            font-weight: 600;
+            color: #c0c0c0;
+        }
+
+        .toggle-buttons {
+            display: flex;
+            background: #1a1a1a;
+            border-radius: 6px;
+            border: 1px solid #404040;
+            overflow: hidden;
+        }
+
+        .toggle-btn {
+            padding: 8px 16px;
+            background: transparent;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .toggle-btn.active {
+            background: #4a9eff;
+            color: #000;
+        }
+
+        .toggle-btn:hover:not(.active) {
+            background: #333;
+            color: #e0e0e0;
+        }
+
+        /* Bid item info display */
+        .bid-item-info {
+            display: none;
+            background: #242424;
+            border: 1px solid #404040;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .bid-item-info.show {
+            display: block;
+        }
+
+        .bid-info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .bid-info-label {
+            color: #888;
+        }
+
+        .bid-info-value {
+            color: #e0e0e0;
+            font-weight: 500;
+        }
+
+        .bid-info-value.revenue {
+            color: #4ade80;
+        }
+
+        .bid-info-value.cost {
+            color: #f87171;
+        }
+
+        .bid-info-value.profit {
+            color: #60a5fa;
+        }
+
+        /* Line totals in items */
+        .line-totals {
+            background: #1a1a1a;
+            border: 1px solid #404040;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .line-totals.show {
+            display: block;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        .total-label {
+            color: #888;
+        }
+
+        .total-value {
+            font-weight: 600;
+        }
+
+        .total-value.revenue {
+            color: #4ade80;
+        }
+
+        .total-value.cost {
+            color: #f87171;
+        }
+
+        .total-value.profit {
+            color: #60a5fa;
+        }
         
         /* Location input with map button */
         .location-container {
@@ -638,6 +766,15 @@
                     <span class="section-number">2</span>
                     Items Performed
                 </div>
+
+                <!-- Item type toggle -->
+                <div class="item-type-toggle">
+                    <span class="toggle-label">Item Type:</span>
+                    <div class="toggle-buttons">
+                        <button type="button" class="toggle-btn active" data-type="project">Project Items</button>
+                        <button type="button" class="toggle-btn" data-type="bid">Bid Items</button>
+                    </div>
+                </div>
                 
                 <div id="itemsContainer">
                     <!-- Items will be added dynamically -->
@@ -698,16 +835,18 @@
     </div>
 
     <script>
-        // Configuration - Update for GitHub deployment
+        // Configuration - Update for your deployment
         const API_BASE = '/.netlify/functions/';
         const GOOGLE_MAPS_API_KEY = 'AIzaSyBQq_tXLv0APu8LFfjLogSh4cIqo49yJVg'; // Optional
 
         // Global variables
         let currentItemCount = 0;
         let projectItemsMap = {};
+        let projectBidItemsMap = {};
         let selectedLaborers = new Set();
         let selectedMachines = new Set();
         let map, selectedMarker, selectedLatLng, currentLocationInputId;
+        let currentItemType = 'project'; // 'project' or 'bid'
 
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
@@ -886,6 +1025,20 @@
             }
         }
 
+        // Load project bid items
+        async function loadProjectBidItems(projectId) {
+            if (!projectId) return;
+
+            try {
+                const bidItems = await apiCall(`project-bid-items?project_id=${projectId}`);
+                projectBidItemsMap[projectId] = bidItems;
+                updateAllItemDropdowns();
+            } catch (error) {
+                console.error('Error loading project bid items:', error);
+                showMessage('Error loading project bid items.', 'error');
+            }
+        }
+
         // Create multi-select item
         function createMultiSelectItem(id, name, type) {
             const item = document.createElement('div');
@@ -955,12 +1108,25 @@
             document.getElementById('project').addEventListener('change', function() {
                 if (this.value) {
                     loadProjectItems(this.value);
+                    loadProjectBidItems(this.value);
                 }
             });
 
             document.getElementById('billableWork').addEventListener('change', handleBillableWorkChange);
             document.getElementById('addItemBtn').addEventListener('click', addItemSection);
             document.getElementById('dwrForm').addEventListener('submit', handleSubmit);
+
+            // Item type toggle
+            document.querySelectorAll('.toggle-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    if (!this.classList.contains('active')) {
+                        document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+                        this.classList.add('active');
+                        currentItemType = this.dataset.type;
+                        updateAllItemDropdowns();
+                    }
+                });
+            });
         }
 
         // Handle billable work selection
@@ -1022,6 +1188,20 @@
                     <select id="item_${currentItemCount}" required>
                         <option value="">-- Select Item --</option>
                     </select>
+                    <div id="bidInfo_${currentItemCount}" class="bid-item-info">
+                        <div class="bid-info-row">
+                            <span class="bid-info-label">Rate:</span>
+                            <span class="bid-info-value" id="rate_${currentItemCount}">$0.00</span>
+                        </div>
+                        <div class="bid-info-row">
+                            <span class="bid-info-label">Cost:</span>
+                            <span class="bid-info-value" id="cost_${currentItemCount}">$0.00</span>
+                        </div>
+                        <div class="bid-info-row">
+                            <span class="bid-info-label">Markup:</span>
+                            <span class="bid-info-value" id="markup_${currentItemCount}">0.00%</span>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="form-group">
@@ -1093,6 +1273,21 @@
                         <option value="12">12 hours</option>
                     </select>
                 </div>
+
+                <div id="lineTotals_${currentItemCount}" class="line-totals">
+                    <div class="total-row">
+                        <span class="total-label">Line Revenue:</span>
+                        <span class="total-value revenue" id="lineRevenue_${currentItemCount}">$0.00</span>
+                    </div>
+                    <div class="total-row">
+                        <span class="total-label">Line Cost:</span>
+                        <span class="total-value cost" id="lineCost_${currentItemCount}">$0.00</span>
+                    </div>
+                    <div class="total-row">
+                        <span class="total-label">Line Profit:</span>
+                        <span class="total-value profit" id="lineProfit_${currentItemCount}">$0.00</span>
+                    </div>
+                </div>
                 
                 <div class="form-group">
                     <label for="notes_${currentItemCount}">Additional Notes (Optional):</label>
@@ -1103,9 +1298,13 @@
             container.appendChild(itemSection);
             updateAllItemDropdowns();
             
-            // Add event listener for item selection
+            // Add event listeners for item selection and quantity
             document.getElementById(`item_${currentItemCount}`).addEventListener('change', function() {
-                updateUnitLabel(currentItemCount);
+                updateItemInfo(currentItemCount);
+            });
+            
+            document.getElementById(`quantity_${currentItemCount}`).addEventListener('input', function() {
+                updateLineTotals(currentItemCount);
             });
         }
 
@@ -1124,8 +1323,8 @@
         // Update all item dropdowns
         function updateAllItemDropdowns() {
             const projectId = document.getElementById('project').value;
-            if (!projectId || !projectItemsMap[projectId]) return;
-            
+            if (!projectId) return;
+
             document.querySelectorAll('.item-section').forEach(section => {
                 const index = section.dataset.itemIndex;
                 const select = document.getElementById(`item_${index}`);
@@ -1136,34 +1335,101 @@
                     select.remove(1);
                 }
                 
-                // Add project items
-                projectItemsMap[projectId].forEach(item => {
-                    const option = document.createElement('option');
-                    option.value = item.item_name;
-                    option.textContent = item.item_name;
-                    option.dataset.unit = item.unit;
-                    select.appendChild(option);
-                });
-                
-                // Restore selection if exists
-                if (currentValue) {
-                    select.value = currentValue;
+                if (currentItemType === 'project' && projectItemsMap[projectId]) {
+                    // Add project items
+                    projectItemsMap[projectId].forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.item_name;
+                        option.textContent = item.item_name;
+                        option.dataset.unit = item.unit;
+                        option.dataset.type = 'project';
+                        select.appendChild(option);
+                    });
+                } else if (currentItemType === 'bid' && projectBidItemsMap[projectId]) {
+                    // Add bid items
+                    projectBidItemsMap[projectId].forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.item_name;
+                        option.textContent = `${item.item_code} - ${item.item_name}`;
+                        option.dataset.unit = item.unit;
+                        option.dataset.type = 'bid';
+                        option.dataset.bidItemId = item.bid_item_id;
+                        option.dataset.projectBidItemId = item.project_bid_item_id;
+                        option.dataset.rate = item.rate;
+                        option.dataset.cost = item.current_cost;
+                        option.dataset.markup = item.markup_percentage || 0;
+                        select.appendChild(option);
+                    });
                 }
                 
-                updateUnitLabel(index);
+                // Restore selection if exists and still valid
+                if (currentValue) {
+                    const foundOption = Array.from(select.options).find(opt => opt.value === currentValue);
+                    if (foundOption) {
+                        select.value = currentValue;
+                    }
+                }
+                
+                updateItemInfo(index);
             });
         }
 
-        function updateUnitLabel(index) {
+        function updateItemInfo(index) {
             const select = document.getElementById(`item_${index}`);
             const unitLabel = document.querySelector(`[data-item-index="${index}"] .unit-label`);
+            const bidInfo = document.getElementById(`bidInfo_${index}`);
+            const lineTotals = document.getElementById(`lineTotals_${index}`);
             
             if (select.selectedIndex > 0) {
                 const option = select.options[select.selectedIndex];
                 const unit = option.dataset.unit || 'units';
                 unitLabel.textContent = unit;
+                
+                if (option.dataset.type === 'bid') {
+                    // Show bid item info
+                    bidInfo.classList.add('show');
+                    lineTotals.classList.add('show');
+                    
+                    document.getElementById(`rate_${index}`).textContent = 
+                        `$${parseFloat(option.dataset.rate || 0).toFixed(2)}`;
+                    document.getElementById(`cost_${index}`).textContent = 
+                        `$${parseFloat(option.dataset.cost || 0).toFixed(2)}`;
+                    document.getElementById(`markup_${index}`).textContent = 
+                        `${parseFloat(option.dataset.markup || 0).toFixed(2)}%`;
+                } else {
+                    // Hide bid item info for project items
+                    bidInfo.classList.remove('show');
+                    lineTotals.classList.remove('show');
+                }
+                
+                updateLineTotals(index);
             } else {
                 unitLabel.textContent = 'units';
+                bidInfo.classList.remove('show');
+                lineTotals.classList.remove('show');
+            }
+        }
+
+        function updateLineTotals(index) {
+            const select = document.getElementById(`item_${index}`);
+            const quantityInput = document.getElementById(`quantity_${index}`);
+            
+            if (select.selectedIndex > 0 && quantityInput.value) {
+                const option = select.options[select.selectedIndex];
+                const quantity = parseFloat(quantityInput.value) || 0;
+                
+                if (option.dataset.type === 'bid') {
+                    const rate = parseFloat(option.dataset.rate || 0);
+                    const cost = parseFloat(option.dataset.cost || 0);
+                    
+                    const revenue = quantity * rate;
+                    const totalCost = quantity * cost;
+                    const profit = revenue - totalCost;
+                    
+                    document.getElementById(`lineRevenue_${index}`).textContent = `$${revenue.toFixed(2)}`;
+                    document.getElementById(`lineCost_${index}`).textContent = `$${totalCost.toFixed(2)}`;
+                    document.getElementById(`lineProfit_${index}`).textContent = `$${profit.toFixed(2)}`;
+                }
             }
         }
 
@@ -1339,7 +1605,7 @@
                             }
                         }
                         
-                        formData.items.push({
+                        const itemData = {
                             item_name: itemSelect.value,
                             quantity: parseFloat(document.getElementById(`quantity_${itemIndex}`).value),
                             unit: option.dataset.unit || 'units',
@@ -1348,7 +1614,15 @@
                             longitude: longitude,
                             duration_hours: parseFloat(document.getElementById(`duration_${itemIndex}`).value),
                             notes: document.getElementById(`notes_${itemIndex}`).value || null
-                        });
+                        };
+
+                        // Add bid item references if applicable
+                        if (option.dataset.type === 'bid') {
+                            itemData.bid_item_id = option.dataset.bidItemId;
+                            itemData.project_bid_item_id = option.dataset.projectBidItemId;
+                        }
+
+                        formData.items.push(itemData);
                     }
                 });
             }
@@ -1388,6 +1662,11 @@
             selectedMachines.clear();
             updateSelectedDisplay('selectedLaborers', selectedLaborers, 'laborer');
             updateSelectedDisplay('selectedMachines', selectedMachines, 'machine');
+            
+            // Reset item type toggle
+            document.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector('.toggle-btn[data-type="project"]').classList.add('active');
+            currentItemType = 'project';
             
             // Uncheck all checkboxes
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
