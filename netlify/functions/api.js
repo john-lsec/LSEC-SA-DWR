@@ -67,25 +67,28 @@ exports.handler = async (event, context) => {
     // Route handling based on path
     switch (path) {
       case '':
-      case 'foremen':
+      case 'foremen': {
         console.log('Loading foremen...');
         const foremen = await sql`SELECT id, name FROM foremen WHERE is_active = true ORDER BY name`;
         console.log('Foremen loaded:', foremen.length);
         return { statusCode: 200, headers, body: JSON.stringify(foremen) };
+      }
         
-      case 'laborers':
+      case 'laborers': {
         console.log('Loading laborers...');
         const laborers = await sql`SELECT id, name FROM laborers WHERE is_active = true ORDER BY name`;
         console.log('Laborers loaded:', laborers.length);
         return { statusCode: 200, headers, body: JSON.stringify(laborers) };
+      }
         
-      case 'projects':
+      case 'projects': {
         console.log('Loading projects...');
         const projects = await sql`SELECT id, name FROM projects WHERE is_active = true ORDER BY name`;
         console.log('Projects loaded:', projects.length);
         return { statusCode: 200, headers, body: JSON.stringify(projects) };
+      }
         
-      case 'equipment':
+      case 'equipment': {
         const type = params.type;
         console.log('Loading equipment, type:', type);
         if (!type) {
@@ -94,8 +97,9 @@ exports.handler = async (event, context) => {
         const equipment = await sql`SELECT id, name FROM equipment WHERE equipment_type = ${type} AND is_active = true ORDER BY name`;
         console.log('Equipment loaded:', equipment.length);
         return { statusCode: 200, headers, body: JSON.stringify(equipment) };
+      }
         
-      case 'project-items':
+      case 'project-items': {
         const projectId = params.project_id;
         console.log('Loading project items for project:', projectId);
         if (!projectId) {
@@ -104,8 +108,9 @@ exports.handler = async (event, context) => {
         const items = await sql`SELECT item_name, unit FROM project_items WHERE project_id = ${projectId} AND is_active = true ORDER BY item_name`;
         console.log('Project items loaded:', items.length);
         return { statusCode: 200, headers, body: JSON.stringify(items) };
+      }
 
-      case 'project-bid-items':
+      case 'project-bid-items': {
         const bidProjectId = params.project_id;
         console.log('Loading project bid items for project:', bidProjectId);
         if (!bidProjectId) {
@@ -134,8 +139,9 @@ exports.handler = async (event, context) => {
         `;
         console.log('Project bid items loaded:', bidItems.length);
         return { statusCode: 200, headers, body: JSON.stringify(bidItems) };
+      }
 
-      case 'submit-dwr':
+      case 'submit-dwr': {
         if (event.httpMethod !== 'POST') {
           return { statusCode: 405, headers, body: JSON.stringify({ error: 'POST required' }) };
         }
@@ -212,10 +218,12 @@ exports.handler = async (event, context) => {
             message: 'DWR submitted successfully' 
           })
         };
+      }
         
-      default:
+      default: {
         console.log('Unknown path:', path);
         return { statusCode: 404, headers, body: JSON.stringify({ error: 'Not found' }) };
+      }
     }
     
   } catch (error) {
