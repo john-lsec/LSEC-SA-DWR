@@ -1,4 +1,4 @@
-// netlify/functions/api.js - Updated for Material Cost
+// netlify/functions/api.js - Updated with Master Bid Items Management
 const { neon } = require('@neondatabase/serverless');
 
 exports.handler = async (event, context) => {
@@ -128,18 +128,112 @@ exports.handler = async (event, context) => {
         return { statusCode: 200, headers, body: JSON.stringify(bidItems) };
       }
       
-              // In your API's bid-items endpoint
-       case 'bid-items': {
-            console.log('Loading all bid items...');
-            const bidItems = await sql`
-                SELECT id, item_code, item_name, category, description, material_cost, default_unit 
-                FROM bid_items 
-                WHERE is_active = true 
-                ORDER BY item_code
-            `;
-            console.log('Bid items loaded:', bidItems.length);
-            return { statusCode: 200, headers, body: JSON.stringify(bidItems) };
+      case 'bid-items': {
+        console.log('Loading all bid items...');
+        const bidItems = await sql`
+          SELECT id, item_code, item_name, category, description, material_cost, default_unit 
+          FROM bid_items 
+          WHERE is_active = true 
+          ORDER BY item_code
+        `;
+        console.log('Bid items loaded:', bidItems.length);
+        return { statusCode: 200, headers, body: JSON.stringify(bidItems) };
+      }
+      
+      // Master Bid Items Management Endpoints
+      case 'master-bid-items': {
+        if (event.httpMethod === 'GET') {
+          console.log('Loading master bid items...');
+          const bidItems = await sql`
+            SELECT 
+              id,
+              item_code,
+              item_name,
+              category,
+              subcategory,
+              default_unit,
+              material_cost,
+              description,
+              is_active,
+              created_at,
+              updated_at
+            FROM bid_items 
+            ORDER BY category, item_code
+          `;
+          console.log('Master bid items loaded:', bidItems.length);
+          return { statusCode: 200, headers, body: JSON.stringify(bidItems) };
         }
+        
+        if (event.httpMethod === 'POST') {
+          console.log('Creating new bid item...');
+          const data = JSON.parse(event.body);
+          const {
+            item_code,
+            item_name,
+            category,
+            default_unit,
+            material_cost,
+            description,
+            is_active
+          } = data;
+          
+          // Validate required fields
+          if (!item_code || !item_name || !category || !default_unit) {
+            return { 
+              statusCode: 400, 
+              headers, 
+              body: JSON.stringify({ error: 'Missing required fields' }) 
+            };
+          }
+          
+          // Check if item code already exists
+          const [existing] = await sql`
+            SELECT id FROM bid_items WHERE item_code = ${item_code}
+          `;
+          
+          if (existing) {
+            return { 
+              statusCode: 400, 
+              headers, 
+              body: JSON.stringify({ error: 'Item code already exists' }) 
+            };
+          }
+          
+          // Insert new item
+          const [newItem] = await sql`
+            INSERT INTO bid_items (
+              item_code,
+              item_name,
+              category,
+              default_unit,
+              material_cost,
+              description,
+              is_active,
+              created_at,
+              updated_at
+            ) VALUES (
+              ${item_code},
+              ${item_name},
+              ${category},
+              ${default_unit},
+              ${material_cost || 0},
+              ${description || null},
+              ${is_active !== false},
+              CURRENT_TIMESTAMP,
+              CURRENT_TIMESTAMP
+            ) RETURNING *
+          `;
+          
+          console.log('Bid item created:', newItem.id);
+          return { 
+            statusCode: 200, 
+            headers, 
+            body: JSON.stringify(newItem) 
+          };
+        }
+        
+        return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
+      }
       
       case 'add-project-bid-item': {
         if (event.httpMethod !== 'POST') {
@@ -287,6 +381,148 @@ exports.handler = async (event, context) => {
       }
         
       default: {
+        // Check for master-bid-items/{id} pattern for update and delete
+        if (path.startsWith('master-bid-items/')) {
+          const itemId = path.replace('master-bid-items/', '');
+          
+          if (!itemId) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Item ID required' }) };
+          }
+          
+          // UPDATE master bid item
+          if (event.httpMethod === 'PUT') {
+            console.log('Updating master bid item:', itemId);
+            const data = JSON.parse(event.body);
+            const {
+              item_code,
+              item_name,
+              category,
+              default_unit,
+              material_cost,
+              description,
+              is_active
+            } = data;
+            
+            // Validate required fields
+            if (!item_code || !item_name || !category || !default_unit) {
+              return { 
+                statusCode: 400, 
+                headers, 
+                body: JSON.stringify({ error: 'Missing required fields' }) 
+              };
+            }
+            
+            // Check if new item code conflicts with another item
+            const [existing] = await sql`
+              SELECT id FROM bid_items 
+              WHERE item_code = ${item_code} AND id != ${itemId}
+            `;
+            
+            if (existing) {
+              return { 
+                statusCode: 400, 
+                headers, 
+                body: JSON.stringify({ error: 'Item code already exists' }) 
+              };
+            }
+            
+            // Get old material cost for history tracking
+            const [oldItem] = await sql`
+              SELECT material_cost FROM bid_items WHERE id = ${itemId}
+            `;
+            
+            // Update the item
+            const [updatedItem] = await sql`
+              UPDATE bid_items 
+              SET 
+                item_code = ${item_code},
+                item_name = ${item_name},
+                category = ${category},
+                default_unit = ${default_unit},
+                material_cost = ${material_cost || 0},
+                description = ${description || null},
+                is_active = ${is_active !== false},
+                updated_at = CURRENT_TIMESTAMP
+              WHERE id = ${itemId}
+              RETURNING *
+            `;
+            
+            if (!updatedItem) {
+              return { 
+                statusCode: 404, 
+                headers, 
+                body: JSON.stringify({ error: 'Item not found' }) 
+              };
+            }
+            
+            // Log material cost change if it changed and table exists
+            if (oldItem && oldItem.material_cost !== material_cost) {
+              try {
+                await sql`
+                  INSERT INTO material_cost_history (
+                    bid_item_id,
+                    old_material_cost,
+                    new_material_cost,
+                    changed_at
+                  ) VALUES (
+                    ${itemId},
+                    ${oldItem.material_cost},
+                    ${material_cost},
+                    CURRENT_TIMESTAMP
+                  )
+                `;
+              } catch (historyError) {
+                console.log('Material cost history table may not exist:', historyError.message);
+              }
+            }
+            
+            console.log('Master bid item updated successfully');
+            return { 
+              statusCode: 200, 
+              headers, 
+              body: JSON.stringify(updatedItem) 
+            };
+          }
+          
+          // DELETE (soft delete) master bid item
+          if (event.httpMethod === 'DELETE') {
+            console.log('Deleting master bid item:', itemId);
+            
+            // Check if item is used in any active projects
+            const [usage] = await sql`
+              SELECT COUNT(*) as count 
+              FROM project_bid_items 
+              WHERE bid_item_id = ${itemId} AND is_active = true
+            `;
+            
+            if (usage && parseInt(usage.count) > 0) {
+              return { 
+                statusCode: 400, 
+                headers, 
+                body: JSON.stringify({ 
+                  error: 'Cannot delete item that is being used in projects. Deactivate it instead.' 
+                }) 
+              };
+            }
+            
+            // Soft delete (set is_active = false)
+            await sql`
+              UPDATE bid_items 
+              SET is_active = false, updated_at = CURRENT_TIMESTAMP
+              WHERE id = ${itemId}
+            `;
+            
+            console.log('Master bid item deactivated successfully');
+            return { 
+              statusCode: 200, 
+              headers, 
+              body: JSON.stringify({ success: true, message: 'Bid item deactivated' }) 
+            };
+          }
+          
+          return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
+        }
+        
         // Check if the path starts with "update-project-bid-item/"
         if (path.startsWith('update-project-bid-item/')) {
           const projectBidItemId = path.replace('update-project-bid-item/', '');
