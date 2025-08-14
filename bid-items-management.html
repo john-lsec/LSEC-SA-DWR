@@ -144,6 +144,11 @@
             color: #777;
         }
         
+        input[readonly]::placeholder {
+            color: #666;
+            font-style: italic;
+        }
+        
         /* Autocomplete styles */
         .autocomplete-container {
             position: relative;
@@ -701,20 +706,20 @@
                     
                     <div class="form-group">
                         <label for="itemMaterialCost">Material Cost ($):</label>
-                        <input type="number" id="itemMaterialCost" min="0" step="0.01" readonly style="background: #1a1a1a; cursor: not-allowed;">
+                        <input type="text" id="itemMaterialCost" placeholder="Select an item" readonly style="background: #1a1a1a; cursor: not-allowed;" tabindex="-1">
                         <small style="color: #666; display: block; margin-top: 5px;">From master bid item</small>
                     </div>
                     
                     <div class="form-group">
                         <label for="itemUnit">Unit:</label>
-                        <input type="text" id="itemUnit" readonly style="background: #1a1a1a; cursor: not-allowed;">
+                        <input type="text" id="itemUnit" placeholder="Select an item" readonly style="background: #1a1a1a; cursor: not-allowed;" tabindex="-1">
                         <small style="color: #666; display: block; margin-top: 5px;">From master bid item</small>
                     </div>
                 </div>
                 
                 <div class="form-group">
                     <label for="itemMarkup">Markup %:</label>
-                    <input type="text" id="itemMarkup" readonly>
+                    <input type="text" id="itemMarkup" value="N/A" readonly>
                     <small style="color: #888; display: block; margin-top: 5px;">Auto-calculated based on rate and material cost</small>
                 </div>
                 
@@ -844,7 +849,13 @@
                 hiddenInput.value = ''; // Clear hidden value when typing
                 currentFocus = -1;
                 
+                // Clear material cost and unit when bid item is cleared or changed
                 if (!value) {
+                    document.getElementById('itemMaterialCost').value = '';
+                    document.getElementById('itemMaterialCost').placeholder = 'Select an item';
+                    document.getElementById('itemUnit').value = '';
+                    document.getElementById('itemUnit').placeholder = 'Select an item';
+                    document.getElementById('itemMarkup').value = 'N/A';
                     autocompleteDiv.style.display = 'none';
                     return;
                 }
@@ -903,7 +914,8 @@
                             hiddenInput.value = item.id;
                             
                             // Auto-populate material cost and unit from the selected bid item
-                            document.getElementById('itemMaterialCost').value = item.material_cost || 0;
+                            const materialCost = parseFloat(item.material_cost) || 0;
+                            document.getElementById('itemMaterialCost').value = `${materialCost.toFixed(2)}`;
                             document.getElementById('itemUnit').value = item.default_unit || 'EA';
                             
                             // Trigger markup calculation
@@ -913,11 +925,31 @@
                             autocompleteDiv.style.display = 'none';
                         });
                         
+                        itemDiv.dataset.itemId = item.id;
+                        itemDiv.dataset.itemData = JSON.stringify(item);
+                        
                         autocompleteDiv.appendChild(itemDiv);
                         totalItems++;
                     });
                 });
             });
+            
+            // Function to select a bid item
+            function selectBidItem(item, displayText) {
+                input.value = displayText;
+                hiddenInput.value = item.id;
+                
+                // Auto-populate material cost and unit from the selected bid item
+                const materialCost = parseFloat(item.material_cost) || 0;
+                document.getElementById('itemMaterialCost').value = `${materialCost.toFixed(2)}`;
+                document.getElementById('itemUnit').value = item.default_unit || 'EA';
+                
+                // Trigger markup calculation
+                calculateMarkup();
+                
+                autocompleteDiv.innerHTML = '';
+                autocompleteDiv.style.display = 'none';
+            }
             
             // Handle keyboard navigation
             input.addEventListener('keydown', function(e) {
@@ -934,7 +966,9 @@
                 } else if (e.keyCode === 13) { // Enter
                     e.preventDefault();
                     if (currentFocus > -1 && items[currentFocus]) {
-                        items[currentFocus].click();
+                        const itemData = JSON.parse(items[currentFocus].dataset.itemData);
+                        const displayText = `${itemData.item_code} - ${itemData.item_name}`;
+                        selectBidItem(itemData, displayText);
                     }
                 } else if (e.keyCode === 27) { // Escape
                     autocompleteDiv.innerHTML = '';
@@ -1160,7 +1194,197 @@
         // Calculate markup
         function calculateMarkup() {
             const rate = parseFloat(document.getElementById('itemRate').value) || 0;
-            const materialCost = parseFloat(document.getElementById('itemMaterialCost').value) || 0;
+            // Remove $ sign if present and parse the material cost
+            const materialCostStr = document.getElementById('itemMaterialCost').value.replace('
+        
+        // Show add bid item modal
+        function showAddBidItemModal() {
+            document.getElementById('modalTitle').textContent = 'Add Bid Item';
+            document.getElementById('projectBidItemId').value = '';
+            document.getElementById('bidItemForm').reset();
+            document.getElementById('bidItem').disabled = false;
+            document.getElementById('bidItemId').value = '';
+            document.getElementById('itemMaterialCost').value = '';
+            document.getElementById('itemMaterialCost').placeholder = 'Select an item';
+            document.getElementById('itemUnit').value = '';
+            document.getElementById('itemUnit').placeholder = 'Select an item';
+            document.getElementById('itemMarkup').value = 'N/A';
+            document.getElementById('bidItemModal').classList.add('show');
+        }
+        
+        // Edit bid item
+        function editBidItem(id) {
+            const item = projectBidItems.find(item => item.project_bid_item_id == id);
+            
+            if (!item) {
+                showMessage('Item not found.', 'error');
+                return;
+            }
+            
+            document.getElementById('modalTitle').textContent = 'Edit Bid Item';
+            document.getElementById('projectBidItemId').value = id;
+            
+            // Set the autocomplete field value and hidden ID
+            const displayText = `${item.item_code} - ${item.item_name}`;
+            document.getElementById('bidItem').value = displayText;
+            document.getElementById('bidItemId').value = item.bid_item_id;
+            document.getElementById('bidItem').disabled = true; // Can't change the bid item
+            
+            document.getElementById('itemRate').value = item.rate;
+            
+            // Material cost and unit are read-only and come from the project bid item record
+            const materialCost = parseFloat(item.material_cost) || 0;
+            document.getElementById('itemMaterialCost').value = `${materialCost.toFixed(2)}`;
+            document.getElementById('itemUnit').value = item.unit;
+            
+            // Calculate markup
+            calculateMarkup();
+            
+            document.getElementById('bidItemModal').classList.add('show');
+        }
+        
+        // Close bid item modal
+        function closeBidItemModal() {
+            document.getElementById('bidItemModal').classList.remove('show');
+            // Clear autocomplete
+            document.getElementById('bidItemAutocomplete').innerHTML = '';
+            document.getElementById('bidItemAutocomplete').style.display = 'none';
+            // Reset form fields
+            document.getElementById('bidItemForm').reset();
+            document.getElementById('bidItemId').value = '';
+            document.getElementById('itemMaterialCost').value = '';
+            document.getElementById('itemMaterialCost').placeholder = 'Select an item';
+            document.getElementById('itemUnit').value = '';
+            document.getElementById('itemUnit').placeholder = 'Select an item';
+            document.getElementById('itemMarkup').value = 'N/A';
+        }
+        
+        // Save bid item
+        async function saveBidItem(event) {
+            event.preventDefault();
+            
+            const projectBidItemId = document.getElementById('projectBidItemId').value;
+            const bidItemId = document.getElementById('bidItemId').value;
+            const rate = parseFloat(document.getElementById('itemRate').value);
+            
+            if (!bidItemId) {
+                showMessage('Please select a bid item.', 'error');
+                return;
+            }
+            
+            // Get material cost and unit from the bid items lookup
+            const selectedBidItem = bidItemsLookup[bidItemId];
+            if (!selectedBidItem) {
+                showMessage('Invalid bid item selected.', 'error');
+                return;
+            }
+            
+            const materialCost = selectedBidItem.material_cost || 0;
+            const unit = selectedBidItem.default_unit || 'EA';
+            
+            try {
+                const itemData = {
+                    project_id: selectedProjectId,
+                    bid_item_id: bidItemId,
+                    rate: rate,
+                    material_cost: materialCost,
+                    unit: unit
+                };
+                
+                let result;
+                
+                if (projectBidItemId) {
+                    // Update existing item (only rate can be updated)
+                    result = await apiCall(`update-project-bid-item/${projectBidItemId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify(itemData)
+                    });
+                    
+                    showMessage('Bid item updated successfully.', 'success');
+                } else {
+                    // Check if item already exists in project
+                    const exists = projectBidItems.some(item => item.bid_item_id == bidItemId);
+                    
+                    if (exists) {
+                        showMessage('This bid item is already in the project.', 'error');
+                        return;
+                    }
+                    
+                    // Add new item
+                    result = await apiCall('add-project-bid-item', {
+                        method: 'POST',
+                        body: JSON.stringify(itemData)
+                    });
+                    
+                    showMessage('Bid item added successfully.', 'success');
+                }
+                
+                // Refresh bid items
+                loadProjectBidItems(selectedProjectId);
+                
+                // Close modal
+                closeBidItemModal();
+                
+            } catch (error) {
+                console.error('Error saving bid item:', error);
+                showMessage('Error saving bid item: ' + error.message, 'error');
+            }
+        }
+        
+        // Show delete confirmation
+        function showDeleteConfirmation(id, code, name) {
+            itemToDeleteId = id;
+            document.getElementById('deleteItemDetails').textContent = `${code} - ${name}`;
+            document.getElementById('deleteModal').classList.add('show');
+        }
+        
+        // Close delete modal
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').classList.remove('show');
+            itemToDeleteId = null;
+        }
+        
+        // Delete bid item
+        async function deleteBidItem() {
+            if (!itemToDeleteId) return;
+            
+            try {
+                await apiCall(`delete-project-bid-item/${itemToDeleteId}`, {
+                    method: 'DELETE'
+                });
+                
+                showMessage('Bid item removed from project successfully.', 'success');
+                
+                // Refresh bid items
+                loadProjectBidItems(selectedProjectId);
+                
+                // Close modal
+                closeDeleteModal();
+                
+            } catch (error) {
+                console.error('Error deleting bid item:', error);
+                showMessage('Error deleting bid item: ' + error.message, 'error');
+            }
+        }
+        
+        // Show message
+        function showMessage(message, type) {
+            const resultDiv = document.getElementById('resultMessage');
+            resultDiv.className = `alert alert-${type}`;
+            resultDiv.textContent = message;
+            
+            // Auto-hide success messages
+            if (type === 'success') {
+                setTimeout(() => {
+                    resultDiv.innerHTML = '';
+                    resultDiv.className = '';
+                }, 5000);
+            }
+        }
+    </script>
+</body>
+</html>, '');
+            const materialCost = parseFloat(materialCostStr) || 0;
             
             let markup = 'N/A';
             if (materialCost > 0) {
