@@ -27,32 +27,32 @@ exports.handler = async (event, context) => {
     switch (path) {
       case '':
       case 'foremen':
-        const foremen = await sql`SELECT id, name FROM foremen WHERE is_active = true ORDER BY name`;
-        return { statusCode: 200, headers, body: JSON.stringify(foremen) };
+        const foremenList = await sql`SELECT id, name FROM foremen WHERE is_active = true ORDER BY name`;
+        return { statusCode: 200, headers, body: JSON.stringify(foremenList) };
         
       case 'laborers':
-        const laborers = await sql`SELECT id, name FROM laborers WHERE is_active = true ORDER BY name`;
-        return { statusCode: 200, headers, body: JSON.stringify(laborers) };
+        const laborersList = await sql`SELECT id, name FROM laborers WHERE is_active = true ORDER BY name`;
+        return { statusCode: 200, headers, body: JSON.stringify(laborersList) };
         
       case 'projects':
-        const projects = await sql`SELECT id, name FROM projects WHERE is_active = true ORDER BY name`;
-        return { statusCode: 200, headers, body: JSON.stringify(projects) };
+        const projectsList = await sql`SELECT id, name FROM projects WHERE is_active = true ORDER BY name`;
+        return { statusCode: 200, headers, body: JSON.stringify(projectsList) };
         
       case 'equipment':
         const type = params.type;
         if (!type) {
           return { statusCode: 400, headers, body: JSON.stringify({ error: 'Type required' }) };
         }
-        const equipment = await sql`SELECT id, name FROM equipment WHERE equipment_type = ${type} AND is_active = true ORDER BY name`;
-        return { statusCode: 200, headers, body: JSON.stringify(equipment) };
+        const equipmentList = await sql`SELECT id, name FROM equipment WHERE equipment_type = ${type} AND is_active = true ORDER BY name`;
+        return { statusCode: 200, headers, body: JSON.stringify(equipmentList) };
         
       case 'project-items':
         const projectId = params.project_id;
         if (!projectId) {
           return { statusCode: 400, headers, body: JSON.stringify({ error: 'Project ID required' }) };
         }
-        const items = await sql`SELECT item_name, unit FROM project_items WHERE project_id = ${projectId} AND is_active = true ORDER BY item_name`;
-        return { statusCode: 200, headers, body: JSON.stringify(items) };
+        const itemsList = await sql`SELECT item_name, unit FROM project_items WHERE project_id = ${projectId} AND is_active = true ORDER BY item_name`;
+        return { statusCode: 200, headers, body: JSON.stringify(itemsList) };
         
       case 'submit-dwr':
         if (event.httpMethod !== 'POST') {
@@ -63,7 +63,7 @@ exports.handler = async (event, context) => {
         const {
           work_date, foreman_id, project_id, arrival_time, departure_time,
           truck_id, trailer_id, billable_work, maybe_explanation, per_diem,
-          laborers, machines, items
+          laborers: selectedLaborers, machines: selectedMachines, items: workItems
         } = data;
         
         // Insert main DWR
@@ -81,23 +81,23 @@ exports.handler = async (event, context) => {
         const dwrId = dwr.id;
         
         // Insert crew members
-        if (laborers?.length) {
-          for (const laborerId of laborers) {
+        if (selectedLaborers?.length) {
+          for (const laborerId of selectedLaborers) {
             await sql`INSERT INTO dwr_crew_members (dwr_id, laborer_id) VALUES (${dwrId}, ${laborerId})`;
           }
         }
         
         // Insert machines  
-        if (machines?.length) {
-          for (const machineId of machines) {
+        if (selectedMachines?.length) {
+          for (const machineId of selectedMachines) {
             await sql`INSERT INTO dwr_machines (dwr_id, machine_id) VALUES (${dwrId}, ${machineId})`;
           }
         }
         
         // Insert items
-        if (items?.length) {
-          for (let i = 0; i < items.length; i++) {
-            const item = items[i];
+        if (workItems?.length) {
+          for (let i = 0; i < workItems.length; i++) {
+            const item = workItems[i];
             await sql`
               INSERT INTO dwr_items (
                 dwr_id, item_name, quantity, unit, location_description,
