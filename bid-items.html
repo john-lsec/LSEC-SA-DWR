@@ -17,7 +17,7 @@
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
             background: #121212;
@@ -96,6 +96,14 @@
             box-shadow: 0 4px 12px rgba(74, 158, 255, 0.4);
         }
         
+        .btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+            opacity: 0.6;
+        }
+        
         .btn-success {
             background: linear-gradient(135deg, #28a745 0%, #20924c 100%);
         }
@@ -125,6 +133,35 @@
             font-size: 12px;
         }
         
+        .save-bar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: linear-gradient(135deg, #1e3d29 0%, #2d5a41 100%);
+            padding: 15px 20px;
+            margin: -20px -20px 20px -20px;
+            border-radius: 8px;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            border: 1px solid #16a34a;
+        }
+        
+        .save-bar.show {
+            display: flex;
+        }
+        
+        .save-bar-text {
+            color: #4ade80;
+            font-weight: 600;
+        }
+        
+        .save-bar-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
         .table-container {
             overflow-x: auto;
             border-radius: 8px;
@@ -138,7 +175,7 @@
         }
         
         table th, table td {
-            padding: 12px 16px;
+            padding: 10px 12px;
             text-align: left;
             border-bottom: 1px solid #404040;
         }
@@ -156,8 +193,50 @@
             background: #242424;
         }
         
+        table tr.modified {
+            background: rgba(74, 158, 255, 0.1);
+            border-left: 3px solid #4a9eff;
+        }
+        
         table tr:last-child td {
             border-bottom: none;
+        }
+        
+        .editable {
+            background: transparent;
+            border: 1px solid transparent;
+            padding: 4px 8px;
+            border-radius: 4px;
+            width: 100%;
+            color: #e0e0e0;
+            transition: all 0.2s ease;
+        }
+        
+        .editable:hover {
+            background: #2a2a2a;
+            border-color: #404040;
+        }
+        
+        .editable:focus {
+            background: #333;
+            border-color: #4a9eff;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
+        }
+        
+        .editable.changed {
+            background: rgba(74, 158, 255, 0.1);
+            border-color: #4a9eff;
+        }
+        
+        select.editable {
+            cursor: pointer;
+        }
+        
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
         }
         
         .modal {
@@ -351,6 +430,21 @@
             color: #c0c0c0;
             margin-bottom: 10px;
         }
+        
+        .actions-cell {
+            white-space: nowrap;
+        }
+        
+        @media (max-width: 768px) {
+            .table-container {
+                font-size: 12px;
+            }
+            
+            .editable {
+                padding: 2px 4px;
+                font-size: 12px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -358,6 +452,17 @@
         <div class="header">
             <h1>Bid Items Master</h1>
             <p>Manage Master Bid Items Database</p>
+        </div>
+        
+        <!-- Save Bar -->
+        <div id="saveBar" class="save-bar">
+            <div class="save-bar-text">
+                <span id="changeCount">0</span> unsaved changes
+            </div>
+            <div class="save-bar-buttons">
+                <button class="btn" onclick="discardChanges()">Discard Changes</button>
+                <button class="btn btn-success" onclick="saveAllChanges()">Save All Changes</button>
+            </div>
         </div>
         
         <!-- Statistics Cards -->
@@ -401,13 +506,13 @@
             <table id="bidItemsTable">
                 <thead>
                     <tr>
-                        <th>Item Code</th>
-                        <th>Item Name</th>
-                        <th>Category</th>
-                        <th>Unit</th>
-                        <th>Material Cost</th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                        <th style="width: 120px;">Item Code</th>
+                        <th style="width: 250px;">Item Name</th>
+                        <th style="width: 150px;">Category</th>
+                        <th style="width: 100px;">Unit</th>
+                        <th style="width: 120px;">Material Cost</th>
+                        <th style="width: 80px;">Active</th>
+                        <th style="width: 100px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
@@ -429,26 +534,24 @@
         <div id="resultMessage"></div>
     </div>
     
-    <!-- Add/Edit Modal -->
+    <!-- Add New Item Modal -->
     <div id="itemModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title" id="modalTitle">Add Bid Item</h3>
+                <h3 class="modal-title">Add Bid Item</h3>
                 <button type="button" class="close-btn" onclick="closeModal()">&times;</button>
             </div>
             
             <form id="itemForm">
-                <input type="hidden" id="itemId" value="">
-                
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="itemCode">Item Code *</label>
-                        <input type="text" id="itemCode" required maxlength="20" placeholder="e.g., 100-001">
+                        <label for="newItemCode">Item Code *</label>
+                        <input type="text" id="newItemCode" required maxlength="20" placeholder="e.g., 100-001">
                     </div>
                     
                     <div class="form-group">
-                        <label for="category">Category *</label>
-                        <select id="category" required>
+                        <label for="newCategory">Category *</label>
+                        <select id="newCategory" required>
                             <option value="">Select Category</option>
                             <option value="CLEARING">CLEARING</option>
                             <option value="DEMOLITION">DEMOLITION</option>
@@ -471,14 +574,14 @@
                 </div>
                 
                 <div class="form-group">
-                    <label for="itemName">Item Name *</label>
-                    <input type="text" id="itemName" required maxlength="200" placeholder="Enter item description">
+                    <label for="newItemName">Item Name *</label>
+                    <input type="text" id="newItemName" required maxlength="200" placeholder="Enter item description">
                 </div>
                 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="defaultUnit">Default Unit *</label>
-                        <select id="defaultUnit" required>
+                        <label for="newDefaultUnit">Default Unit *</label>
+                        <select id="newDefaultUnit" required>
                             <option value="">Select Unit</option>
                             <option value="EA">Each (EA)</option>
                             <option value="LF">Linear Feet (LF)</option>
@@ -496,19 +599,19 @@
                     </div>
                     
                     <div class="form-group">
-                        <label for="materialCost">Material Cost ($)</label>
-                        <input type="number" id="materialCost" min="0" step="0.01" placeholder="0.00">
+                        <label for="newMaterialCost">Material Cost ($)</label>
+                        <input type="number" id="newMaterialCost" min="0" step="0.01" placeholder="0.00">
                     </div>
                 </div>
                 
                 <div class="form-group">
-                    <label for="description">Description</label>
-                    <textarea id="description" rows="3" placeholder="Additional details (optional)"></textarea>
+                    <label for="newDescription">Description</label>
+                    <textarea id="newDescription" rows="3" placeholder="Additional details (optional)"></textarea>
                 </div>
                 
                 <div class="form-group">
                     <label>
-                        <input type="checkbox" id="isActive" checked> Active
+                        <input type="checkbox" id="newIsActive" checked> Active
                     </label>
                 </div>
                 
@@ -551,6 +654,8 @@
         let itemToDelete = null;
         let categories = new Set();
         let units = new Set();
+        let modifiedItems = {};
+        let originalData = {};
         
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
@@ -587,6 +692,11 @@
                 document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" class="loading">Loading bid items</td></tr>';
                 
                 bidItems = await apiCall('master-bid-items');
+                
+                // Store original data for comparison
+                bidItems.forEach(item => {
+                    originalData[item.id] = {...item};
+                });
                 
                 // Extract unique categories and units
                 categories.clear();
@@ -666,6 +776,53 @@
             displayPage();
         }
         
+        // Track field changes
+        function trackChange(itemId, field, newValue, oldValue) {
+            if (!modifiedItems[itemId]) {
+                modifiedItems[itemId] = {};
+            }
+            
+            // Convert values for comparison
+            const original = originalData[itemId][field];
+            let compareNew = newValue;
+            let compareOrig = original;
+            
+            // Handle different data types
+            if (field === 'material_cost') {
+                compareNew = parseFloat(newValue) || 0;
+                compareOrig = parseFloat(original) || 0;
+            } else if (field === 'is_active') {
+                compareNew = newValue === true || newValue === 'true';
+                compareOrig = original === true;
+            }
+            
+            // Check if value is actually different from original
+            if (compareNew !== compareOrig) {
+                modifiedItems[itemId][field] = newValue;
+            } else {
+                delete modifiedItems[itemId][field];
+                if (Object.keys(modifiedItems[itemId]).length === 0) {
+                    delete modifiedItems[itemId];
+                }
+            }
+            
+            updateSaveBar();
+        }
+        
+        // Update save bar
+        function updateSaveBar() {
+            const saveBar = document.getElementById('saveBar');
+            const changeCount = document.getElementById('changeCount');
+            const count = Object.keys(modifiedItems).length;
+            
+            if (count > 0) {
+                saveBar.classList.add('show');
+                changeCount.textContent = count;
+            } else {
+                saveBar.classList.remove('show');
+            }
+        }
+        
         // Display current page
         function displayPage() {
             const tbody = document.getElementById('tableBody');
@@ -682,27 +839,196 @@
             tbody.innerHTML = '';
             pageItems.forEach(item => {
                 const row = document.createElement('tr');
+                row.id = 'row-' + item.id;
+                
+                // Check if this item has modifications
+                if (modifiedItems[item.id]) {
+                    row.classList.add('modified');
+                }
+                
                 const materialCost = parseFloat(item.material_cost) || 0;
-                const statusBadge = item.is_active 
-                    ? '<span style="color: #4ade80;">Active</span>' 
-                    : '<span style="color: #f87171;">Inactive</span>';
+                
+                // Create category options
+                const categoryOptions = ['CLEARING', 'DEMOLITION', 'EARTHWORK', 'EROSION CONTROL', 
+                    'LANDSCAPING', 'MASONRY', 'MISC METALS', 'PAINTING', 'PAVING', 
+                    'SITE CONCRETE', 'SPECIALTIES', 'STORM DRAINAGE', 'STRUCTURES', 
+                    'TRAFFIC', 'UTILITIES', 'WATERWORKS']
+                    .map(cat => `<option value="${cat}" ${item.category === cat ? 'selected' : ''}>${cat}</option>`)
+                    .join('');
+                
+                // Create unit options
+                const unitOptions = ['EA', 'LF', 'SF', 'SY', 'CY', 'TON', 'GAL', 'HR', 'DAY', 'MO', 'LS', 'AC']
+                    .map(unit => `<option value="${unit}" ${item.default_unit === unit ? 'selected' : ''}>${unit}</option>`)
+                    .join('');
                 
                 row.innerHTML = `
-                    <td>${item.item_code}</td>
-                    <td>${item.item_name}</td>
-                    <td><span class="category-badge">${item.category}</span></td>
-                    <td>${item.default_unit}</td>
-                    <td>$${materialCost.toFixed(2)}</td>
-                    <td>${statusBadge}</td>
                     <td>
-                        <button class="btn btn-warning btn-sm" onclick="editItem('${item.id}')">Edit</button>
+                        <input type="text" class="editable ${modifiedItems[item.id]?.item_code ? 'changed' : ''}" 
+                               value="${item.item_code}" 
+                               data-id="${item.id}" 
+                               data-field="item_code"
+                               maxlength="20">
+                    </td>
+                    <td>
+                        <input type="text" class="editable ${modifiedItems[item.id]?.item_name ? 'changed' : ''}" 
+                               value="${item.item_name}" 
+                               data-id="${item.id}" 
+                               data-field="item_name"
+                               maxlength="200">
+                    </td>
+                    <td>
+                        <select class="editable ${modifiedItems[item.id]?.category ? 'changed' : ''}" 
+                                data-id="${item.id}" 
+                                data-field="category">
+                            ${categoryOptions}
+                        </select>
+                    </td>
+                    <td>
+                        <select class="editable ${modifiedItems[item.id]?.default_unit ? 'changed' : ''}" 
+                                data-id="${item.id}" 
+                                data-field="default_unit">
+                            ${unitOptions}
+                        </select>
+                    </td>
+                    <td>
+                        <input type="number" class="editable ${modifiedItems[item.id]?.material_cost ? 'changed' : ''}" 
+                               value="${materialCost.toFixed(2)}" 
+                               data-id="${item.id}" 
+                               data-field="material_cost"
+                               min="0" 
+                               step="0.01">
+                    </td>
+                    <td style="text-align: center;">
+                        <input type="checkbox" 
+                               data-id="${item.id}" 
+                               data-field="is_active"
+                               ${item.is_active ? 'checked' : ''}>
+                    </td>
+                    <td class="actions-cell">
                         <button class="btn btn-danger btn-sm" onclick="deleteItem('${item.id}')">Delete</button>
                     </td>
                 `;
                 tbody.appendChild(row);
             });
             
+            // Add event listeners to editable fields
+            document.querySelectorAll('.editable').forEach(element => {
+                element.addEventListener('change', handleFieldChange);
+                element.addEventListener('input', handleFieldInput);
+            });
+            
+            // Add event listeners to checkboxes
+            document.querySelectorAll('input[type="checkbox"][data-field="is_active"]').forEach(element => {
+                element.addEventListener('change', handleCheckboxChange);
+            });
+            
             updatePagination();
+        }
+        
+        // Handle field input (for visual feedback)
+        function handleFieldInput(e) {
+            const itemId = e.target.dataset.id;
+            const field = e.target.dataset.field;
+            const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+            
+            // Update visual state
+            const row = document.getElementById('row-' + itemId);
+            const original = originalData[itemId][field];
+            
+            let isDifferent = false;
+            if (field === 'material_cost') {
+                isDifferent = parseFloat(value) !== parseFloat(original);
+            } else {
+                isDifferent = value !== original;
+            }
+            
+            if (isDifferent) {
+                e.target.classList.add('changed');
+            } else {
+                e.target.classList.remove('changed');
+            }
+        }
+        
+        // Handle field change
+        function handleFieldChange(e) {
+            const itemId = e.target.dataset.id;
+            const field = e.target.dataset.field;
+            const value = e.target.value;
+            trackChange(itemId, field, value);
+            
+            // Update row appearance
+            const row = document.getElementById('row-' + itemId);
+            if (modifiedItems[itemId] && Object.keys(modifiedItems[itemId]).length > 0) {
+                row.classList.add('modified');
+            } else {
+                row.classList.remove('modified');
+            }
+        }
+        
+        // Handle checkbox change
+        function handleCheckboxChange(e) {
+            const itemId = e.target.dataset.id;
+            const field = e.target.dataset.field;
+            const value = e.target.checked;
+            trackChange(itemId, field, value);
+            
+            // Update row appearance
+            const row = document.getElementById('row-' + itemId);
+            if (modifiedItems[itemId] && Object.keys(modifiedItems[itemId]).length > 0) {
+                row.classList.add('modified');
+            } else {
+                row.classList.remove('modified');
+            }
+        }
+        
+        // Save all changes
+        async function saveAllChanges() {
+            const saveButton = event.target;
+            saveButton.disabled = true;
+            saveButton.textContent = 'Saving...';
+            
+            try {
+                const updates = [];
+                
+                for (const [itemId, changes] of Object.entries(modifiedItems)) {
+                    const item = bidItems.find(i => i.id === itemId);
+                    const updateData = {
+                        item_code: changes.item_code !== undefined ? changes.item_code : item.item_code,
+                        item_name: changes.item_name !== undefined ? changes.item_name : item.item_name,
+                        category: changes.category !== undefined ? changes.category : item.category,
+                        default_unit: changes.default_unit !== undefined ? changes.default_unit : item.default_unit,
+                        material_cost: changes.material_cost !== undefined ? parseFloat(changes.material_cost) : item.material_cost,
+                        description: item.description,
+                        is_active: changes.is_active !== undefined ? changes.is_active : item.is_active
+                    };
+                    
+                    updates.push(apiCall('master-bid-items/' + itemId, {
+                        method: 'PUT',
+                        body: JSON.stringify(updateData)
+                    }));
+                }
+                
+                await Promise.all(updates);
+                
+                showMessage(`Successfully updated ${updates.length} item(s)`, 'success');
+                modifiedItems = {};
+                await loadBidItems();
+                
+            } catch (error) {
+                showMessage('Error saving changes: ' + error.message, 'error');
+            } finally {
+                saveButton.disabled = false;
+                saveButton.textContent = 'Save All Changes';
+            }
+        }
+        
+        // Discard changes
+        function discardChanges() {
+            if (confirm('Are you sure you want to discard all unsaved changes?')) {
+                modifiedItems = {};
+                filterAndDisplay();
+                updateSaveBar();
+            }
         }
         
         // Update pagination controls
@@ -719,6 +1045,13 @@
         
         // Change page
         function changePage(direction) {
+            // Check for unsaved changes
+            if (Object.keys(modifiedItems).length > 0) {
+                if (!confirm('You have unsaved changes. Continue without saving?')) {
+                    return;
+                }
+            }
+            
             const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
             currentPage = Math.max(1, Math.min(currentPage + direction, totalPages));
             displayPage();
@@ -729,73 +1062,42 @@
             document.getElementById('searchInput').addEventListener('input', filterAndDisplay);
             document.getElementById('categoryFilter').addEventListener('change', filterAndDisplay);
             document.getElementById('unitFilter').addEventListener('change', filterAndDisplay);
-            document.getElementById('itemForm').addEventListener('submit', saveItem);
+            document.getElementById('itemForm').addEventListener('submit', saveNewItem);
         }
         
         // Show add modal
         function showAddModal() {
-            document.getElementById('modalTitle').textContent = 'Add Bid Item';
             document.getElementById('itemForm').reset();
-            document.getElementById('itemId').value = '';
-            document.getElementById('isActive').checked = true;
+            document.getElementById('newIsActive').checked = true;
             document.getElementById('itemModal').classList.add('show');
         }
         
-        // Edit item
-        function editItem(id) {
-            const item = bidItems.find(i => i.id === id);
-            if (!item) return;
-            
-            document.getElementById('modalTitle').textContent = 'Edit Bid Item';
-            document.getElementById('itemId').value = item.id;
-            document.getElementById('itemCode').value = item.item_code;
-            document.getElementById('itemName').value = item.item_name;
-            document.getElementById('category').value = item.category;
-            document.getElementById('defaultUnit').value = item.default_unit;
-            document.getElementById('materialCost').value = item.material_cost || '';
-            document.getElementById('description').value = item.description || '';
-            document.getElementById('isActive').checked = item.is_active;
-            
-            document.getElementById('itemModal').classList.add('show');
-        }
-        
-        // Save item
-        async function saveItem(e) {
+        // Save new item
+        async function saveNewItem(e) {
             e.preventDefault();
             
-            const itemId = document.getElementById('itemId').value;
             const data = {
-                item_code: document.getElementById('itemCode').value.trim(),
-                item_name: document.getElementById('itemName').value.trim(),
-                category: document.getElementById('category').value,
-                default_unit: document.getElementById('defaultUnit').value,
-                material_cost: parseFloat(document.getElementById('materialCost').value) || 0,
-                description: document.getElementById('description').value.trim(),
-                is_active: document.getElementById('isActive').checked
+                item_code: document.getElementById('newItemCode').value.trim(),
+                item_name: document.getElementById('newItemName').value.trim(),
+                category: document.getElementById('newCategory').value,
+                default_unit: document.getElementById('newDefaultUnit').value,
+                material_cost: parseFloat(document.getElementById('newMaterialCost').value) || 0,
+                description: document.getElementById('newDescription').value.trim(),
+                is_active: document.getElementById('newIsActive').checked
             };
             
             try {
-                if (itemId) {
-                    // Update existing item
-                    await apiCall('master-bid-items/' + itemId, {
-                        method: 'PUT',
-                        body: JSON.stringify(data)
-                    });
-                    showMessage('Bid item updated successfully', 'success');
-                } else {
-                    // Create new item
-                    await apiCall('master-bid-items', {
-                        method: 'POST',
-                        body: JSON.stringify(data)
-                    });
-                    showMessage('Bid item created successfully', 'success');
-                }
+                await apiCall('master-bid-items', {
+                    method: 'POST',
+                    body: JSON.stringify(data)
+                });
                 
+                showMessage('Bid item created successfully', 'success');
                 closeModal();
                 loadBidItems();
                 
             } catch (error) {
-                showMessage('Error saving bid item: ' + error.message, 'error');
+                showMessage('Error creating bid item: ' + error.message, 'error');
             }
         }
         
@@ -850,6 +1152,14 @@
                 resultDiv.className = '';
             }, 5000);
         }
+        
+        // Warn before leaving with unsaved changes
+        window.addEventListener('beforeunload', function(e) {
+            if (Object.keys(modifiedItems).length > 0) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
     </script>
 </body>
 </html>
