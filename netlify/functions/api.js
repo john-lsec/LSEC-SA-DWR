@@ -98,17 +98,6 @@ exports.handler = async (event, context) => {
         console.log('Equipment loaded:', equipment.length);
         return { statusCode: 200, headers, body: JSON.stringify(equipment) };
       }
-        
-      case 'project-items': {
-        const projectId = params.project_id;
-        console.log('Loading project items for project:', projectId);
-        if (!projectId) {
-          return { statusCode: 400, headers, body: JSON.stringify({ error: 'Project ID required' }) };
-        }
-        const items = await sql`SELECT item_name, unit FROM project_items WHERE project_id = ${projectId} AND is_active = true ORDER BY item_name`;
-        console.log('Project items loaded:', items.length);
-        return { statusCode: 200, headers, body: JSON.stringify(items) };
-      }
 
       case 'project-bid-items': {
         const bidProjectId = params.project_id;
