@@ -1,6 +1,31 @@
 [build]
-  publish = "."
-  functions = "netlify/functions"
+  # Directory to deploy (where your HTML files are)
+  publish = "public/"
+  
+  # No build command needed for static files
+  command = "echo 'No build required'"
 
-[build.environment]
-  NODE_VERSION = "18"
+[functions]
+  # Directory containing serverless functions
+  directory = "netlify/functions"
+
+[dev]
+  # Local development settings
+  publish = "public/"
+  port = 8888
+  
+# Redirect root to login page (optional - remove if you want index.html as default)
+[[redirects]]
+  from = "/"
+  to = "/login.html"
+  status = 302
+  conditions = {Role = ["guest"]}  # Only redirect non-authenticated users
+
+# Headers for security (optional but recommended)
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
