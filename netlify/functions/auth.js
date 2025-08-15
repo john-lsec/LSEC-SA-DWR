@@ -1,26 +1,15 @@
-// auth.js - Authentication API endpoints
-// Place this in your netlify/functions/api folder
-
+// netlify/functions/auth.js - Complete Authentication System
 const { neon } = require('@neondatabase/serverless');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
-// Environment variables needed:
-// DATABASE_URL - Your Neon database connection string
-// JWT_SECRET - Secret key for JWT tokens (generate a strong random string)
-// Set these in your Netlify environment variables
-
+// Environment variables
 const sql = neon(process.env.DATABASE_URL);
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 const TOKEN_EXPIRY = '24h';
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION = 15; // minutes
-
-// Helper function to generate session token
-function generateSessionToken() {
-  return crypto.randomBytes(32).toString('hex');
-}
 
 // Helper function to hash passwords
 async function hashPassword(password) {
@@ -65,7 +54,11 @@ exports.handler = async (event, context) => {
     return { statusCode: 200, headers, body: '' };
   }
 
-  const path = event.path.replace('/api/auth/', '');
+  // Parse the path - handle both /auth/ and /api/auth/ paths
+  const path = event.path
+    .replace('/.netlify/functions/', '')
+    .replace('/auth/', '')
+    .replace('/api/auth/', '');
   const method = event.httpMethod;
 
   try {
@@ -86,17 +79,14 @@ exports.handler = async (event, context) => {
       case 'PUT:password':
         return await handlePasswordChange(event, headers);
       
-      case 'GET:users':
-        return await handleGetUsers(event, headers);
-      
-      case 'PUT:users/:id':
-        return await handleUpdateUser(event, headers);
-      
+      case 'POST:reset-password':
+        return await handlePasswordReset(event, headers);
+        
       default:
         return {
           statusCode: 404,
           headers,
-          body: JSON.stringify({ error: 'Not found' })
+          body: JSON.stringify({ error: 'Auth endpoint not found' })
         };
     }
   } catch (error) {
@@ -206,7 +196,7 @@ async function handleLogin(event, headers) {
     `;
 
     // Create session
-    const sessionToken = generateSessionToken();
+    const sessionToken = crypto.randomBytes(32).toString('hex');
     const jwtToken = createJWT(user.id, user.role);
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
@@ -231,7 +221,7 @@ async function handleLogin(event, headers) {
         token: jwtToken,
         sessionToken,
         userId: user.id,
-        name: `${user.first_name} ${user.last_name}`.trim() || user.username,
+        name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username,
         role: user.role,
         email: user.email
       })
@@ -249,7 +239,7 @@ async function handleLogin(event, headers) {
 
 // Handle logout
 async function handleLogout(event, headers) {
-  const authHeader = event.headers.authorization;
+  const authHeader = event.headers.authorization || event.headers.Authorization;
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return {
@@ -271,7 +261,7 @@ async function handleLogout(event, headers) {
   }
 
   try {
-    // Delete session from database
+    // Delete all sessions for this user
     await sql`
       DELETE FROM user_sessions 
       WHERE user_id = ${decoded.userId}
@@ -301,7 +291,7 @@ async function handleLogout(event, headers) {
 
 // Handle session verification
 async function handleVerify(event, headers) {
-  const authHeader = event.headers.authorization;
+  const authHeader = event.headers.authorization || event.headers.Authorization;
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return {
@@ -350,7 +340,7 @@ async function handleVerify(event, headers) {
       body: JSON.stringify({
         valid: true,
         userId: decoded.userId,
-        name: `${session.first_name} ${session.last_name}`.trim() || session.username,
+        name: `${session.first_name || ''} ${session.last_name || ''}`.trim() || session.username,
         role: session.role,
         email: session.email
       })
@@ -369,7 +359,7 @@ async function handleVerify(event, headers) {
 // Handle user registration (admin only)
 async function handleRegister(event, headers) {
   // Verify admin token
-  const authHeader = event.headers.authorization;
+  const authHeader = event.headers.authorization || event.headers.Authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return {
       statusCode: 401,
@@ -400,6 +390,16 @@ async function handleRegister(event, headers) {
     };
   }
 
+  // Validate role
+  const validRoles = ['admin', 'manager', 'editor', 'viewer'];
+  if (!validRoles.includes(role)) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'Invalid role' })
+    };
+  }
+
   try {
     // Check if user exists
     const existing = await sql`
@@ -421,7 +421,7 @@ async function handleRegister(event, headers) {
     
     const newUser = await sql`
       INSERT INTO users (username, email, password_hash, first_name, last_name, role, created_by)
-      VALUES (${username}, ${email}, ${passwordHash}, ${firstName}, ${lastName}, ${role}, ${decoded.userId})
+      VALUES (${username}, ${email}, ${passwordHash}, ${firstName || null}, ${lastName || null}, ${role}, ${decoded.userId})
       RETURNING id, username, email, first_name, last_name, role
     `;
 
@@ -451,9 +451,153 @@ async function handleRegister(event, headers) {
   }
 }
 
+// Handle password change
+async function handlePasswordChange(event, headers) {
+  const authHeader = event.headers.authorization || event.headers.Authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({ error: 'Unauthorized' })
+    };
+  }
+
+  const token = authHeader.substring(7);
+  const decoded = verifyJWT(token);
+
+  if (!decoded) {
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({ error: 'Invalid token' })
+    };
+  }
+
+  const body = JSON.parse(event.body || '{}');
+  const { currentPassword, newPassword } = body;
+
+  if (!currentPassword || !newPassword) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'Current and new passwords required' })
+    };
+  }
+
+  try {
+    // Get user's current password hash
+    const users = await sql`
+      SELECT password_hash FROM users WHERE id = ${decoded.userId}
+    `;
+
+    if (users.length === 0) {
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({ error: 'User not found' })
+      };
+    }
+
+    // Verify current password
+    const validPassword = await verifyPassword(currentPassword, users[0].password_hash);
+    
+    if (!validPassword) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Current password is incorrect' })
+      };
+    }
+
+    // Hash new password and update
+    const newPasswordHash = await hashPassword(newPassword);
+    
+    await sql`
+      UPDATE users 
+      SET password_hash = ${newPasswordHash},
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${decoded.userId}
+    `;
+
+    // Log the action
+    await sql`
+      INSERT INTO audit_log (user_id, action, ip_address)
+      VALUES (${decoded.userId}, 'password_change', ${event.headers['client-ip'] || 'unknown'})
+    `;
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ message: 'Password changed successfully' })
+    };
+
+  } catch (error) {
+    console.error('Password change error:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Failed to change password' })
+    };
+  }
+}
+
+// Handle password reset request (simplified - in production, send email)
+async function handlePasswordReset(event, headers) {
+  const body = JSON.parse(event.body || '{}');
+  const { email } = body;
+
+  if (!email) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'Email required' })
+    };
+  }
+
+  try {
+    // Check if user exists
+    const users = await sql`
+      SELECT id, email FROM users WHERE email = ${email}
+    `;
+
+    // Always return success to prevent email enumeration
+    // In production, send reset email here if user exists
+    
+    if (users.length > 0) {
+      // Generate reset token (in production, save this and send via email)
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      
+      // Log the request
+      await sql`
+        INSERT INTO audit_log (user_id, action, ip_address)
+        VALUES (${users[0].id}, 'password_reset_request', ${event.headers['client-ip'] || 'unknown'})
+      `;
+      
+      // In production: Send email with reset link
+      console.log(`Password reset token for ${email}: ${resetToken}`);
+    }
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ 
+        message: 'If an account exists with this email, password reset instructions have been sent.' 
+      })
+    };
+
+  } catch (error) {
+    console.error('Password reset error:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Failed to process password reset' })
+    };
+  }
+}
+
 // Middleware to check authentication for protected routes
 async function requireAuth(event) {
-  const authHeader = event.headers.authorization;
+  const authHeader = event.headers.authorization || event.headers.Authorization;
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return { authorized: false, error: 'No token provided' };
@@ -503,5 +647,6 @@ function requireRole(userRole, requiredRoles) {
 module.exports = {
   requireAuth,
   requireRole,
-  verifyJWT
+  verifyJWT,
+  hashPassword
 };
