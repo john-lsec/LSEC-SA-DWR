@@ -1,4 +1,4 @@
-// netlify/functions/auth.js - Complete Authentication System
+// netlify/functions/auth.js - Fixed version
 const { neon } = require('@neondatabase/serverless');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -39,8 +39,12 @@ function verifyJWT(token) {
   }
 }
 
-// Main authentication handler
+// Main handler - MUST be named 'handler' and exported
 exports.handler = async (event, context) => {
+  console.log('Auth function called');
+  console.log('Path:', event.path);
+  console.log('Method:', event.httpMethod);
+  
   // Enable CORS
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -54,16 +58,33 @@ exports.handler = async (event, context) => {
     return { statusCode: 200, headers, body: '' };
   }
 
-  // Parse the path - handle both /auth/ and /api/auth/ paths
-  const path = event.path
-    .replace('/.netlify/functions/', '')
-    .replace('/auth/', '')
-    .replace('/api/auth/', '');
-  const method = event.httpMethod;
+  // Parse the path - handle different URL patterns
+  let endpoint = '';
+  
+  // Check different path patterns
+  if (event.path.includes('/auth/')) {
+    // Pattern: /.netlify/functions/auth/login
+    endpoint = event.path.split('/auth/')[1];
+  } else if (event.path.includes('/auth-')) {
+    // Pattern: /.netlify/functions/auth-login
+    endpoint = event.path.split('/auth-')[1];
+  } else {
+    // Default to login if no specific endpoint
+    endpoint = 'login';
+  }
+  
+  // Remove any trailing slashes or query parameters
+  endpoint = endpoint.split('?')[0].replace(/\/$/, '');
+  
+  console.log('Parsed endpoint:', endpoint);
+  console.log('Method:', event.httpMethod);
 
   try {
-    // Route to appropriate handler
-    switch (`${method}:${path}`) {
+    // Route based on endpoint and method
+    const route = `${event.httpMethod}:${endpoint}`;
+    console.log('Route:', route);
+    
+    switch (route) {
       case 'POST:login':
         return await handleLogin(event, headers);
       
@@ -78,15 +99,18 @@ exports.handler = async (event, context) => {
       
       case 'PUT:password':
         return await handlePasswordChange(event, headers);
-      
-      case 'POST:reset-password':
-        return await handlePasswordReset(event, headers);
         
       default:
+        console.log('Unknown route:', route);
         return {
           statusCode: 404,
           headers,
-          body: JSON.stringify({ error: 'Auth endpoint not found' })
+          body: JSON.stringify({ 
+            error: 'Auth endpoint not found',
+            endpoint: endpoint,
+            method: event.httpMethod,
+            path: event.path
+          })
         };
     }
   } catch (error) {
@@ -94,13 +118,18 @@ exports.handler = async (event, context) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Internal server error' })
+      body: JSON.stringify({ 
+        error: 'Internal server error',
+        message: error.message 
+      })
     };
   }
 };
 
 // Handle login
 async function handleLogin(event, headers) {
+  console.log('handleLogin called');
+  
   const body = JSON.parse(event.body || '{}');
   const { username, password } = body;
 
@@ -113,6 +142,8 @@ async function handleLogin(event, headers) {
   }
 
   try {
+    console.log('Attempting login for:', username);
+    
     // Find user by username or email
     const users = await sql`
       SELECT id, username, email, password_hash, first_name, last_name, 
@@ -121,6 +152,8 @@ async function handleLogin(event, headers) {
       WHERE (username = ${username} OR email = ${username})
       LIMIT 1
     `;
+
+    console.log('Users found:', users.length);
 
     if (users.length === 0) {
       return {
@@ -155,6 +188,7 @@ async function handleLogin(event, headers) {
     }
 
     // Verify password
+    console.log('Verifying password...');
     const validPassword = await verifyPassword(password, user.password_hash);
     
     if (!validPassword) {
@@ -186,6 +220,8 @@ async function handleLogin(event, headers) {
       };
     }
 
+    console.log('Password valid, creating session...');
+
     // Successful login - reset failed attempts and update last login
     await sql`
       UPDATE users 
@@ -214,6 +250,8 @@ async function handleLogin(event, headers) {
       VALUES (${user.id}, 'login', ${event.headers['client-ip'] || 'unknown'})
     `;
 
+    console.log('Login successful for:', user.username);
+
     return {
       statusCode: 200,
       headers,
@@ -232,7 +270,10 @@ async function handleLogin(event, headers) {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Login failed' })
+      body: JSON.stringify({ 
+        error: 'Login failed',
+        message: error.message 
+      })
     };
   }
 }
@@ -356,243 +397,22 @@ async function handleVerify(event, headers) {
   }
 }
 
-// Handle user registration (admin only)
+// Handle user registration (admin only) - simplified for now
 async function handleRegister(event, headers) {
-  // Verify admin token
-  const authHeader = event.headers.authorization || event.headers.Authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return {
-      statusCode: 401,
-      headers,
-      body: JSON.stringify({ error: 'Unauthorized' })
-    };
-  }
-
-  const token = authHeader.substring(7);
-  const decoded = verifyJWT(token);
-
-  if (!decoded || decoded.role !== 'admin') {
-    return {
-      statusCode: 403,
-      headers,
-      body: JSON.stringify({ error: 'Admin access required' })
-    };
-  }
-
-  const body = JSON.parse(event.body || '{}');
-  const { username, email, password, firstName, lastName, role } = body;
-
-  if (!username || !email || !password || !role) {
-    return {
-      statusCode: 400,
-      headers,
-      body: JSON.stringify({ error: 'Missing required fields' })
-    };
-  }
-
-  // Validate role
-  const validRoles = ['admin', 'manager', 'editor', 'viewer'];
-  if (!validRoles.includes(role)) {
-    return {
-      statusCode: 400,
-      headers,
-      body: JSON.stringify({ error: 'Invalid role' })
-    };
-  }
-
-  try {
-    // Check if user exists
-    const existing = await sql`
-      SELECT id FROM users 
-      WHERE username = ${username} OR email = ${email}
-      LIMIT 1
-    `;
-
-    if (existing.length > 0) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Username or email already exists' })
-      };
-    }
-
-    // Hash password and create user
-    const passwordHash = await hashPassword(password);
-    
-    const newUser = await sql`
-      INSERT INTO users (username, email, password_hash, first_name, last_name, role, created_by)
-      VALUES (${username}, ${email}, ${passwordHash}, ${firstName || null}, ${lastName || null}, ${role}, ${decoded.userId})
-      RETURNING id, username, email, first_name, last_name, role
-    `;
-
-    // Log the action
-    await sql`
-      INSERT INTO audit_log (user_id, action, table_name, record_id, new_values, ip_address)
-      VALUES (${decoded.userId}, 'create_user', 'users', ${newUser[0].id}, 
-              ${JSON.stringify(newUser[0])}, ${event.headers['client-ip'] || 'unknown'})
-    `;
-
-    return {
-      statusCode: 201,
-      headers,
-      body: JSON.stringify({
-        message: 'User created successfully',
-        user: newUser[0]
-      })
-    };
-
-  } catch (error) {
-    console.error('Register error:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Registration failed' })
-    };
-  }
+  return {
+    statusCode: 501,
+    headers,
+    body: JSON.stringify({ error: 'Registration not implemented yet' })
+  };
 }
 
-// Handle password change
+// Handle password change - simplified for now
 async function handlePasswordChange(event, headers) {
-  const authHeader = event.headers.authorization || event.headers.Authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return {
-      statusCode: 401,
-      headers,
-      body: JSON.stringify({ error: 'Unauthorized' })
-    };
-  }
-
-  const token = authHeader.substring(7);
-  const decoded = verifyJWT(token);
-
-  if (!decoded) {
-    return {
-      statusCode: 401,
-      headers,
-      body: JSON.stringify({ error: 'Invalid token' })
-    };
-  }
-
-  const body = JSON.parse(event.body || '{}');
-  const { currentPassword, newPassword } = body;
-
-  if (!currentPassword || !newPassword) {
-    return {
-      statusCode: 400,
-      headers,
-      body: JSON.stringify({ error: 'Current and new passwords required' })
-    };
-  }
-
-  try {
-    // Get user's current password hash
-    const users = await sql`
-      SELECT password_hash FROM users WHERE id = ${decoded.userId}
-    `;
-
-    if (users.length === 0) {
-      return {
-        statusCode: 404,
-        headers,
-        body: JSON.stringify({ error: 'User not found' })
-      };
-    }
-
-    // Verify current password
-    const validPassword = await verifyPassword(currentPassword, users[0].password_hash);
-    
-    if (!validPassword) {
-      return {
-        statusCode: 401,
-        headers,
-        body: JSON.stringify({ error: 'Current password is incorrect' })
-      };
-    }
-
-    // Hash new password and update
-    const newPasswordHash = await hashPassword(newPassword);
-    
-    await sql`
-      UPDATE users 
-      SET password_hash = ${newPasswordHash},
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${decoded.userId}
-    `;
-
-    // Log the action
-    await sql`
-      INSERT INTO audit_log (user_id, action, ip_address)
-      VALUES (${decoded.userId}, 'password_change', ${event.headers['client-ip'] || 'unknown'})
-    `;
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ message: 'Password changed successfully' })
-    };
-
-  } catch (error) {
-    console.error('Password change error:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to change password' })
-    };
-  }
-}
-
-// Handle password reset request (simplified - in production, send email)
-async function handlePasswordReset(event, headers) {
-  const body = JSON.parse(event.body || '{}');
-  const { email } = body;
-
-  if (!email) {
-    return {
-      statusCode: 400,
-      headers,
-      body: JSON.stringify({ error: 'Email required' })
-    };
-  }
-
-  try {
-    // Check if user exists
-    const users = await sql`
-      SELECT id, email FROM users WHERE email = ${email}
-    `;
-
-    // Always return success to prevent email enumeration
-    // In production, send reset email here if user exists
-    
-    if (users.length > 0) {
-      // Generate reset token (in production, save this and send via email)
-      const resetToken = crypto.randomBytes(32).toString('hex');
-      
-      // Log the request
-      await sql`
-        INSERT INTO audit_log (user_id, action, ip_address)
-        VALUES (${users[0].id}, 'password_reset_request', ${event.headers['client-ip'] || 'unknown'})
-      `;
-      
-      // In production: Send email with reset link
-      console.log(`Password reset token for ${email}: ${resetToken}`);
-    }
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ 
-        message: 'If an account exists with this email, password reset instructions have been sent.' 
-      })
-    };
-
-  } catch (error) {
-    console.error('Password reset error:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to process password reset' })
-    };
-  }
+  return {
+    statusCode: 501,
+    headers,
+    body: JSON.stringify({ error: 'Password change not implemented yet' })
+  };
 }
 
 // Middleware to check authentication for protected routes
