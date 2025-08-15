@@ -165,6 +165,7 @@
                 </div>
                 <button class="auth-button" onclick="login()">Login</button>
                 <button class="test-button" onclick="testAuthEndpoint()">Test Auth Endpoint</button>
+                <button class="test-button" onclick="testAuthDirect()">Test Auth Direct</button>
             </div>
             
             <div id="user-info" class="hidden">
@@ -220,6 +221,7 @@
 
         // Initialize on page load
         window.addEventListener('load', () => {
+            console.log('Test page loaded');
             checkAuthStatus();
         });
 
@@ -248,8 +250,10 @@
             }
             
             log('Attempting login...', 'info', 'auth-results');
+            log(`Endpoint: ${API_BASE}auth/login`, 'info', 'auth-results');
             
             try {
+                // Use the correct auth endpoint
                 const response = await fetch(`${API_BASE}auth/login`, {
                     method: 'POST',
                     headers: {
@@ -278,7 +282,7 @@
                     updateAuthUI(true);
                 } else {
                     const error = await response.json();
-                    log(`Login failed: ${error.error}`, 'error', 'auth-results');
+                    log(`Login failed: ${JSON.stringify(error)}`, 'error', 'auth-results');
                     if (error.attemptsLeft !== undefined) {
                         log(`Attempts remaining: ${error.attemptsLeft}`, 'warning', 'auth-results');
                     }
@@ -286,6 +290,7 @@
                 }
             } catch (error) {
                 log(`Network error: ${error.message}`, 'error', 'auth-results');
+                log(`Stack: ${error.stack}`, 'error', 'auth-results');
                 updateAuthUI(false);
             }
         }
@@ -327,13 +332,17 @@
             }
             
             log('Verifying token...', 'info', 'auth-results');
+            log(`Endpoint: ${API_BASE}auth/verify`, 'info', 'auth-results');
             
             try {
                 const response = await fetch(`${API_BASE}auth/verify`, {
+                    method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${authToken}`
                     }
                 });
+                
+                log(`Verify response status: ${response.status}`, 'info', 'auth-results');
                 
                 if (response.ok) {
                     const data = await response.json();
@@ -341,7 +350,7 @@
                     log(`User: ${data.name} (${data.role})`, 'success', 'auth-results');
                 } else {
                     const error = await response.json();
-                    log(`Token invalid: ${error.error}`, 'error', 'auth-results');
+                    log(`Token invalid: ${JSON.stringify(error)}`, 'error', 'auth-results');
                     updateAuthUI(false);
                 }
             } catch (error) {
@@ -414,6 +423,7 @@
             }
             
             log(`Testing protected endpoint: ${endpoint}`, 'info', containerId);
+            log(`URL: ${API_BASE}api/${endpoint}`, 'info', containerId);
             log(`Using token: ${authToken.substring(0, 20)}...`, 'info', containerId);
             
             try {
@@ -523,13 +533,14 @@
             log('Testing auth endpoint directly...', 'info', 'auth-results');
             
             try {
-                const response = await fetch(`${API_BASE}auth/login`, {
+                // Test OPTIONS request
+                const response = await fetch(`${API_BASE}auth`, {
                     method: 'OPTIONS'
                 });
                 
                 log(`Auth endpoint OPTIONS status: ${response.status}`, 'info', 'auth-results');
                 
-                // Try a test login
+                // Try a test login with wrong credentials
                 const testResponse = await fetch(`${API_BASE}auth/login`, {
                     method: 'POST',
                     headers: {
@@ -547,6 +558,42 @@
                 
             } catch (error) {
                 log(`Auth endpoint error: ${error.message}`, 'error', 'auth-results');
+            }
+        }
+
+        async function testAuthDirect() {
+            clearResults('auth-results');
+            log('Testing auth function directly...', 'info', 'auth-results');
+            
+            try {
+                // Direct test to auth function
+                const response = await fetch(`${API_BASE}auth`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'Admin123!'
+                    })
+                });
+                
+                log(`Direct auth response status: ${response.status}`, 'info', 'auth-results');
+                log(`Response headers: ${JSON.stringify(Object.fromEntries(response.headers))}`, 'info', 'auth-results');
+                
+                const text = await response.text();
+                log(`Response body: ${text}`, 'info', 'auth-results');
+                
+                try {
+                    const data = JSON.parse(text);
+                    log(`Parsed response: ${JSON.stringify(data, null, 2)}`, 'info', 'auth-results');
+                } catch (e) {
+                    log('Could not parse as JSON', 'warning', 'auth-results');
+                }
+                
+            } catch (error) {
+                log(`Direct auth error: ${error.message}`, 'error', 'auth-results');
+                log(`Stack: ${error.stack}`, 'error', 'auth-results');
             }
         }
 
@@ -569,6 +616,14 @@
                 log(`\nBase site accessible: ${response.ok}`, response.ok ? 'success' : 'error', 'env-results');
             } catch (error) {
                 log(`Base site error: ${error.message}`, 'error', 'env-results');
+            }
+            
+            // Test auth endpoint
+            try {
+                const authResponse = await fetch(`${API_BASE}auth`);
+                log(`\nAuth endpoint accessible: ${authResponse.status}`, 'info', 'env-results');
+            } catch (error) {
+                log(`Auth endpoint error: ${error.message}`, 'error', 'env-results');
             }
         }
 
