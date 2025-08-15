@@ -4,12 +4,19 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
-// Environment variables
-const sql = neon(process.env.DATABASE_URL);
+// Environment variables - DON'T initialize SQL here!
 const JWT_SECRET = process.env.JWT_SECRET || '416cf56a29ba481816ab028346c8dcdc169b2241187b10e9b274192da564523234ad0aec4f6dd567e1896c6e52c10f7e8494d6d15938afab7ef11db09630fd8fa8005';
 const TOKEN_EXPIRY = '24h';
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION = 15; // minutes
+
+// Helper function to get database connection
+function getDb() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL not configured');
+  }
+  return neon(process.env.DATABASE_URL);
+}
 
 // Helper function to hash passwords
 async function hashPassword(password) {
@@ -79,6 +86,22 @@ exports.handler = async (event, context) => {
   console.log('Parsed endpoint:', endpoint);
   console.log('Method:', event.httpMethod);
 
+  // Get database connection inside handler
+  let sql;
+  try {
+    sql = getDb();
+  } catch (error) {
+    console.error('Database connection error:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ 
+        error: 'Database configuration error',
+        message: error.message 
+      })
+    };
+  }
+
   try {
     // Route based on endpoint and method
     const route = `${event.httpMethod}:${endpoint}`;
@@ -86,19 +109,19 @@ exports.handler = async (event, context) => {
     
     switch (route) {
       case 'POST:login':
-        return await handleLogin(event, headers);
+        return await handleLogin(event, headers, sql);
       
       case 'POST:logout':
-        return await handleLogout(event, headers);
+        return await handleLogout(event, headers, sql);
       
       case 'GET:verify':
-        return await handleVerify(event, headers);
+        return await handleVerify(event, headers, sql);
       
       case 'POST:register':
-        return await handleRegister(event, headers);
+        return await handleRegister(event, headers, sql);
       
       case 'PUT:password':
-        return await handlePasswordChange(event, headers);
+        return await handlePasswordChange(event, headers, sql);
         
       default:
         console.log('Unknown route:', route);
@@ -126,8 +149,8 @@ exports.handler = async (event, context) => {
   }
 };
 
-// Handle login
-async function handleLogin(event, headers) {
+// Handle login - pass sql as parameter
+async function handleLogin(event, headers, sql) {
   console.log('handleLogin called');
   
   const body = JSON.parse(event.body || '{}');
@@ -278,8 +301,8 @@ async function handleLogin(event, headers) {
   }
 }
 
-// Handle logout
-async function handleLogout(event, headers) {
+// Handle logout - pass sql as parameter
+async function handleLogout(event, headers, sql) {
   const authHeader = event.headers.authorization || event.headers.Authorization;
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -330,8 +353,8 @@ async function handleLogout(event, headers) {
   }
 }
 
-// Handle session verification
-async function handleVerify(event, headers) {
+// Handle session verification - pass sql as parameter
+async function handleVerify(event, headers, sql) {
   const authHeader = event.headers.authorization || event.headers.Authorization;
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -398,7 +421,7 @@ async function handleVerify(event, headers) {
 }
 
 // Handle user registration (admin only) - simplified for now
-async function handleRegister(event, headers) {
+async function handleRegister(event, headers, sql) {
   return {
     statusCode: 501,
     headers,
@@ -407,7 +430,7 @@ async function handleRegister(event, headers) {
 }
 
 // Handle password change - simplified for now
-async function handlePasswordChange(event, headers) {
+async function handlePasswordChange(event, headers, sql) {
   return {
     statusCode: 501,
     headers,
@@ -431,6 +454,8 @@ async function requireAuth(event) {
   }
 
   try {
+    const sql = getDb();
+    
     // Verify session is still valid
     const sessions = await sql`
       SELECT u.id, u.role, u.is_active
@@ -463,10 +488,8 @@ function requireRole(userRole, requiredRoles) {
   return requiredRoles.includes(userRole);
 }
 
-// Export middleware functions for use in other API endpoints
-module.exports = {
-  requireAuth,
-  requireRole,
-  verifyJWT,
-  hashPassword
-};
+// CRITICAL FIX: Export additional functions WITHOUT overwriting exports.handler
+module.exports.requireAuth = requireAuth;
+module.exports.requireRole = requireRole;
+module.exports.verifyJWT = verifyJWT;
+module.exports.hashPassword = hashPassword;
