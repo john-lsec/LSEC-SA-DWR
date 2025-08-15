@@ -1,5 +1,5 @@
 // netlify/functions/api.js - Main API with authentication protection
-// Updated to include PO system endpoints
+// Updated to include PO system endpoints and complete authentication
 
 const { neon } = require('@neondatabase/serverless');
 const { requireAuth, requireRole } = require('./auth');
@@ -64,6 +64,9 @@ exports.handler = async (event, context) => {
       case 'equipment':
         return await handleEquipment(event, headers, method);
       
+      case 'master-bid-items':
+        return await handleMasterBidItems(event, headers, method, id);
+      
       case 'project-bid-items':
         return await handleProjectBidItems(event, headers, method, id);
       
@@ -96,10 +99,187 @@ exports.handler = async (event, context) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Internal server error' })
+      body: JSON.stringify({ error: 'Internal server error', details: error.message })
     };
   }
 };
+
+// Master Bid Items handlers with role checks
+async function handleMasterBidItems(event, headers, method, id) {
+  const { role, userId } = event.auth || {};
+
+  switch (method) {
+    case 'GET':
+      // All authenticated users can view
+      if (id) {
+        const items = await sql`
+          SELECT * FROM master_bid_items WHERE id = ${id}
+        `;
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(items[0] || null)
+        };
+      } else {
+        const items = await sql`
+          SELECT * FROM master_bid_items ORDER BY item_code
+        `;
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(items)
+        };
+      }
+
+    case 'POST':
+      // Only admin, manager, and editor can create
+      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions' })
+        };
+      }
+
+      const createData = JSON.parse(event.body);
+      
+      // Validate required fields
+      if (!createData.item_code || !createData.item_name) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Item code and name are required' })
+        };
+      }
+
+      const newItem = await sql`
+        INSERT INTO master_bid_items (
+          item_code, item_name, category, default_unit, 
+          material_cost, description, is_active
+        ) VALUES (
+          ${createData.item_code},
+          ${createData.item_name},
+          ${createData.category || null},
+          ${createData.default_unit || null},
+          ${createData.material_cost || 0},
+          ${createData.description || null},
+          ${createData.is_active !== false}
+        )
+        RETURNING *
+      `;
+
+      // Log the action
+      await sql`
+        INSERT INTO audit_log (user_id, action, table_name, record_id, new_values)
+        VALUES (${userId}, 'create', 'master_bid_items', ${newItem[0].id}, ${JSON.stringify(newItem[0])})
+      `;
+
+      return {
+        statusCode: 201,
+        headers,
+        body: JSON.stringify(newItem[0])
+      };
+
+    case 'PUT':
+      // Only admin, manager, and editor can update
+      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions' })
+        };
+      }
+
+      if (!id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'ID required for update' })
+        };
+      }
+
+      const updateData = JSON.parse(event.body);
+      
+      // Get old values for audit
+      const oldValues = await sql`
+        SELECT * FROM master_bid_items WHERE id = ${id}
+      `;
+
+      const updated = await sql`
+        UPDATE master_bid_items
+        SET 
+          item_code = ${updateData.item_code},
+          item_name = ${updateData.item_name},
+          category = ${updateData.category || null},
+          default_unit = ${updateData.default_unit || null},
+          material_cost = ${updateData.material_cost || 0},
+          description = ${updateData.description || null},
+          is_active = ${updateData.is_active !== false},
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${id}
+        RETURNING *
+      `;
+
+      // Log the action
+      await sql`
+        INSERT INTO audit_log (user_id, action, table_name, record_id, old_values, new_values)
+        VALUES (${userId}, 'update', 'master_bid_items', ${id}, 
+                ${JSON.stringify(oldValues[0])}, ${JSON.stringify(updated[0])})
+      `;
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify(updated[0])
+      };
+
+    case 'DELETE':
+      // Only admin and manager can delete
+      if (!requireRole(role, ['admin', 'manager'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions to delete' })
+        };
+      }
+
+      if (!id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'ID required for delete' })
+        };
+      }
+
+      // Get old values for audit
+      const toDelete = await sql`
+        SELECT * FROM master_bid_items WHERE id = ${id}
+      `;
+
+      await sql`
+        DELETE FROM master_bid_items WHERE id = ${id}
+      `;
+
+      // Log the action
+      await sql`
+        INSERT INTO audit_log (user_id, action, table_name, record_id, old_values)
+        VALUES (${userId}, 'delete', 'master_bid_items', ${id}, ${JSON.stringify(toDelete[0])})
+      `;
+
+      return {
+        statusCode: 204,
+        headers,
+        body: ''
+      };
+
+    default:
+      return {
+        statusCode: 405,
+        headers,
+        body: JSON.stringify({ error: 'Method not allowed' })
+      };
+  }
+}
 
 // Existing DWR handlers
 async function handleForemen(event, headers, method) {
@@ -207,56 +387,156 @@ async function handleEquipment(event, headers, method) {
   }
 }
 
-async function handleProjectBidItems(event, headers, method) {
-  if (method !== 'GET') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
+async function handleProjectBidItems(event, headers, method, id) {
+  const { role, userId } = event.auth || {};
 
-  try {
-    const params = event.queryStringParameters || {};
-    const projectId = params.project_id;
-    
-    if (!projectId) {
+  switch (method) {
+    case 'GET':
+      try {
+        const params = event.queryStringParameters || {};
+        const projectId = params.project_id;
+        
+        if (!projectId) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'project_id parameter required' })
+          };
+        }
+        
+        const bidItems = await sql`
+          SELECT 
+            pbi.id as project_bid_item_id,
+            pbi.project_id,
+            pbi.bid_item_id,
+            mbi.item_code,
+            mbi.item_name,
+            mbi.default_unit as unit,
+            pbi.rate,
+            pbi.current_cost,
+            pbi.markup_percentage
+          FROM project_bid_items pbi
+          JOIN master_bid_items mbi ON pbi.bid_item_id = mbi.id
+          WHERE pbi.project_id = ${projectId}
+          ORDER BY mbi.item_code
+        `;
+        
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(bidItems)
+        };
+      } catch (error) {
+        console.error('Error fetching project bid items:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to fetch project bid items' })
+        };
+      }
+
+    case 'POST':
+      // Only admin, manager, and editor can create
+      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions' })
+        };
+      }
+
+      const createData = JSON.parse(event.body);
+      
+      const newItem = await sql`
+        INSERT INTO project_bid_items (
+          project_id, bid_item_id, rate, current_cost, markup_percentage
+        ) VALUES (
+          ${createData.project_id},
+          ${createData.bid_item_id},
+          ${createData.rate || 0},
+          ${createData.current_cost || 0},
+          ${createData.markup_percentage || 0}
+        )
+        RETURNING *
+      `;
+
       return {
-        statusCode: 400,
+        statusCode: 201,
         headers,
-        body: JSON.stringify({ error: 'project_id parameter required' })
+        body: JSON.stringify(newItem[0])
       };
-    }
-    
-    const bidItems = await sql`
-      SELECT 
-        pbi.id as project_bid_item_id,
-        pbi.project_id,
-        pbi.bid_item_id,
-        mbi.item_code,
-        mbi.item_name,
-        mbi.default_unit as unit,
-        pbi.rate,
-        pbi.current_cost,
-        pbi.markup_percentage
-      FROM project_bid_items pbi
-      JOIN master_bid_items mbi ON pbi.bid_item_id = mbi.id
-      WHERE pbi.project_id = ${projectId}
-      ORDER BY mbi.item_code
-    `;
-    
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(bidItems)
-    };
-  } catch (error) {
-    console.error('Error fetching project bid items:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to fetch project bid items' })
-    };
+
+    case 'PUT':
+      // Only admin, manager, and editor can update
+      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions' })
+        };
+      }
+
+      if (!id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'ID required for update' })
+        };
+      }
+
+      const updateData = JSON.parse(event.body);
+      
+      const updated = await sql`
+        UPDATE project_bid_items
+        SET 
+          rate = ${updateData.rate || 0},
+          current_cost = ${updateData.current_cost || 0},
+          markup_percentage = ${updateData.markup_percentage || 0},
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${id}
+        RETURNING *
+      `;
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify(updated[0])
+      };
+
+    case 'DELETE':
+      // Only admin and manager can delete
+      if (!requireRole(role, ['admin', 'manager'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions to delete' })
+        };
+      }
+
+      if (!id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'ID required for delete' })
+        };
+      }
+
+      await sql`
+        DELETE FROM project_bid_items WHERE id = ${id}
+      `;
+
+      return {
+        statusCode: 204,
+        headers,
+        body: ''
+      };
+
+    default:
+      return {
+        statusCode: 405,
+        headers,
+        body: JSON.stringify({ error: 'Method not allowed' })
+      };
   }
 }
 
@@ -364,23 +644,34 @@ async function handlePORequests(event, headers, method, id) {
       } else {
         // Get query parameters for filtering
         const params = event.queryStringParameters || {};
-        let query = sql`SELECT * FROM po_requests WHERE 1=1`;
+        
+        let whereConditions = [];
+        let queryParams = {};
         
         if (params.status) {
-          query = sql`${query} AND approved = ${params.status}`;
+          whereConditions.push('approved = ${status}');
+          queryParams.status = params.status;
         }
         
         if (params.from_date) {
-          query = sql`${query} AND request_date >= ${params.from_date}`;
+          whereConditions.push('request_date >= ${from_date}');
+          queryParams.from_date = params.from_date;
         }
         
         if (params.to_date) {
-          query = sql`${query} AND request_date <= ${params.to_date}`;
+          whereConditions.push('request_date <= ${to_date}');
+          queryParams.to_date = params.to_date;
         }
         
-        query = sql`${query} ORDER BY request_date DESC`;
+        const whereClause = whereConditions.length > 0 
+          ? 'WHERE ' + whereConditions.join(' AND ')
+          : '';
         
-        const poRequests = await query;
+        const poRequests = await sql`
+          SELECT * FROM po_requests 
+          ${whereClause}
+          ORDER BY request_date DESC
+        `;
         
         return {
           statusCode: 200,
@@ -414,7 +705,7 @@ async function handlePORequests(event, headers, method, id) {
         SET 
           approved = ${updateData.approved},
           approved_by = ${userId},
-          approved_at = ${updateData.approved === 'YES' || updateData.approved === 'DENIED' ? new Date() : null},
+          approved_at = ${updateData.approved === 'YES' || updateData.approved === 'DENIED' ? new Date().toISOString() : null},
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ${id}
         RETURNING *
@@ -600,6 +891,12 @@ async function handleProjects(event, headers, method, id) {
         RETURNING *
       `;
 
+      // Log the action
+      await sql`
+        INSERT INTO audit_log (user_id, action, table_name, record_id, new_values)
+        VALUES (${userId}, 'create', 'projects', ${newProject[0].id}, ${JSON.stringify(newProject[0])})
+      `;
+
       return {
         statusCode: 201,
         headers,
@@ -626,6 +923,11 @@ async function handleProjects(event, headers, method, id) {
 
       const updateProjectData = JSON.parse(event.body);
       
+      // Get old values for audit
+      const oldProject = await sql`
+        SELECT * FROM projects WHERE id = ${id}
+      `;
+      
       const updatedProject = await sql`
         UPDATE projects
         SET 
@@ -635,6 +937,13 @@ async function handleProjects(event, headers, method, id) {
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ${id}
         RETURNING *
+      `;
+
+      // Log the action
+      await sql`
+        INSERT INTO audit_log (user_id, action, table_name, record_id, old_values, new_values)
+        VALUES (${userId}, 'update', 'projects', ${id}, 
+                ${JSON.stringify(oldProject[0])}, ${JSON.stringify(updatedProject[0])})
       `;
 
       return {
@@ -661,8 +970,24 @@ async function handleProjects(event, headers, method, id) {
         };
       }
 
+      // Get old values for audit
+      const projectToDelete = await sql`
+        SELECT * FROM projects WHERE id = ${id}
+      `;
+
+      // Delete related bid items first
+      await sql`
+        DELETE FROM project_bid_items WHERE project_id = ${id}
+      `;
+
       await sql`
         DELETE FROM projects WHERE id = ${id}
+      `;
+
+      // Log the action
+      await sql`
+        INSERT INTO audit_log (user_id, action, table_name, record_id, old_values)
+        VALUES (${userId}, 'delete', 'projects', ${id}, ${JSON.stringify(projectToDelete[0])})
       `;
 
       return {
@@ -744,6 +1069,12 @@ async function handleUsers(event, headers, method, id) {
         RETURNING id, username, email, first_name, last_name, role, is_active
       `;
 
+      // Log the action
+      await sql`
+        INSERT INTO audit_log (user_id, action, table_name, record_id, new_values)
+        VALUES (${userId}, 'update_user', 'users', ${id}, ${JSON.stringify(updatedUser[0])})
+      `;
+
       return {
         statusCode: 200,
         headers,
@@ -770,6 +1101,12 @@ async function handleUsers(event, headers, method, id) {
 
       await sql`
         DELETE FROM users WHERE id = ${id}
+      `;
+
+      // Log the action
+      await sql`
+        INSERT INTO audit_log (user_id, action, table_name, record_id)
+        VALUES (${userId}, 'delete_user', 'users', ${id})
       `;
 
       return {
