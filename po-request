@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LSEC Purchase Order Request</title>
+    <style>
+        /* Reset and base styles */
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, Arial, sans-serif;
+            line-height: 1.5;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #121212;
+            min-height: 100vh;
+            box-shadow: 0 0 40px rgba(0,0,0,0.5);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #4a9eff;
+        }
+        
+        .header h1 {
+            color: #4a9eff;
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(74, 158, 255, 0.3);
+        }
+        
+        .header p {
+            color: #b0b0b0;
+            margin: 10px 0 0 0;
+            font-size: 1.1rem;
+        }
+        
+        /* Form sections */
+        .section {
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-left: 5px solid #4a9eff;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            border: 1px solid #333;
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #e0e0e0;
+        }
+        
+        .section-number {
+            background: #4a9eff;
+            color: #000;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(74, 158, 255, 0.4);
+        }
+        
+        /* Form inputs */
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #c0c0c0;
+        }
+        
+        .required {
+            color: #f87171;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #404040;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            background: #2a2a2a;
+            color: #e0e0e0;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #4a9eff;
+            box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.2);
+            background: #333;
+        }
+        
+        select {
+            cursor: pointer;
+        }
+        
+        option {
+            background: #2a2a2a;
+            color: #e0e0e0;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        input::placeholder, textarea::placeholder {
+            color: #777;
+        }
+        
+        /* Radio buttons */
+        .radio-group {
+            display: flex;
+            gap: 30px;
+            margin-top: 10px;
+        }
+        
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        input[type="radio"] {
+            width: 20px;
+            height: 20px;
+            accent-color: #4a9eff;
+            cursor: pointer;
+        }
+        
+        .radio-option label {
+            margin: 0;
+            cursor: pointer;
+            font-weight: normal;
+        }
+        
+        /* Autocomplete */
+        .autocomplete-container {
+            position: relative;
+        }
+        
+        .autocomplete-items {
+            position: absolute;
+            border: 1px solid #404040;
+            border-top: none;
+            z-index: 99;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 200px;
+            overflow-y: auto;
+            background: #2a2a2a;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        
+        .autocomplete-items div {
+            padding: 12px 16px;
+            cursor: pointer;
+            background-color: #2a2a2a;
+            border-bottom: 1px solid #404040;
+            color: #e0e0e0;
+            transition: background-color 0.2s ease;
+        }
+        
+        .autocomplete-items div:hover {
+            background-color: #333;
+        }
+        
+        .autocomplete-items div:last-child {
+            border-bottom: none;
+        }
+        
+        .autocomplete-active {
+            background-color: #4a9eff !important;
+            color: #000 !important;
+        }
+        
+        /* Buttons */
+        .btn {
+            background: linear-gradient(135deg, #4a9eff 0%, #357abd 100%);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 8px rgba(74, 158, 255, 0.3);
+        }
+        
+        .btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #357abd 0%, #2968a3 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(74, 158, 255, 0.4);
+        }
+        
+        .btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20924c 100%);
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+        }
+        
+        .btn-success:hover:not(:disabled) {
+            background: linear-gradient(135deg, #218838 0%, #1e7e34 100%);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+        }
+        
+        .btn-block {
+            width: 100%;
+            justify-content: center;
+        }
+        
+        /* Loading and messages */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #333;
+            border-top: 4px solid #4a9eff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+            display: none;
+        }
+        
+        .alert.show {
+            display: block;
+        }
+        
+        .alert-success {
+            background: linear-gradient(135deg, #1e3d29 0%, #2d5a41 100%);
+            color: #4ade80;
+            border: 1px solid #16a34a;
+            box-shadow: 0 2px 8px rgba(74, 222, 128, 0.2);
+        }
+        
+        .alert-error {
+            background: linear-gradient(135deg, #3d1e1e 0%, #5a2d2d 100%);
+            color: #f87171;
+            border: 1px solid #dc2626;
+            box-shadow: 0 2px 8px rgba(248, 113, 113, 0.2);
+        }
+        
+        .alert-warning {
+            background: linear-gradient(135deg, #3d3a1e 0%, #5a5330 100%);
+            color: #fbbf24;
+            border: 1px solid #d97706;
+            box-shadow: 0 2px 8px rgba(251, 191, 36, 0.2);
+        }
+        
+        .alert-info {
+            background: linear-gradient(135deg, #1e2d3d 0%, #2d4a5a 100%);
+            color: #60a5fa;
+            border: 1px solid #2563eb;
+            box-shadow: 0 2px 8px rgba(96, 165, 250, 0.2);
+        }
+        
+        /* PO Result Display */
+        .po-result {
+            background: #242424;
+            border: 2px solid #4a9eff;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .po-result.show {
+            display: block;
+        }
+        
+        .po-number-display {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #4a9eff 0%, #357abd 100%);
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .po-number-display h2 {
+            margin: 0;
+            color: #000;
+            font-size: 1.5rem;
+        }
+        
+        .po-number-display .po-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #000;
+            margin: 10px 0;
+        }
+        
+        .po-details {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #404040;
+        }
+        
+        .po-detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #333;
+        }
+        
+        .po-detail-row:last-child {
+            border-bottom: none;
+        }
+        
+        .po-detail-label {
+            color: #888;
+            font-weight: 600;
+        }
+        
+        .po-detail-value {
+            color: #e0e0e0;
+        }
+        
+        /* Phone formatting helper */
+        .phone-format-hint {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+        
+        /* Hidden utility */
+        .hidden {
+            display: none !important;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .section {
+                padding: 20px;
+            }
+            
+            .form-row {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            
+            .radio-group {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Purchase Order Request</h1>
+            <p>LSEC SA PO Request System</p>
+        </div>
+
+        <!-- Alert Messages -->
+        <div id="alertMessage" class="alert"></div>
+
+        <form id="poForm">
+            <!-- Contact Information Section -->
+            <div class="section">
+                <div class="section-header">
+                    <span class="section-number">1</span>
+                    Contact Information
+                </div>
+
+                <div class="form-group">
+                    <label for="name">Full Name <span class="required">*</span></label>
+                    <input type="text" id="name" name="name" required placeholder="Enter your full name">
+                </div>
+
+                <div class="form-group">
+                    <label for="phone">Phone Number <span class="required">*</span></label>
+                    <input type="tel" id="phone" name="phone" required placeholder="(210) 555-1234">
+                    <div class="phone-format-hint">Format: (XXX) XXX-XXXX</div>
+                </div>
+            </div>
+
+            <!-- Purchase Order Details Section -->
+            <div class="section">
+                <div class="section-header">
+                    <span class="section-number">2</span>
+                    Purchase Order Details
+                </div>
+
+                <div class="form-group">
+                    <label for="vendor">Vendor <span class="required">*</span></label>
+                    <div class="autocomplete-container">
+                        <input type="text" id="vendor" name="vendor" required placeholder="Start typing vendor name...">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="project">Project <span class="required">*</span></label>
+                    <div class="autocomplete-container">
+                        <input type="text" id="project" name="project" required placeholder="Start typing project name...">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="quotedPrice">Quoted Price <span class="required">*</span></label>
+                    <input type="text" id="quotedPrice" name="quotedPrice" required 
+                           placeholder="e.g., $571 or $5/EA or $3,492.00 + tax">
+                </div>
+
+                <div class="form-group">
+                    <label>Taxable <span class="required">*</span></label>
+                    <div class="radio-group">
+                        <div class="radio-option">
+                            <input type="radio" id="taxableYes" name="taxable" value="YES" required>
+                            <label for="taxableYes">Yes</label>
+                        </div>
+                        <div class="radio-option">
+                            <input type="radio" id="taxableNo" name="taxable" value="NO" required>
+                            <label for="taxableNo">No</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="materialRequested">Material Requested (Optional)</label>
+                    <textarea id="materialRequested" name="materialRequested" rows="4" 
+                              placeholder="Describe the materials or services being requested..."></textarea>
+                </div>
+            </div>
+
+            <!-- Submit Section -->
+            <div class="form-group">
+                <button type="submit" id="submitBtn" class="btn btn-success btn-block">
+                    📋 Submit PO Request
+                </button>
+            </div>
+        </form>
+
+        <!-- Loading Indicator -->
+        <div id="loadingDiv" class="loading">
+            <div class="spinner"></div>
+            <p>Submitting your PO request...</p>
+        </div>
+
+        <!-- PO Result Display -->
+        <div id="poResult" class="po-result">
+            <div class="po-number-display">
+                <h2>PO Request Submitted Successfully!</h2>
+                <div class="po-number">PO #<span id="poNumberDisplay"></span></div>
+            </div>
+            <div class="po-details">
+                <div class="po-detail-row">
+                    <span class="po-detail-label">Status:</span>
+                    <span class="po-detail-value" id="statusDisplay"></span>
+                </div>
+                <div class="po-detail-row">
+                    <span class="po-detail-label">Vendor:</span>
+                    <span class="po-detail-value" id="vendorDisplay"></span>
+                </div>
+                <div class="po-detail-row">
+                    <span class="po-detail-label">Project:</span>
+                    <span class="po-detail-value" id="projectDisplay"></span>
+                </div>
+                <div class="po-detail-row">
+                    <span class="po-detail-label">Amount:</span>
+                    <span class="po-detail-value" id="amountDisplay"></span>
+                </div>
+            </div>
+            <div style="margin-top: 20px; text-align: center;">
+                <button type="button" class="btn" onclick="resetForm()">Submit Another Request</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = '/.netlify/functions/';
+        
+        // Global variables
+        let vendors = [];
+        let projects = [];
+        let currentFocus = -1;
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            loadMasterData();
+            setupEventListeners();
+            setupPhoneFormatting();
+        });
+
+        // API Helper function
+        async function apiCall(endpoint, options = {}) {
+            try {
+                const response = await fetch(API_BASE + endpoint, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || `HTTP error! status: ${response.status}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error(`API call failed for ${endpoint}:`, error);
+                throw error;
+            }
+        }
+
+        // Load all master data
+        async function loadMasterData() {
+            try {
+                await Promise.all([
+                    loadVendors(),
+                    loadProjects()
+                ]);
+            } catch (error) {
+                console.error('Error loading master data:', error);
+                showMessage('Error loading form data. Please refresh the page.', 'error');
+            }
+        }
+
+        // Load vendors
+        async function loadVendors() {
+            try {
+                const response = await apiCall('po-data');
+                vendors = response.vendors || [];
+                setupAutocomplete('vendor', vendors);
+            } catch (error) {
+                console.error('Error loading vendors:', error);
+                vendors = [];
+            }
+        }
+
+        // Load projects
+        async function loadProjects() {
+            try {
+                const response = await apiCall('po-data');
+                projects = response.projects || [];
+                setupAutocomplete('project', projects);
+            } catch (error) {
+                console.error('Error loading projects:', error);
+                projects = [];
+            }
+        }
+
+        // Setup autocomplete functionality
+        function setupAutocomplete(fieldId, dataArray) {
+            const input = document.getElementById(fieldId);
+            let currentFocus = -1;
+            
+            input.addEventListener('input', function() {
+                const value = this.value;
+                closeAllLists(fieldId);
+                
+                if (!value) return false;
+                
+                currentFocus = -1;
+                
+                const container = this.parentNode;
+                const listDiv = document.createElement('div');
+                listDiv.setAttribute('class', 'autocomplete-items');
+                listDiv.setAttribute('data-field', fieldId);
+                container.appendChild(listDiv);
+                
+                // Filter and limit results
+                const filteredItems = dataArray.filter(item => 
+                    item.toLowerCase().includes(value.toLowerCase())
+                ).slice(0, 10);
+                
+                if (filteredItems.length === 0) {
+                    const noResultDiv = document.createElement('div');
+                    noResultDiv.innerHTML = '<em>No matching items found</em>';
+                    noResultDiv.style.color = '#888';
+                    noResultDiv.style.fontStyle = 'italic';
+                    listDiv.appendChild(noResultDiv);
+                    return;
+                }
+                
+                filteredItems.forEach(function(item) {
+                    const itemDiv = document.createElement('div');
+                    
+                    // Highlight matching text
+                    const matchIndex = item.toLowerCase().indexOf(value.toLowerCase());
+                    const beforeMatch = item.substr(0, matchIndex);
+                    const match = item.substr(matchIndex, value.length);
+                    const afterMatch = item.substr(matchIndex + value.length);
+                    
+                    itemDiv.innerHTML = beforeMatch + '<strong>' + match + '</strong>' + afterMatch;
+                    itemDiv.addEventListener('click', function() {
+                        input.value = item;
+                        closeAllLists(fieldId);
+                    });
+                    
+                    listDiv.appendChild(itemDiv);
+                });
+            });
+            
+            // Keyboard navigation
+            input.addEventListener('keydown', function(e) {
+                const items = document.querySelector(`.autocomplete-items[data-field="${fieldId}"]`);
+                if (!items) return;
+                
+                const itemsArray = items.getElementsByTagName('div');
+                
+                if (e.keyCode === 40) { // Down arrow
+                    currentFocus++;
+                    addActive(itemsArray);
+                } else if (e.keyCode === 38) { // Up arrow
+                    currentFocus--;
+                    addActive(itemsArray);
+                } else if (e.keyCode === 13) { // Enter
+                    e.preventDefault();
+                    if (currentFocus > -1 && itemsArray[currentFocus]) {
+                        itemsArray[currentFocus].click();
+                    }
+                } else if (e.keyCode === 27) { // Escape
+                    closeAllLists();
+                }
+            });
+            
+            function addActive(items) {
+                removeActive(items);
+                if (currentFocus >= items.length) currentFocus = 0;
+                if (currentFocus < 0) currentFocus = items.length - 1;
+                if (items[currentFocus]) {
+                    items[currentFocus].classList.add('autocomplete-active');
+                }
+            }
+            
+            function removeActive(items) {
+                for (let i = 0; i < items.length; i++) {
+                    items[i].classList.remove('autocomplete-active');
+                }
+            }
+        }
+
+        function closeAllLists(exceptField) {
+            const items = document.querySelectorAll('.autocomplete-items');
+            items.forEach(item => {
+                if (!exceptField || item.getAttribute('data-field') !== exceptField) {
+                    item.remove();
+                }
+            });
+        }
+
+        // Close autocomplete when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.autocomplete-container')) {
+                closeAllLists();
+            }
+        });
+
+        // Setup event listeners
+        function setupEventListeners() {
+            document.getElementById('poForm').addEventListener('submit', handleSubmit);
+        }
+
+        // Setup phone formatting
+        function setupPhoneFormatting() {
+            const phoneInput = document.getElementById('phone');
+            
+            phoneInput.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/\D/g, '');
+                let formattedValue = '';
+                
+                if (value.length > 0) {
+                    if (value.length <= 3) {
+                        formattedValue = `(${value}`;
+                    } else if (value.length <= 6) {
+                        formattedValue = `(${value.slice(0, 3)}) ${value.slice(3)}`;
+                    } else {
+                        formattedValue = `(${value.slice(0, 3)}) ${value.slice(3, 6)}-${value.slice(6, 10)}`;
+                    }
+                }
+                
+                e.target.value = formattedValue;
+            });
+            
+            phoneInput.addEventListener('keydown', function(e) {
+                // Allow backspace, delete, tab, escape, enter
+                if ([8, 9, 27, 13, 46].indexOf(e.keyCode) !== -1 ||
+                    // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+                    (e.keyCode === 65 && e.ctrlKey === true) ||
+                    (e.keyCode === 67 && e.ctrlKey === true) ||
+                    (e.keyCode === 86 && e.ctrlKey === true) ||
+                    (e.keyCode === 88 && e.ctrlKey === true)) {
+                    return;
+                }
+                // Ensure that it is a number and stop the keypress
+                if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
+                    e.preventDefault();
+                }
+            });
+        }
+
+        // Handle form submission
+        async function handleSubmit(event) {
+            event.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const loadingDiv = document.getElementById('loadingDiv');
+            const form = document.getElementById('poForm');
+            
+            try {
+                // Show loading, disable button
+                submitBtn.disabled = true;
+                loadingDiv.classList.add('show');
+                hideMessage();
+                
+                // Collect form data
+                const formData = {
+                    name: document.getElementById('name').value.trim(),
+                    phone: document.getElementById('phone').value.trim(),
+                    vendor: document.getElementById('vendor').value.trim(),
+                    project: document.getElementById('project').value.trim(),
+                    quotedPrice: document.getElementById('quotedPrice').value.trim(),
+                    taxable: document.querySelector('input[name="taxable"]:checked')?.value || '',
+                    materialRequested: document.getElementById('materialRequested').value.trim()
+                };
+                
+                // Validate required fields
+                if (!formData.name || !formData.phone || !formData.vendor || 
+                    !formData.project || !formData.quotedPrice || !formData.taxable) {
+                    throw new Error('Please fill in all required fields');
+                }
+                
+                // Validate phone format
+                const phoneDigits = formData.phone.replace(/\D/g, '');
+                if (phoneDigits.length !== 10) {
+                    throw new Error('Please enter a valid 10-digit phone number');
+                }
+                
+                // Submit to API
+                const result = await apiCall('po-submit', {
+                    method: 'POST',
+                    body: JSON.stringify(formData)
+                });
+                
+                if (result.success) {
+                    // Hide form and loading
+                    form.style.display = 'none';
+                    loadingDiv.classList.remove('show');
+                    
+                    // Show success result
+                    showPOResult(result);
+                    
+                    // Show success message
+                    if (result.authorized) {
+                        showMessage(`PO #${result.poNumber} has been automatically approved! You will receive an SMS confirmation shortly.`, 'success');
+                    } else {
+                        showMessage(`PO #${result.poNumber} has been submitted for approval. You will receive an SMS once it's approved.`, 'info');
+                    }
+                } else {
+                    throw new Error(result.message || 'Failed to submit PO request');
+                }
+                
+            } catch (error) {
+                console.error('Error submitting form:', error);
+                showMessage(error.message || 'Error submitting PO request. Please try again.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+                loadingDiv.classList.remove('show');
+            }
+        }
+
+        // Show PO result
+        function showPOResult(result) {
+            const poResult = document.getElementById('poResult');
+            
+            document.getElementById('poNumberDisplay').textContent = result.poNumber;
+            document.getElementById('statusDisplay').textContent = result.authorized ? 'APPROVED' : 'PENDING APPROVAL';
+            document.getElementById('statusDisplay').style.color = result.authorized ? '#4ade80' : '#fbbf24';
+            document.getElementById('vendorDisplay').textContent = document.getElementById('vendor').value;
+            document.getElementById('projectDisplay').textContent = document.getElementById('project').value;
+            document.getElementById('amountDisplay').textContent = document.getElementById('quotedPrice').value;
+            
+            poResult.classList.add('show');
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('poForm').reset();
+            document.getElementById('poForm').style.display = 'block';
+            document.getElementById('poResult').classList.remove('show');
+            hideMessage();
+            closeAllLists();
+        }
+
+        // Show message
+        function showMessage(message, type) {
+            const alertDiv = document.getElementById('alertMessage');
+            alertDiv.textContent = message;
+            alertDiv.className = `alert alert-${type} show`;
+            
+            // Auto-hide success messages after 10 seconds
+            if (type === 'success' || type === 'info') {
+                setTimeout(() => {
+                    hideMessage();
+                }, 10000);
+            }
+            
+            // Scroll to top to show message
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Hide message
+        function hideMessage() {
+            const alertDiv = document.getElementById('alertMessage');
+            alertDiv.classList.remove('show');
+        }
+    </script>
+</body>
+</html>
