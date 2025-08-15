@@ -6,7 +6,7 @@ const crypto = require('crypto');
 
 // Environment variables
 const sql = neon(process.env.DATABASE_URL);
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
+const JWT_SECRET = process.env.JWT_SECRET || '416cf56a29ba481816ab028346c8dcdc169b2241187b10e9b274192da564523234ad0aec4f6dd567e1896c6e52c10f7e8494d6d15938afab7ef11db09630fd8fa8005';
 const TOKEN_EXPIRY = '24h';
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION = 15; // minutes
