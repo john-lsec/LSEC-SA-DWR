@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bid Items Master Management</title>
+    <style>
+        * { box-sizing: border-box; }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #121212;
+            min-height: 100vh;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #4a9eff;
+        }
+        
+        .header h1 {
+            color: #4a9eff;
+            margin: 0;
+            font-size: 2.5rem;
+            text-shadow: 0 2px 4px rgba(74, 158, 255, 0.3);
+        }
+        
+        .header p {
+            color: #b0b0b0;
+            margin: 10px 0 0 0;
+            font-size: 1.1rem;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        input, select, textarea {
+            padding: 10px 15px;
+            border: 2px solid #404040;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #2a2a2a;
+            color: #e0e0e0;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #4a9eff;
+            box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.2);
+            background: #333;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #4a9eff 0%, #357abd 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn:hover {
+            background: linear-gradient(135deg, #357abd 0%, #2968a3 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(74, 158, 255, 0.4);
+        }
+        
+        .btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+            opacity: 0.6;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20924c 100%);
+        }
+        
+        .btn-success:hover {
+            background: linear-gradient(135deg, #218838 0%, #1e7e34 100%);
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
+        }
+        
+        .btn-warning:hover {
+            background: linear-gradient(135deg, #e0a800 0%, #c69500 100%);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        }
+        
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+        }
+        
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+        
+        .save-bar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: linear-gradient(135deg, #1e3d29 0%, #2d5a41 100%);
+            padding: 15px 20px;
+            margin: -20px -20px 20px -20px;
+            border-radius: 8px;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            border: 1px solid #16a34a;
+        }
+        
+        .save-bar.show {
+            display: flex;
+        }
+        
+        .save-bar-text {
+            color: #4ade80;
+            font-weight: 600;
+        }
+        
+        .save-bar-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid #404040;
+            background: #1e1e1e;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        table th, table td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid #404040;
+        }
+        
+        table th {
+            background: #242424;
+            font-weight: 600;
+            color: #4a9eff;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        table tr:hover {
+            background: #242424;
+        }
+        
+        table tr.modified {
+            background: rgba(74, 158, 255, 0.1);
+            border-left: 3px solid #4a9eff;
+        }
+        
+        table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .editable {
+            background: transparent;
+            border: 1px solid transparent;
+            padding: 4px 8px;
+            border-radius: 4px;
+            width: 100%;
+            color: #e0e0e0;
+            transition: all 0.2s ease;
+        }
+        
+        .editable:hover {
+            background: #2a2a2a;
+            border-color: #404040;
+        }
+        
+        .editable:focus {
+            background: #333;
+            border-color: #4a9eff;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
+        }
+        
+        .editable.changed {
+            background: rgba(74, 158, 255, 0.1);
+            border-color: #4a9eff;
+        }
+        
+        select.editable {
+            cursor: pointer;
+        }
+        
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .modal.show {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 1px solid #404040;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #404040;
+        }
+        
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #e0e0e0;
+            margin: 0;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #888;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+        }
+        
+        .close-btn:hover {
+            color: #e0e0e0;
+            background: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #c0c0c0;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        
+        .alert-success {
+            background: linear-gradient(135deg, #1e3d29 0%, #2d5a41 100%);
+            color: #4ade80;
+            border: 1px solid #16a34a;
+        }
+        
+        .alert-error {
+            background: linear-gradient(135deg, #3d1e1e 0%, #5a2d2d 100%);
+            color: #f87171;
+            border: 1px solid #dc2626;
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
+            gap: 10px;
+        }
+        
+        .pagination-info {
+            color: #888;
+            margin: 0 20px;
+        }
+        
+        .stats-card {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-item {
+            background: #242424;
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid #404040;
+        }
+        
+        .stat-label {
+            color: #888;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+        
+        .stat-value {
+            color: #4a9eff;
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+        
+        .category-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            background: rgba(74, 158, 255, 0.2);
+            color: #4a9eff;
+            border: 1px solid rgba(74, 158, 255, 0.4);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+        
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            margin-left: 10px;
+            border: 2px solid #333;
+            border-top: 2px solid #4a9eff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #888;
+        }
+        
+        .empty-state h3 {
+            color: #c0c0c0;
+            margin-bottom: 10px;
+        }
+        
+        .actions-cell {
+            white-space: nowrap;
+        }
+        
+        @media (max-width: 768px) {
+            .table-container {
+                font-size: 12px;
+            }
+            
+            .editable {
+                padding: 2px 4px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Bid Items Master</h1>
+            <p>Manage Master Bid Items Database</p>
+        </div>
+        
+        <!-- Save Bar -->
+        <div id="saveBar" class="save-bar">
+            <div class="save-bar-text">
+                <span id="changeCount">0</span> unsaved changes
+            </div>
+            <div class="save-bar-buttons">
+                <button class="btn" onclick="discardChanges()">Discard Changes</button>
+                <button class="btn btn-success" onclick="saveAllChanges()">Save All Changes</button>
+            </div>
+        </div>
+        
+        <!-- Statistics Cards -->
+        <div class="stats-card">
+            <div class="stat-item">
+                <div class="stat-label">Total Items</div>
+                <div class="stat-value" id="totalItems">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Categories</div>
+                <div class="stat-value" id="totalCategories">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Avg Material Cost</div>
+                <div class="stat-value" id="avgCost">$0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Active Items</div>
+                <div class="stat-value" id="activeItems">0</div>
+            </div>
+        </div>
+        
+        <!-- Controls -->
+        <div class="controls">
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="Search by code or name...">
+                <select id="categoryFilter">
+                    <option value="">All Categories</option>
+                </select>
+                <select id="unitFilter">
+                    <option value="">All Units</option>
+                </select>
+            </div>
+            <button class="btn btn-success" onclick="showAddModal()">
+                ➕ Add New Item
+            </button>
+        </div>
+        
+        <!-- Table -->
+        <div class="table-container">
+            <table id="bidItemsTable">
+                <thead>
+                    <tr>
+                        <th style="width: 120px;">Item Code</th>
+                        <th style="width: 250px;">Item Name</th>
+                        <th style="width: 150px;">Category</th>
+                        <th style="width: 100px;">Unit</th>
+                        <th style="width: 120px;">Material Cost</th>
+                        <th style="width: 80px;">Active</th>
+                        <th style="width: 100px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr>
+                        <td colspan="7" class="loading">Loading bid items</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <div class="pagination">
+            <button class="btn btn-sm" id="prevPage" onclick="changePage(-1)">Previous</button>
+            <span class="pagination-info" id="pageInfo">Page 1 of 1</span>
+            <button class="btn btn-sm" id="nextPage" onclick="changePage(1)">Next</button>
+        </div>
+        
+        <!-- Result Message -->
+        <div id="resultMessage"></div>
+    </div>
+    
+    <!-- Add New Item Modal -->
+    <div id="itemModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Add Bid Item</h3>
+                <button type="button" class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            
+            <form id="itemForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="newItemCode">Item Code *</label>
+                        <input type="text" id="newItemCode" required maxlength="20" placeholder="e.g., 100-001">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="newCategory">Category *</label>
+                        <select id="newCategory" required>
+                            <option value="">Select Category</option>
+                            <option value="CLEARING">CLEARING</option>
+                            <option value="DEMOLITION">DEMOLITION</option>
+                            <option value="EARTHWORK">EARTHWORK</option>
+                            <option value="EROSION CONTROL">EROSION CONTROL</option>
+                            <option value="LANDSCAPING">LANDSCAPING</option>
+                            <option value="MASONRY">MASONRY</option>
+                            <option value="MISC METALS">MISC METALS</option>
+                            <option value="PAINTING">PAINTING</option>
+                            <option value="PAVING">PAVING</option>
+                            <option value="SITE CONCRETE">SITE CONCRETE</option>
+                            <option value="SPECIALTIES">SPECIALTIES</option>
+                            <option value="STORM DRAINAGE">STORM DRAINAGE</option>
+                            <option value="STRUCTURES">STRUCTURES</option>
+                            <option value="TRAFFIC">TRAFFIC</option>
+                            <option value="UTILITIES">UTILITIES</option>
+                            <option value="WATERWORKS">WATERWORKS</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="newItemName">Item Name *</label>
+                    <input type="text" id="newItemName" required maxlength="200" placeholder="Enter item description">
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="newDefaultUnit">Default Unit *</label>
+                        <select id="newDefaultUnit" required>
+                            <option value="">Select Unit</option>
+                            <option value="EA">Each (EA)</option>
+                            <option value="LF">Linear Feet (LF)</option>
+                            <option value="SF">Square Feet (SF)</option>
+                            <option value="SY">Square Yard (SY)</option>
+                            <option value="CY">Cubic Yard (CY)</option>
+                            <option value="TON">Ton (TON)</option>
+                            <option value="GAL">Gallon (GAL)</option>
+                            <option value="HR">Hour (HR)</option>
+                            <option value="DAY">Day (DAY)</option>
+                            <option value="MO">Month (MO)</option>
+                            <option value="LS">Lump Sum (LS)</option>
+                            <option value="AC">Acre (AC)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="newMaterialCost">Material Cost ($)</label>
+                        <input type="number" id="newMaterialCost" min="0" step="0.01" placeholder="0.00">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="newDescription">Description</label>
+                    <textarea id="newDescription" rows="3" placeholder="Additional details (optional)"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="newIsActive" checked> Active
+                    </label>
+                </div>
+                
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                    <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success">Save Item</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3 class="modal-title">Confirm Delete</h3>
+                <button type="button" class="close-btn" onclick="closeDeleteModal()">&times;</button>
+            </div>
+            
+            <p>Are you sure you want to delete this bid item?</p>
+            <p id="deleteItemInfo" style="font-weight: 600; color: #f87171;"></p>
+            <p style="color: #fbbf24; font-size: 14px;">⚠️ This will affect all projects using this item.</p>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button type="button" class="btn" onclick="closeDeleteModal()">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Configuration
+        const API_BASE = '/.netlify/functions/';
+        
+        // State
+        let bidItems = [];
+        let filteredItems = [];
+        let currentPage = 1;
+        const itemsPerPage = 20;
+        let itemToDelete = null;
+        let categories = new Set();
+        let units = new Set();
+        let modifiedItems = {};
+        let originalData = {};
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadBidItems();
+            setupEventListeners();
+        });
+        
+        // API Helper
+        async function apiCall(endpoint, options = {}) {
+            try {
+                const response = await fetch(API_BASE + 'api/' + endpoint, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Request failed');
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error('API call failed:', error);
+                throw error;
+            }
+        }
+        
+        // Load bid items
+        async function loadBidItems() {
+            try {
+                document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" class="loading">Loading bid items</td></tr>';
+                
+                bidItems = await apiCall('master-bid-items');
+                
+                // Store original data for comparison
+                bidItems.forEach(item => {
+                    originalData[item.id] = {...item};
+                });
+                
+                // Extract unique categories and units
+                categories.clear();
+                units.clear();
+                
+                bidItems.forEach(item => {
+                    if (item.category) categories.add(item.category);
+                    if (item.default_unit) units.add(item.default_unit);
+                });
+                
+                populateFilters();
+                updateStats();
+                filterAndDisplay();
+                
+            } catch (error) {
+                showMessage('Error loading bid items: ' + error.message, 'error');
+            }
+        }
+        
+        // Populate filter dropdowns
+        function populateFilters() {
+            const categoryFilter = document.getElementById('categoryFilter');
+            const unitFilter = document.getElementById('unitFilter');
+            
+            // Clear existing options
+            categoryFilter.innerHTML = '<option value="">All Categories</option>';
+            unitFilter.innerHTML = '<option value="">All Units</option>';
+            
+            // Add categories
+            Array.from(categories).sort().forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                categoryFilter.appendChild(option);
+            });
+            
+            // Add units
+            Array.from(units).sort().forEach(unit => {
+                const option = document.createElement('option');
+                option.value = unit;
+                option.textContent = unit;
+                unitFilter.appendChild(option);
+            });
+        }
+        
+        // Update statistics
+        function updateStats() {
+            const activeCount = bidItems.filter(item => item.is_active).length;
+            const totalCost = bidItems.reduce((sum, item) => sum + (parseFloat(item.material_cost) || 0), 0);
+            const avgCost = bidItems.length > 0 ? totalCost / bidItems.length : 0;
+            
+            document.getElementById('totalItems').textContent = bidItems.length;
+            document.getElementById('totalCategories').textContent = categories.size;
+            document.getElementById('avgCost').textContent = '$' + avgCost.toFixed(2);
+            document.getElementById('activeItems').textContent = activeCount;
+        }
+        
+        // Filter and display items
+        function filterAndDisplay() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const categoryFilter = document.getElementById('categoryFilter').value;
+            const unitFilter = document.getElementById('unitFilter').value;
+            
+            filteredItems = bidItems.filter(item => {
+                const matchesSearch = !searchTerm || 
+                    item.item_code.toLowerCase().includes(searchTerm) ||
+                    item.item_name.toLowerCase().includes(searchTerm);
+                
+                const matchesCategory = !categoryFilter || item.category === categoryFilter;
+                const matchesUnit = !unitFilter || item.default_unit === unitFilter;
+                
+                return matchesSearch && matchesCategory && matchesUnit;
+            });
+            
+            // Reset to page 1 when filtering
+            currentPage = 1;
+            displayPage();
+        }
+        
+        // Track field changes
+        function trackChange(itemId, field, newValue, oldValue) {
+            if (!modifiedItems[itemId]) {
+                modifiedItems[itemId] = {};
+            }
+            
+            // Convert values for comparison
+            const original = originalData[itemId][field];
+            let compareNew = newValue;
+            let compareOrig = original;
+            
+            // Handle different data types
+            if (field === 'material_cost') {
+                compareNew = parseFloat(newValue) || 0;
+                compareOrig = parseFloat(original) || 0;
+            } else if (field === 'is_active') {
+                compareNew = newValue === true || newValue === 'true';
+                compareOrig = original === true;
+            }
+            
+            // Check if value is actually different from original
+            if (compareNew !== compareOrig) {
+                modifiedItems[itemId][field] = newValue;
+            } else {
+                delete modifiedItems[itemId][field];
+                if (Object.keys(modifiedItems[itemId]).length === 0) {
+                    delete modifiedItems[itemId];
+                }
+            }
+            
+            updateSaveBar();
+        }
+        
+        // Update save bar
+        function updateSaveBar() {
+            const saveBar = document.getElementById('saveBar');
+            const changeCount = document.getElementById('changeCount');
+            const count = Object.keys(modifiedItems).length;
+            
+            if (count > 0) {
+                saveBar.classList.add('show');
+                changeCount.textContent = count;
+            } else {
+                saveBar.classList.remove('show');
+            }
+        }
+        
+        // Display current page
+        function displayPage() {
+            const tbody = document.getElementById('tableBody');
+            const start = (currentPage - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            const pageItems = filteredItems.slice(start, end);
+            
+            if (pageItems.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><h3>No items found</h3><p>Try adjusting your filters</p></td></tr>';
+                updatePagination();
+                return;
+            }
+            
+            tbody.innerHTML = '';
+            pageItems.forEach(item => {
+                const row = document.createElement('tr');
+                row.id = 'row-' + item.id;
+                
+                // Check if this item has modifications
+                if (modifiedItems[item.id]) {
+                    row.classList.add('modified');
+                }
+                
+                const materialCost = parseFloat(item.material_cost) || 0;
+                
+                // Get all unique categories from the data
+                const allCategories = Array.from(categories).sort();
+                // Add common categories that might not be in the current data
+                const standardCategories = ['CLEARING', 'DEMOLITION', 'EARTHWORK', 'EROSION CONTROL', 
+                    'LANDSCAPING', 'MASONRY', 'MISC METALS', 'PAINTING', 'PAVING', 
+                    'SITE CONCRETE', 'SPECIALTIES', 'STORM DRAINAGE', 'STRUCTURES', 
+                    'TRAFFIC', 'UTILITIES', 'WATERWORKS'];
+                
+                // Combine and deduplicate categories
+                const combinedCategories = [...new Set([...allCategories, ...standardCategories])].sort();
+                
+                // Create category options with proper selection
+                const categoryOptions = combinedCategories
+                    .map(cat => {
+                        // Handle case-insensitive comparison and trim spaces
+                        const isSelected = item.category && 
+                                         item.category.trim().toUpperCase() === cat.trim().toUpperCase();
+                        return `<option value="${cat}" ${isSelected ? 'selected' : ''}>${cat}</option>`;
+                    })
+                    .join('');
+                
+                // Get all unique units from the data
+                const allUnits = Array.from(units).sort();
+                const standardUnits = ['EA', 'LF', 'SF', 'SY', 'CY', 'TON', 'GAL', 'HR', 'DAY', 'MO', 'LS', 'AC'];
+                const combinedUnits = [...new Set([...allUnits, ...standardUnits])].sort();
+                
+                // Create unit options with proper selection
+                const unitOptions = combinedUnits
+                    .map(unit => {
+                        const isSelected = item.default_unit && 
+                                         item.default_unit.trim().toUpperCase() === unit.trim().toUpperCase();
+                        return `<option value="${unit}" ${isSelected ? 'selected' : ''}>${unit}</option>`;
+                    })
+                    .join('');
+                
+                row.innerHTML = `
+                    <td>
+                        <input type="text" class="editable ${modifiedItems[item.id]?.item_code ? 'changed' : ''}" 
+                               value="${item.item_code || ''}" 
+                               data-id="${item.id}" 
+                               data-field="item_code"
+                               maxlength="20">
+                    </td>
+                    <td>
+                        <input type="text" class="editable ${modifiedItems[item.id]?.item_name ? 'changed' : ''}" 
+                               value="${item.item_name || ''}" 
+                               data-id="${item.id}" 
+                               data-field="item_name"
+                               maxlength="200">
+                    </td>
+                    <td>
+                        <select class="editable ${modifiedItems[item.id]?.category ? 'changed' : ''}" 
+                                data-id="${item.id}" 
+                                data-field="category">
+                            <option value="">-- Select Category --</option>
+                            ${categoryOptions}
+                        </select>
+                    </td>
+                    <td>
+                        <select class="editable ${modifiedItems[item.id]?.default_unit ? 'changed' : ''}" 
+                                data-id="${item.id}" 
+                                data-field="default_unit">
+                            <option value="">-- Select Unit --</option>
+                            ${unitOptions}
+                        </select>
+                    </td>
+                    <td>
+                        <input type="number" class="editable ${modifiedItems[item.id]?.material_cost ? 'changed' : ''}" 
+                               value="${materialCost.toFixed(2)}" 
+                               data-id="${item.id}" 
+                               data-field="material_cost"
+                               min="0" 
+                               step="0.01">
+                    </td>
+                    <td style="text-align: center;">
+                        <input type="checkbox" 
+                               data-id="${item.id}" 
+                               data-field="is_active"
+                               ${item.is_active ? 'checked' : ''}>
+                    </td>
+                    <td class="actions-cell">
+                        <button class="btn btn-danger btn-sm" onclick="deleteItem('${item.id}')">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            // Add event listeners to editable fields
+            document.querySelectorAll('.editable').forEach(element => {
+                element.addEventListener('change', handleFieldChange);
+                element.addEventListener('input', handleFieldInput);
+            });
+            
+            // Add event listeners to checkboxes
+            document.querySelectorAll('input[type="checkbox"][data-field="is_active"]').forEach(element => {
+                element.addEventListener('change', handleCheckboxChange);
+            });
+            
+            updatePagination();
+        }
+        
+        // Handle field input (for visual feedback)
+        function handleFieldInput(e) {
+            const itemId = e.target.dataset.id;
+            const field = e.target.dataset.field;
+            const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+            
+            // Update visual state
+            const row = document.getElementById('row-' + itemId);
+            const original = originalData[itemId][field];
+            
+            let isDifferent = false;
+            if (field === 'material_cost') {
+                isDifferent = parseFloat(value) !== parseFloat(original);
+            } else {
+                isDifferent = value !== original;
+            }
+            
+            if (isDifferent) {
+                e.target.classList.add('changed');
+            } else {
+                e.target.classList.remove('changed');
+            }
+        }
+        
+        // Handle field change
+        function handleFieldChange(e) {
+            const itemId = e.target.dataset.id;
+            const field = e.target.dataset.field;
+            const value = e.target.value;
+            trackChange(itemId, field, value);
+            
+            // Update row appearance
+            const row = document.getElementById('row-' + itemId);
+            if (modifiedItems[itemId] && Object.keys(modifiedItems[itemId]).length > 0) {
+                row.classList.add('modified');
+            } else {
+                row.classList.remove('modified');
+            }
+        }
+        
+        // Handle checkbox change
+        function handleCheckboxChange(e) {
+            const itemId = e.target.dataset.id;
+            const field = e.target.dataset.field;
+            const value = e.target.checked;
+            trackChange(itemId, field, value);
+            
+            // Update row appearance
+            const row = document.getElementById('row-' + itemId);
+            if (modifiedItems[itemId] && Object.keys(modifiedItems[itemId]).length > 0) {
+                row.classList.add('modified');
+            } else {
+                row.classList.remove('modified');
+            }
+        }
+        
+        // Save all changes
+        async function saveAllChanges() {
+            const saveButton = event.target;
+            saveButton.disabled = true;
+            saveButton.textContent = 'Saving...';
+            
+            try {
+                const updates = [];
+                
+                for (const [itemId, changes] of Object.entries(modifiedItems)) {
+                    const item = bidItems.find(i => i.id === itemId);
+                    const updateData = {
+                        item_code: changes.item_code !== undefined ? changes.item_code : item.item_code,
+                        item_name: changes.item_name !== undefined ? changes.item_name : item.item_name,
+                        category: changes.category !== undefined ? changes.category : item.category,
+                        default_unit: changes.default_unit !== undefined ? changes.default_unit : item.default_unit,
+                        material_cost: changes.material_cost !== undefined ? parseFloat(changes.material_cost) : item.material_cost,
+                        description: item.description,
+                        is_active: changes.is_active !== undefined ? changes.is_active : item.is_active
+                    };
+                    
+                    updates.push(apiCall('master-bid-items/' + itemId, {
+                        method: 'PUT',
+                        body: JSON.stringify(updateData)
+                    }));
+                }
+                
+                await Promise.all(updates);
+                
+                showMessage(`Successfully updated ${updates.length} item(s)`, 'success');
+                modifiedItems = {};
+                updateSaveBar(); // Hide the save bar immediately
+                await loadBidItems();
+                
+            } catch (error) {
+                showMessage('Error saving changes: ' + error.message, 'error');
+            } finally {
+                saveButton.disabled = false;
+                saveButton.textContent = 'Save All Changes';
+            }
+        }
+        
+        // Discard changes
+        function discardChanges() {
+            if (confirm('Are you sure you want to discard all unsaved changes?')) {
+                modifiedItems = {};
+                filterAndDisplay();
+                updateSaveBar();
+            }
+        }
+        
+        // Update pagination controls
+        function updatePagination() {
+            const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+            const pageInfo = document.getElementById('pageInfo');
+            const prevBtn = document.getElementById('prevPage');
+            const nextBtn = document.getElementById('nextPage');
+            
+            pageInfo.textContent = `Page ${currentPage} of ${totalPages || 1}`;
+            prevBtn.disabled = currentPage <= 1;
+            nextBtn.disabled = currentPage >= totalPages;
+        }
+        
+        // Change page
+        function changePage(direction) {
+            // Check for unsaved changes
+            if (Object.keys(modifiedItems).length > 0) {
+                if (!confirm('You have unsaved changes. Continue without saving?')) {
+                    return;
+                }
+            }
+            
+            const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+            currentPage = Math.max(1, Math.min(currentPage + direction, totalPages));
+            displayPage();
+        }
+        
+        // Setup event listeners
+        function setupEventListeners() {
+            document.getElementById('searchInput').addEventListener('input', filterAndDisplay);
+            document.getElementById('categoryFilter').addEventListener('change', filterAndDisplay);
+            document.getElementById('unitFilter').addEventListener('change', filterAndDisplay);
+            document.getElementById('itemForm').addEventListener('submit', saveNewItem);
+        }
+        
+        // Show add modal
+        function showAddModal() {
+            document.getElementById('itemForm').reset();
+            document.getElementById('newIsActive').checked = true;
+            document.getElementById('itemModal').classList.add('show');
+        }
+        
+        // Save new item
+        async function saveNewItem(e) {
+            e.preventDefault();
+            
+            const data = {
+                item_code: document.getElementById('newItemCode').value.trim(),
+                item_name: document.getElementById('newItemName').value.trim(),
+                category: document.getElementById('newCategory').value,
+                default_unit: document.getElementById('newDefaultUnit').value,
+                material_cost: parseFloat(document.getElementById('newMaterialCost').value) || 0,
+                description: document.getElementById('newDescription').value.trim(),
+                is_active: document.getElementById('newIsActive').checked
+            };
+            
+            try {
+                await apiCall('master-bid-items', {
+                    method: 'POST',
+                    body: JSON.stringify(data)
+                });
+                
+                showMessage('Bid item created successfully', 'success');
+                closeModal();
+                loadBidItems();
+                
+            } catch (error) {
+                showMessage('Error creating bid item: ' + error.message, 'error');
+            }
+        }
+        
+        // Delete item
+        function deleteItem(id) {
+            const item = bidItems.find(i => i.id === id);
+            if (!item) return;
+            
+            itemToDelete = id;
+            document.getElementById('deleteItemInfo').textContent = 
+                item.item_code + ' - ' + item.item_name;
+            document.getElementById('deleteModal').classList.add('show');
+        }
+        
+        // Confirm delete
+        async function confirmDelete() {
+            if (!itemToDelete) return;
+            
+            try {
+                await apiCall('master-bid-items/' + itemToDelete, {
+                    method: 'DELETE'
+                });
+                
+                showMessage('Bid item deleted successfully', 'success');
+                closeDeleteModal();
+                loadBidItems();
+                
+            } catch (error) {
+                showMessage('Error deleting bid item: ' + error.message, 'error');
+            }
+        }
+        
+        // Close modal
+        function closeModal() {
+            document.getElementById('itemModal').classList.remove('show');
+        }
+        
+        // Close delete modal
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').classList.remove('show');
+            itemToDelete = null;
+        }
+        
+        // Show message
+        function showMessage(message, type) {
+            const resultDiv = document.getElementById('resultMessage');
+            resultDiv.className = 'alert alert-' + type;
+            resultDiv.textContent = message;
+            
+            setTimeout(() => {
+                resultDiv.innerHTML = '';
+                resultDiv.className = '';
+            }, 5000);
+        }
+        
+        // Warn before leaving with unsaved changes
+        window.addEventListener('beforeunload', function(e) {
+            if (Object.keys(modifiedItems).length > 0) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+    </script>
+</body>
+</html>
