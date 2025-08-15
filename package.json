@@ -4,7 +4,9 @@
   "description": "LSEC SA Daily Work Report System",
   "main": "index.html",
   "dependencies": {
-    "@neondatabase/serverless": "^0.9.0"
+    "@neondatabase/serverless": "^0.9.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
   },
   "engines": {
     "node": "18"
@@ -22,7 +24,9 @@
     "construction",
     "netlify",
     "neon",
-    "postgresql"
+    "postgresql",
+    "authentication",
+    "jwt"
   ],
   "author": "LSEC SA",
   "license": "ISC",
