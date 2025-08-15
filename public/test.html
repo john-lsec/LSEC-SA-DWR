@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>API Test Page</title>
+    <title>API Test Page with Authentication</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -14,6 +14,13 @@
         .container {
             max-width: 800px;
             margin: 0 auto;
+        }
+        .auth-section {
+            background: linear-gradient(135deg, #1e3d29 0%, #2d5a41 100%);
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #16a34a;
         }
         .test-section {
             background: #2a2a2a;
@@ -33,6 +40,29 @@
         }
         .test-button:hover {
             background: #357abd;
+        }
+        .test-button:disabled {
+            background: #555;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        .auth-button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .auth-button:hover {
+            background: #218838;
+        }
+        .logout-button {
+            background: #dc3545;
+        }
+        .logout-button:hover {
+            background: #c82333;
         }
         .result {
             background: #1a1a1a;
@@ -56,46 +86,143 @@
         .info {
             color: #60a5fa;
         }
+        .warning {
+            color: #fbbf24;
+        }
+        .auth-status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .authenticated {
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid #4ade80;
+            color: #4ade80;
+        }
+        .unauthenticated {
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid #f87171;
+            color: #f87171;
+        }
+        .input-group {
+            margin: 10px 0;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #c0c0c0;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 2px solid #404040;
+            border-radius: 5px;
+            background: #2a2a2a;
+            color: #e0e0e0;
+            font-size: 14px;
+        }
+        .input-group input:focus {
+            outline: none;
+            border-color: #4a9eff;
+            box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.2);
+        }
+        .token-display {
+            background: #1a1a1a;
+            border: 1px solid #404040;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>DWR API Test Page</h1>
-        <p>Use this page to test your API endpoints and diagnose issues.</p>
+        <h1>DWR API Test Page with Authentication</h1>
+        <p>Use this page to test your API endpoints with proper authentication.</p>
+
+        <!-- Authentication Section -->
+        <div class="auth-section">
+            <h2>🔐 Authentication</h2>
+            <div id="auth-status" class="auth-status unauthenticated">
+                Status: Not Authenticated
+            </div>
+            
+            <div id="login-form">
+                <div class="input-group">
+                    <label for="username">Username or Email:</label>
+                    <input type="text" id="username" placeholder="admin" value="admin">
+                </div>
+                <div class="input-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" placeholder="Enter password" value="Admin123!">
+                </div>
+                <button class="auth-button" onclick="login()">Login</button>
+                <button class="test-button" onclick="testAuthEndpoint()">Test Auth Endpoint</button>
+            </div>
+            
+            <div id="user-info" class="hidden">
+                <p><strong>User:</strong> <span id="user-name"></span></p>
+                <p><strong>Role:</strong> <span id="user-role"></span></p>
+                <p><strong>Email:</strong> <span id="user-email"></span></p>
+                <div class="token-display">
+                    <strong>Token:</strong> <span id="token-display"></span>
+                </div>
+                <button class="auth-button logout-button" onclick="logout()">Logout</button>
+                <button class="test-button" onclick="verifyToken()">Verify Token</button>
+            </div>
+            
+            <div id="auth-results" class="result"></div>
+        </div>
 
         <div class="test-section">
             <h2>Basic Connectivity Tests</h2>
-            <button class="test-button" onclick="testEndpoint('test')">Test API Connection</button>
+            <button class="test-button" id="test-api-btn" onclick="testEndpoint('test')">Test API Connection</button>
             <button class="test-button" onclick="testCORS()">Test CORS</button>
             <div id="basic-results" class="result"></div>
         </div>
 
         <div class="test-section">
-            <h2>Database Tests</h2>
-            <button class="test-button" onclick="testEndpoint('foremen')">Test Foremen</button>
-            <button class="test-button" onclick="testEndpoint('laborers')">Test Laborers</button>
-            <button class="test-button" onclick="testEndpoint('projects')">Test Projects</button>
+            <h2>Protected Database Tests (Requires Authentication)</h2>
+            <button class="test-button" id="test-foremen-btn" onclick="testProtectedEndpoint('foremen', 'db-results')">Test Foremen</button>
+            <button class="test-button" id="test-laborers-btn" onclick="testProtectedEndpoint('laborers', 'db-results')">Test Laborers</button>
+            <button class="test-button" id="test-projects-btn" onclick="testProtectedEndpoint('projects', 'db-results')">Test Projects</button>
+            <button class="test-button" id="test-bid-items-btn" onclick="testProtectedEndpoint('master-bid-items', 'db-results')">Test Master Bid Items</button>
             <div id="db-results" class="result"></div>
         </div>
 
         <div class="test-section">
-            <h2>Equipment Tests</h2>
-            <button class="test-button" onclick="testEquipment('CREW TRUCK')">Test Crew Trucks</button>
-            <button class="test-button" onclick="testEquipment('TRAILER')">Test Trailers</button>
-            <button class="test-button" onclick="testEquipment('MACHINE')">Test Machines</button>
+            <h2>Equipment Tests (Requires Authentication)</h2>
+            <button class="test-button" id="test-trucks-btn" onclick="testEquipment('CREW TRUCK')">Test Crew Trucks</button>
+            <button class="test-button" id="test-trailers-btn" onclick="testEquipment('TRAILER')">Test Trailers</button>
+            <button class="test-button" id="test-machines-btn" onclick="testEquipment('MACHINE')">Test Machines</button>
             <div id="equipment-results" class="result"></div>
         </div>
 
         <div class="test-section">
             <h2>Environment Check</h2>
             <button class="test-button" onclick="checkEnvironment()">Check Environment</button>
+            <button class="test-button" onclick="clearAllStorage()">Clear All Storage</button>
             <div id="env-results" class="result"></div>
         </div>
     </div>
 
     <script>
         const API_BASE = '/.netlify/functions/';
-        
+        let authToken = null;
+        let currentUser = null;
+
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            checkAuthStatus();
+        });
+
         function log(message, type = 'info', containerId = 'basic-results') {
             const container = document.getElementById(containerId);
             const timestamp = new Date().toLocaleTimeString();
@@ -109,15 +236,226 @@
             document.getElementById(containerId).textContent = '';
         }
 
+        // Authentication Functions
+        async function login() {
+            clearResults('auth-results');
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                log('Please enter username and password', 'error', 'auth-results');
+                return;
+            }
+            
+            log('Attempting login...', 'info', 'auth-results');
+            
+            try {
+                const response = await fetch(`${API_BASE}auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                log(`Login response status: ${response.status}`, 'info', 'auth-results');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    authToken = data.token;
+                    currentUser = data;
+                    
+                    // Store in localStorage
+                    localStorage.setItem('sessionToken', authToken);
+                    localStorage.setItem('userRole', data.role);
+                    localStorage.setItem('userId', data.userId);
+                    localStorage.setItem('userName', data.name);
+                    
+                    log('Login successful!', 'success', 'auth-results');
+                    log(`User: ${data.name} (${data.role})`, 'success', 'auth-results');
+                    log(`Token received: ${authToken.substring(0, 20)}...`, 'info', 'auth-results');
+                    
+                    updateAuthUI(true);
+                } else {
+                    const error = await response.json();
+                    log(`Login failed: ${error.error}`, 'error', 'auth-results');
+                    if (error.attemptsLeft !== undefined) {
+                        log(`Attempts remaining: ${error.attemptsLeft}`, 'warning', 'auth-results');
+                    }
+                    updateAuthUI(false);
+                }
+            } catch (error) {
+                log(`Network error: ${error.message}`, 'error', 'auth-results');
+                updateAuthUI(false);
+            }
+        }
+
+        async function logout() {
+            clearResults('auth-results');
+            log('Logging out...', 'info', 'auth-results');
+            
+            if (authToken) {
+                try {
+                    const response = await fetch(`${API_BASE}auth/logout`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        log('Logout successful', 'success', 'auth-results');
+                    }
+                } catch (error) {
+                    log(`Logout error: ${error.message}`, 'warning', 'auth-results');
+                }
+            }
+            
+            // Clear local storage
+            authToken = null;
+            currentUser = null;
+            localStorage.clear();
+            updateAuthUI(false);
+        }
+
+        async function verifyToken() {
+            clearResults('auth-results');
+            
+            if (!authToken) {
+                log('No token to verify', 'error', 'auth-results');
+                return;
+            }
+            
+            log('Verifying token...', 'info', 'auth-results');
+            
+            try {
+                const response = await fetch(`${API_BASE}auth/verify`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('Token is valid!', 'success', 'auth-results');
+                    log(`User: ${data.name} (${data.role})`, 'success', 'auth-results');
+                } else {
+                    const error = await response.json();
+                    log(`Token invalid: ${error.error}`, 'error', 'auth-results');
+                    updateAuthUI(false);
+                }
+            } catch (error) {
+                log(`Verification error: ${error.message}`, 'error', 'auth-results');
+            }
+        }
+
+        function checkAuthStatus() {
+            authToken = localStorage.getItem('sessionToken');
+            if (authToken) {
+                currentUser = {
+                    name: localStorage.getItem('userName'),
+                    role: localStorage.getItem('userRole'),
+                    email: localStorage.getItem('userEmail') || 'N/A'
+                };
+                updateAuthUI(true);
+                log('Found existing session token', 'info', 'auth-results');
+                verifyToken();
+            } else {
+                updateAuthUI(false);
+            }
+        }
+
+        function updateAuthUI(isAuthenticated) {
+            const authStatus = document.getElementById('auth-status');
+            const loginForm = document.getElementById('login-form');
+            const userInfo = document.getElementById('user-info');
+            
+            if (isAuthenticated && currentUser) {
+                authStatus.className = 'auth-status authenticated';
+                authStatus.textContent = `Status: Authenticated as ${currentUser.name}`;
+                loginForm.classList.add('hidden');
+                userInfo.classList.remove('hidden');
+                
+                document.getElementById('user-name').textContent = currentUser.name;
+                document.getElementById('user-role').textContent = currentUser.role;
+                document.getElementById('user-email').textContent = currentUser.email || 'N/A';
+                document.getElementById('token-display').textContent = authToken ? 
+                    authToken.substring(0, 50) + '...' : 'No token';
+                
+                // Enable protected endpoint buttons
+                document.querySelectorAll('.test-button').forEach(btn => {
+                    if (btn.id && btn.id.startsWith('test-')) {
+                        btn.disabled = false;
+                    }
+                });
+            } else {
+                authStatus.className = 'auth-status unauthenticated';
+                authStatus.textContent = 'Status: Not Authenticated';
+                loginForm.classList.remove('hidden');
+                userInfo.classList.add('hidden');
+                
+                // Disable protected endpoint buttons
+                document.querySelectorAll('.test-button').forEach(btn => {
+                    if (btn.id && btn.id.startsWith('test-') && 
+                        !btn.id.includes('api-btn')) {
+                        btn.disabled = true;
+                    }
+                });
+            }
+        }
+
+        // Protected endpoint testing
+        async function testProtectedEndpoint(endpoint, containerId = 'db-results') {
+            clearResults(containerId);
+            
+            if (!authToken) {
+                log('Not authenticated! Please login first.', 'error', containerId);
+                return;
+            }
+            
+            log(`Testing protected endpoint: ${endpoint}`, 'info', containerId);
+            log(`Using token: ${authToken.substring(0, 20)}...`, 'info', containerId);
+            
+            try {
+                const response = await fetch(`${API_BASE}api/${endpoint}`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                log(`Response status: ${response.status}`, 'info', containerId);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`Success! Data: ${JSON.stringify(data, null, 2)}`, 'success', containerId);
+                } else {
+                    const errorText = await response.text();
+                    log(`Error ${response.status}: ${errorText}`, 'error', containerId);
+                    
+                    if (response.status === 401) {
+                        log('Token may be expired. Try logging in again.', 'warning', containerId);
+                    }
+                }
+            } catch (error) {
+                log(`Network Error: ${error.message}`, 'error', containerId);
+            }
+        }
+
+        // Original test functions (updated with auth)
         async function testEndpoint(endpoint, containerId = 'basic-results') {
             clearResults(containerId);
             log(`Testing endpoint: ${endpoint}`, 'info', containerId);
             
             try {
-                const response = await fetch(`${API_BASE}api/${endpoint}`);
+                const headers = {};
+                if (authToken) {
+                    headers['Authorization'] = `Bearer ${authToken}`;
+                    log('Including auth token in request', 'info', containerId);
+                }
+                
+                const response = await fetch(`${API_BASE}api/${endpoint}`, { headers });
                 
                 log(`Response status: ${response.status}`, 'info', containerId);
-                log(`Response headers: ${JSON.stringify(Object.fromEntries(response.headers))}`, 'info', containerId);
                 
                 if (response.ok) {
                     const data = await response.json();
@@ -128,16 +466,25 @@
                 }
             } catch (error) {
                 log(`Network Error: ${error.message}`, 'error', containerId);
-                log(`Error details: ${error.stack}`, 'error', containerId);
             }
         }
 
         async function testEquipment(type) {
             clearResults('equipment-results');
+            
+            if (!authToken) {
+                log('Not authenticated! Please login first.', 'error', 'equipment-results');
+                return;
+            }
+            
             log(`Testing equipment type: ${type}`, 'info', 'equipment-results');
             
             try {
-                const response = await fetch(`${API_BASE}api/equipment?type=${encodeURIComponent(type)}`);
+                const response = await fetch(`${API_BASE}api/equipment?type=${encodeURIComponent(type)}`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
                 
                 log(`Response status: ${response.status}`, 'info', 'equipment-results');
                 
@@ -171,6 +518,38 @@
             }
         }
 
+        async function testAuthEndpoint() {
+            clearResults('auth-results');
+            log('Testing auth endpoint directly...', 'info', 'auth-results');
+            
+            try {
+                const response = await fetch(`${API_BASE}auth/login`, {
+                    method: 'OPTIONS'
+                });
+                
+                log(`Auth endpoint OPTIONS status: ${response.status}`, 'info', 'auth-results');
+                
+                // Try a test login
+                const testResponse = await fetch(`${API_BASE}auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'test',
+                        password: 'test'
+                    })
+                });
+                
+                log(`Auth endpoint POST status: ${testResponse.status}`, 'info', 'auth-results');
+                const result = await testResponse.json();
+                log(`Auth response: ${JSON.stringify(result)}`, 'info', 'auth-results');
+                
+            } catch (error) {
+                log(`Auth endpoint error: ${error.message}`, 'error', 'auth-results');
+            }
+        }
+
         async function checkEnvironment() {
             clearResults('env-results');
             log('Checking environment...', 'info', 'env-results');
@@ -178,19 +557,31 @@
             log(`API Base: ${API_BASE}`, 'info', 'env-results');
             log(`User Agent: ${navigator.userAgent}`, 'info', 'env-results');
             
+            // Check localStorage
+            log('\nLocalStorage contents:', 'info', 'env-results');
+            log(`- sessionToken: ${localStorage.getItem('sessionToken') ? 'Present' : 'Not set'}`, 'info', 'env-results');
+            log(`- userRole: ${localStorage.getItem('userRole') || 'Not set'}`, 'info', 'env-results');
+            log(`- userName: ${localStorage.getItem('userName') || 'Not set'}`, 'info', 'env-results');
+            
             // Test basic fetch capability
             try {
                 const response = await fetch('/');
-                log(`Base site accessible: ${response.ok}`, response.ok ? 'success' : 'error', 'env-results');
+                log(`\nBase site accessible: ${response.ok}`, response.ok ? 'success' : 'error', 'env-results');
             } catch (error) {
                 log(`Base site error: ${error.message}`, 'error', 'env-results');
             }
         }
 
-        // Auto-run basic connectivity test on page load
-        window.addEventListener('load', () => {
-            setTimeout(() => testEndpoint('test'), 1000);
-        });
+        function clearAllStorage() {
+            if (confirm('This will clear all stored authentication data. Continue?')) {
+                localStorage.clear();
+                sessionStorage.clear();
+                authToken = null;
+                currentUser = null;
+                updateAuthUI(false);
+                log('All storage cleared', 'success', 'env-results');
+            }
+        }
     </script>
 </body>
 </html>
