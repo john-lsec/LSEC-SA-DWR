@@ -544,6 +544,36 @@
     </div>
 
     <script>
+                // Check authentication on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuth();
+            loadUserInfo();
+            loadStats();
+            startSessionTimer();
+        });
+        
+        // Check if user is authenticated
+        function checkAuth() {
+            const token = localStorage.getItem('sessionToken');
+            if (!token) {
+                // Not authenticated, redirect to login
+                window.location.href = '/login.html';
+                return;
+            }
+            
+            // Verify token is still valid (optional - implement with your backend)
+            // verifyToken(token);
+        }
+        
+        // Load user information
+        function loadUserInfo() {
+            const userName = localStorage.getItem('userName') || 'User';
+            const userRole = localStorage.getItem('userRole') || 'Employee';
+            
+            document.getElementById('userName').textContent = userName;
+            document.getElementById('userRole').textContent = userRole;
+        }
+        
         // Configuration
         const API_BASE = '/.netlify/functions/';
         
