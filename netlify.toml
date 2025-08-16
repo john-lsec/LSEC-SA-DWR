@@ -14,13 +14,6 @@
   publish = "public/"
   port = 8888
   
-# Redirect root to login page (optional - remove if you want index.html as default)
-[[redirects]]
-  from = "/"
-  to = "/login.html"
-  status = 302
-  conditions = {Role = ["guest"]}  # Only redirect non-authenticated users
-
 # Headers for security (optional but recommended)
 [[headers]]
   for = "/*"
