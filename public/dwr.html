@@ -29,6 +29,54 @@
             box-shadow: 0 0 40px rgba(0,0,0,0.5);
         }
         
+        /* User info bar */
+        .user-info-bar {
+            background: #1e1e1e;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #333;
+        }
+        
+        .user-details {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .user-name {
+            color: #4a9eff;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        
+        .user-role {
+            color: #888;
+            font-size: 0.9rem;
+            background: #2a2a2a;
+            padding: 4px 12px;
+            border-radius: 12px;
+        }
+        
+        .logout-btn {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .logout-btn:hover {
+            background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+            transform: translateY(-1px);
+        }
+        
         .header {
             text-align: center;
             margin-bottom: 30px;
@@ -627,6 +675,17 @@
             .selected-items {
                 min-height: 60px;
             }
+            
+            .user-info-bar {
+                flex-direction: column;
+                gap: 10px;
+                text-align: center;
+            }
+            
+            .user-details {
+                flex-direction: column;
+                gap: 10px;
+            }
         }
         
         /* Map styles */
@@ -660,6 +719,15 @@
 </head>
 <body>
     <div class="container">
+        <!-- User Info Bar -->
+        <div class="user-info-bar">
+            <div class="user-details">
+                <span class="user-name" id="userName">Loading...</span>
+                <span class="user-role" id="userRole">Loading...</span>
+            </div>
+            <button type="button" class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+
         <div class="header">
             <h1>Daily Work Report</h1>
             <p>LSEC SA Quantity Input Form</p>
@@ -826,36 +894,6 @@
     </div>
 
     <script>
-                // Check authentication on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            checkAuth();
-            loadUserInfo();
-            loadStats();
-            startSessionTimer();
-        });
-        
-        // Check if user is authenticated
-        function checkAuth() {
-            const token = localStorage.getItem('sessionToken');
-            if (!token) {
-                // Not authenticated, redirect to login
-                window.location.href = '/login.html';
-                return;
-            }
-            
-            // Verify token is still valid (optional - implement with your backend)
-            // verifyToken(token);
-        }
-        
-        // Load user information
-        function loadUserInfo() {
-            const userName = localStorage.getItem('userName') || 'User';
-            const userRole = localStorage.getItem('userRole') || 'Employee';
-            
-            document.getElementById('userName').textContent = userName;
-            document.getElementById('userRole').textContent = userRole;
-        }
-        
         // Configuration - Update for your deployment
         const API_BASE = '/.netlify/functions/';
         const GOOGLE_MAPS_API_KEY = 'AIzaSyBQq_tXLv0APu8LFfjLogSh4cIqo49yJVg'; // Optional
@@ -867,25 +905,132 @@
         let selectedMachines = new Set();
         let map, selectedMarker, selectedLatLng, currentLocationInputId;
 
-        // Initialize the application
+        // ===== AUTHENTICATION FUNCTIONS =====
+        
+        // Check authentication on page load
         document.addEventListener('DOMContentLoaded', function() {
-            loadMasterData();
-            setupEventListeners();
+            checkAuth();
         });
-
-        // API Helper function
+        
+        // Check if user is authenticated
+        async function checkAuth() {
+            const token = localStorage.getItem('jwtToken');
+            const sessionToken = localStorage.getItem('sessionToken');
+            
+            if (!token || !sessionToken) {
+                // Not authenticated, redirect to login
+                window.location.href = '/login.html';
+                return;
+            }
+            
+            // Verify token is still valid with backend
+            try {
+                const response = await fetch(API_BASE + 'auth/verify', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Invalid token');
+                }
+                
+                const data = await response.json();
+                if (data.valid) {
+                    // Token is valid, update user info
+                    localStorage.setItem('userName', data.name || 'User');
+                    localStorage.setItem('userRole', data.role || 'Employee');
+                    localStorage.setItem('userId', data.userId);
+                    localStorage.setItem('userEmail', data.email || '');
+                    
+                    loadUserInfo();
+                    // Initialize the application after successful auth
+                    initializeApp();
+                } else {
+                    throw new Error('Session invalid');
+                }
+            } catch (error) {
+                console.error('Auth verification failed:', error);
+                // Clear stored tokens and redirect to login
+                clearAuthData();
+                window.location.href = '/login.html';
+            }
+        }
+        
+        // Load user information into UI
+        function loadUserInfo() {
+            const userName = localStorage.getItem('userName') || 'User';
+            const userRole = localStorage.getItem('userRole') || 'Employee';
+            
+            document.getElementById('userName').textContent = userName;
+            document.getElementById('userRole').textContent = userRole;
+        }
+        
+        // Logout function
+        async function logout() {
+            const token = localStorage.getItem('jwtToken');
+            
+            if (token) {
+                try {
+                    // Call logout endpoint
+                    await fetch(API_BASE + 'auth/logout', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                } catch (error) {
+                    console.error('Logout error:', error);
+                }
+            }
+            
+            // Clear local storage and redirect
+            clearAuthData();
+            window.location.href = '/login.html';
+        }
+        
+        // Clear authentication data
+        function clearAuthData() {
+            localStorage.removeItem('jwtToken');
+            localStorage.removeItem('sessionToken');
+            localStorage.removeItem('userName');
+            localStorage.removeItem('userRole');
+            localStorage.removeItem('userId');
+            localStorage.removeItem('userEmail');
+        }
+        
+        // API Helper function with authentication
         async function apiCall(endpoint, options = {}) {
+            const token = localStorage.getItem('jwtToken');
+            
+            if (!token) {
+                window.location.href = '/login.html';
+                throw new Error('No authentication token');
+            }
+            
             try {
                 const response = await fetch(API_BASE + 'api/' + endpoint, {
                     headers: {
+                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json',
                         ...options.headers
                     },
                     ...options
                 });
                 
+                // Handle authentication errors
+                if (response.status === 401) {
+                    clearAuthData();
+                    window.location.href = '/login.html';
+                    throw new Error('Authentication expired');
+                }
+                
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
                 }
                 
                 return await response.json();
@@ -894,6 +1039,14 @@
                 throw error;
             }
         }
+        
+        // Initialize the application after authentication
+        function initializeApp() {
+            loadMasterData();
+            setupEventListeners();
+        }
+
+        // ===== APPLICATION FUNCTIONS =====
 
         // Load all master data
         async function loadMasterData() {
@@ -906,6 +1059,10 @@
                 ]);
             } catch (error) {
                 console.error('Error loading master data:', error);
+                if (error.message.includes('Authentication')) {
+                    // Authentication error handled in apiCall
+                    return;
+                }
                 showMessage('Error loading form data. Please refresh the page.', 'error');
             }
         }
@@ -928,7 +1085,9 @@
                 });
             } catch (error) {
                 console.error('Error loading foremen:', error);
-                showMessage('Error loading foremen data.', 'error');
+                if (!error.message.includes('Authentication')) {
+                    showMessage('Error loading foremen data.', 'error');
+                }
             } finally {
                 loader.classList.add('hidden');
             }
@@ -949,7 +1108,9 @@
                 });
             } catch (error) {
                 console.error('Error loading laborers:', error);
-                container.innerHTML = '<div style="padding: 15px; color: #dc3545;">Error loading laborers</div>';
+                if (!error.message.includes('Authentication')) {
+                    container.innerHTML = '<div style="padding: 15px; color: #dc3545;">Error loading laborers</div>';
+                }
             }
         }
 
@@ -971,7 +1132,9 @@
                 });
             } catch (error) {
                 console.error('Error loading projects:', error);
-                showMessage('Error loading projects data.', 'error');
+                if (!error.message.includes('Authentication')) {
+                    showMessage('Error loading projects data.', 'error');
+                }
             } finally {
                 loader.classList.add('hidden');
             }
@@ -1026,7 +1189,9 @@
                 });
             } catch (error) {
                 console.error('Error loading machines:', error);
-                container.innerHTML = '<div style="padding: 15px; color: #dc3545;">Error loading machines</div>';
+                if (!error.message.includes('Authentication')) {
+                    container.innerHTML = '<div style="padding: 15px; color: #dc3545;">Error loading machines</div>';
+                }
             }
         }
 
@@ -1040,7 +1205,9 @@
                 updateAllItemDropdowns();
             } catch (error) {
                 console.error('Error loading project bid items:', error);
-                showMessage('Error loading project bid items.', 'error');
+                if (!error.message.includes('Authentication')) {
+                    showMessage('Error loading project bid items.', 'error');
+                }
             }
         }
 
@@ -1527,7 +1694,9 @@
                 
             } catch (error) {
                 console.error('Error submitting form:', error);
-                showMessage('Error submitting form: ' + error.message, 'error');
+                if (!error.message.includes('Authentication')) {
+                    showMessage('Error submitting form: ' + error.message, 'error');
+                }
             } finally {
                 submitBtn.disabled = false;
                 submitLoader.classList.add('hidden');
