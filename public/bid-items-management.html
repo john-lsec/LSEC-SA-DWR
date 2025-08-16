@@ -29,12 +29,45 @@
             margin-bottom: 30px;
             padding-bottom: 20px;
             border-bottom: 3px solid #4a9eff;
+            position: relative;
         }
         
         .header h1 {
             color: #4a9eff;
             margin: 0;
             font-size: 2.5rem;
+        }
+        
+        .user-info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            text-align: right;
+            font-size: 0.9rem;
+            color: #888;
+        }
+        
+        .user-info .user-name {
+            color: #4a9eff;
+            font-weight: 600;
+        }
+        
+        .logout-btn {
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+            margin-top: 5px;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .logout-btn:hover {
+            background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%);
         }
         
         .section {
@@ -266,6 +299,10 @@
         <div class="header">
             <h1>Bid Items Management</h1>
             <p>LSEC SA Project Bid Items</p>
+            <div class="user-info">
+                <div class="user-name" id="userDisplay">Loading...</div>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
         </div>
         
         <div class="section">
@@ -390,36 +427,6 @@
     </div>
     
     <script>
-                // Check authentication on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            checkAuth();
-            loadUserInfo();
-            loadStats();
-            startSessionTimer();
-        });
-        
-        // Check if user is authenticated
-        function checkAuth() {
-            const token = localStorage.getItem('sessionToken');
-            if (!token) {
-                // Not authenticated, redirect to login
-                window.location.href = '/login.html';
-                return;
-            }
-            
-            // Verify token is still valid (optional - implement with your backend)
-            // verifyToken(token);
-        }
-        
-        // Load user information
-        function loadUserInfo() {
-            const userName = localStorage.getItem('userName') || 'User';
-            const userRole = localStorage.getItem('userRole') || 'Employee';
-            
-            document.getElementById('userName').textContent = userName;
-            document.getElementById('userRole').textContent = userRole;
-        }
-        
         const API_BASE = '/.netlify/functions/';
         let allBidItems = [];
         let projectBidItems = [];
@@ -427,17 +434,111 @@
         let itemToDeleteId = null;
         let bidItemsLookup = {};
         
+        // Initialize page on DOM load
         document.addEventListener('DOMContentLoaded', function() {
+            // Check authentication first
+            if (!checkAuth()) {
+                return; // Stop initialization if not authenticated
+            }
+            
+            // Load user info
+            loadUserInfo();
+            
+            // Initialize the page functionality
             loadProjects();
             setupEventListeners();
         });
         
+        // Check if user is authenticated
+        function checkAuth() {
+            const token = localStorage.getItem('sessionToken');
+            if (!token) {
+                // Not authenticated, redirect to login
+                window.location.href = '/login';
+                return false;
+            }
+            
+            // Optional: Verify token with backend
+            verifyToken(token);
+            return true;
+        }
+        
+        // Verify token validity with backend (optional)
+        async function verifyToken(token) {
+            try {
+                const response = await fetch(API_BASE + 'auth/verify', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
+                
+                if (!response.ok) {
+                    // Token is invalid, clear storage and redirect
+                    localStorage.removeItem('sessionToken');
+                    localStorage.removeItem('userRole');
+                    localStorage.removeItem('userId');
+                    localStorage.removeItem('userName');
+                    window.location.href = '/login';
+                }
+            } catch (error) {
+                console.error('Token verification failed:', error);
+                // You might want to handle this differently
+                // For now, we'll let the user continue if verification fails
+            }
+        }
+        
+        // Load user information
+        function loadUserInfo() {
+            const userName = localStorage.getItem('userName') || 'User';
+            const userRole = localStorage.getItem('userRole') || 'Employee';
+            
+            // Display user info
+            const userDisplay = document.getElementById('userDisplay');
+            if (userDisplay) {
+                userDisplay.textContent = userName + ' (' + userRole + ')';
+            }
+        }
+        
+        // Logout function
+        function logout() {
+            // Clear session data
+            localStorage.removeItem('sessionToken');
+            localStorage.removeItem('userRole');
+            localStorage.removeItem('userId');
+            localStorage.removeItem('userName');
+            
+            // Redirect to login page
+            window.location.href = '/login';
+        }
+        
+        // API call helper with authentication
         async function apiCall(endpoint, options = {}) {
             try {
+                // Add authentication token to all API calls
+                const token = localStorage.getItem('sessionToken');
+                const headers = {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                };
+                
+                if (token) {
+                    headers['Authorization'] = 'Bearer ' + token;
+                }
+                
                 const response = await fetch(API_BASE + 'api/' + endpoint, {
-                    headers: { 'Content-Type': 'application/json', ...options.headers },
-                    ...options
+                    ...options,
+                    headers: headers
                 });
+                
+                // Handle 401 Unauthorized
+                if (response.status === 401) {
+                    // Token expired or invalid
+                    localStorage.clear();
+                    window.location.href = '/login';
+                    return;
+                }
+                
                 if (!response.ok) throw new Error('HTTP error! status: ' + response.status);
                 return await response.json();
             } catch (error) {
