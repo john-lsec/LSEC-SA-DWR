@@ -1,4 +1,4 @@
-// netlify/functions/api.js - Complete fixed version
+// netlify/functions/api.js - Complete version with PO functionality
 const { neon } = require('@neondatabase/serverless');
 const { requireAuth, requireRole } = require('./auth');
 
@@ -110,6 +110,13 @@ exports.handler = async (event, context) => {
       case 'submit-dwr':
         return await handleDWRSubmission(event, headers, method);
       
+      // PO-related endpoints
+      case 'po-data':
+        return await handlePOData(event, headers, method);
+      
+      case 'po-submit':
+        return await handlePOSubmit(event, headers, method);
+      
       case 'po-requests':
         return await handlePORequests(event, headers, method, id);
       
@@ -132,7 +139,8 @@ exports.handler = async (event, context) => {
             availableEndpoints: [
               'foremen', 'laborers', 'projects', 'equipment',
               'bid-items', 'project-bid-items', 'submit-dwr',
-              'po-requests', 'vendors', 'authorized-users', 'users'
+              'po-data', 'po-submit', 'po-requests', 'vendors', 
+              'authorized-users', 'users'
             ]
           })
         };
@@ -827,5 +835,405 @@ async function handleDWRSubmission(event, headers, method) {
   }
 }
 
-// Other handlers (PO Requests, Vendors, etc.) remain the same...
-// Include them here as needed
+// PO Data handler - returns vendors and projects for the PO form
+async function handlePOData(event, headers, method) {
+  if (method !== 'GET') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  try {
+    // Fetch vendors and projects
+    const [vendors, projects] = await Promise.all([
+      sql`SELECT name FROM vendors WHERE active = true ORDER BY name`,
+      sql`SELECT name FROM projects WHERE active = true ORDER BY name`
+    ]);
+    
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        vendors: vendors.map(v => v.name),
+        projects: projects.map(p => p.name)
+      })
+    };
+  } catch (error) {
+    console.error('Error fetching PO data:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Failed to fetch data' })
+    };
+  }
+}
+
+// PO Submit handler - handles PO request submission
+async function handlePOSubmit(event, headers, method) {
+  if (method !== 'POST') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  try {
+    const data = JSON.parse(event.body);
+    const { userId } = event.auth || {};
+    
+    // Validate required fields
+    if (!data.name || !data.phone || !data.vendor || !data.project || !data.quotedPrice || !data.taxable) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          success: false,
+          error: 'Missing required fields' 
+        })
+      };
+    }
+    
+    // Generate PO number with timestamp and random component
+    const timestamp = Date.now().toString().slice(-6);
+    const random = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+    const poNumber = `PO-${timestamp}${random}`;
+    
+    // Insert PO request
+    const result = await sql`
+      INSERT INTO po_requests (
+        po_number, 
+        requester_name, 
+        requester_phone, 
+        vendor,
+        project, 
+        quoted_price, 
+        taxable, 
+        material_requested,
+        status, 
+        created_by,
+        created_at
+      ) VALUES (
+        ${poNumber}, 
+        ${data.name}, 
+        ${data.phone}, 
+        ${data.vendor},
+        ${data.project}, 
+        ${data.quotedPrice}, 
+        ${data.taxable},
+        ${data.materialRequested || null}, 
+        'PENDING',
+        ${userId || 'unknown'},
+        CURRENT_TIMESTAMP
+      ) RETURNING *
+    `;
+    
+    // Check if auto-approval should happen
+    // Auto-approve if amount is less than $500
+    let authorized = false;
+    const amount = parseFloat(data.quotedPrice.replace(/[^0-9.-]/g, ''));
+    if (!isNaN(amount) && amount < 500) {
+      authorized = true;
+      
+      // Update status to approved
+      await sql`
+        UPDATE po_requests 
+        SET status = 'APPROVED', 
+            approved_at = CURRENT_TIMESTAMP,
+            approved_by = 'AUTO'
+        WHERE po_number = ${poNumber}
+      `;
+    }
+    
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        success: true,
+        poNumber: poNumber,
+        authorized: authorized,
+        message: authorized 
+          ? 'PO request automatically approved' 
+          : 'PO request submitted for approval'
+      })
+    };
+  } catch (error) {
+    console.error('Error submitting PO:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ 
+        success: false,
+        error: 'Failed to submit PO request' 
+      })
+    };
+  }
+}
+
+// PO Requests handler - view PO requests
+async function handlePORequests(event, headers, method, id) {
+  const { role, userId } = event.auth || {};
+
+  switch (method) {
+    case 'GET':
+      try {
+        if (id) {
+          const requests = await sql`
+            SELECT * FROM po_requests WHERE id = ${parseInt(id)}
+          `;
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(requests[0] || null)
+          };
+        } else {
+          // Get all PO requests - admins see all, others see their own
+          let requests;
+          if (role === 'admin' || role === 'manager') {
+            requests = await sql`
+              SELECT * FROM po_requests 
+              ORDER BY created_at DESC
+              LIMIT 100
+            `;
+          } else {
+            requests = await sql`
+              SELECT * FROM po_requests 
+              WHERE created_by = ${userId}
+              ORDER BY created_at DESC
+              LIMIT 50
+            `;
+          }
+          
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(requests)
+          };
+        }
+      } catch (error) {
+        console.error('Error fetching PO requests:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to fetch PO requests' })
+        };
+      }
+
+    case 'PUT':
+      if (!requireRole(role, ['admin', 'manager'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions' })
+        };
+      }
+
+      if (!id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'ID required for update' })
+        };
+      }
+
+      try {
+        const data = JSON.parse(event.body);
+        
+        const updated = await sql`
+          UPDATE po_requests
+          SET 
+            status = ${data.status || 'PENDING'},
+            approved_by = ${data.approved_by || null},
+            approved_at = ${data.status === 'APPROVED' ? 'CURRENT_TIMESTAMP' : null},
+            notes = ${data.notes || null}
+          WHERE id = ${id}
+          RETURNING *
+        `;
+
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(updated[0])
+        };
+      } catch (error) {
+        console.error('Error updating PO request:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to update PO request' })
+        };
+      }
+
+    default:
+      return {
+        statusCode: 405,
+        headers,
+        body: JSON.stringify({ error: 'Method not allowed' })
+      };
+  }
+}
+
+// Vendors handler
+async function handleVendors(event, headers, method, id) {
+  const { role, userId } = event.auth || {};
+
+  switch (method) {
+    case 'GET':
+      try {
+        if (id) {
+          const vendors = await sql`
+            SELECT * FROM vendors WHERE id = ${parseInt(id)}
+          `;
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(vendors[0] || null)
+          };
+        } else {
+          const vendors = await sql`
+            SELECT * FROM vendors 
+            WHERE active = true 
+            ORDER BY name
+          `;
+          
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(vendors)
+          };
+        }
+      } catch (error) {
+        console.error('Error fetching vendors:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to fetch vendors' })
+        };
+      }
+
+    case 'POST':
+      if (!requireRole(role, ['admin', 'manager'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions' })
+        };
+      }
+
+      try {
+        const data = JSON.parse(event.body);
+        
+        const newVendor = await sql`
+          INSERT INTO vendors (name, contact_info, active)
+          VALUES (${data.name}, ${data.contact_info || null}, ${data.active !== false})
+          RETURNING *
+        `;
+
+        return {
+          statusCode: 201,
+          headers,
+          body: JSON.stringify(newVendor[0])
+        };
+      } catch (error) {
+        console.error('Error creating vendor:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to create vendor' })
+        };
+      }
+
+    case 'PUT':
+      if (!requireRole(role, ['admin', 'manager'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions' })
+        };
+      }
+
+      if (!id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'ID required for update' })
+        };
+      }
+
+      try {
+        const data = JSON.parse(event.body);
+        
+        const updated = await sql`
+          UPDATE vendors
+          SET 
+            name = ${data.name},
+            contact_info = ${data.contact_info || null},
+            active = ${data.active !== false}
+          WHERE id = ${id}
+          RETURNING *
+        `;
+
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(updated[0])
+        };
+      } catch (error) {
+        console.error('Error updating vendor:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to update vendor' })
+        };
+      }
+
+    default:
+      return {
+        statusCode: 405,
+        headers,
+        body: JSON.stringify({ error: 'Method not allowed' })
+      };
+  }
+}
+
+// Authorized Users handler (placeholder - implement as needed)
+async function handleAuthorizedUsers(event, headers, method, id) {
+  const { role, userId } = event.auth || {};
+
+  if (!requireRole(role, ['admin'])) {
+    return {
+      statusCode: 403,
+      headers,
+      body: JSON.stringify({ error: 'Admin access required' })
+    };
+  }
+
+  // Implement authorized users logic here
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({ message: 'Authorized users endpoint' })
+  };
+}
+
+// Users handler (placeholder - implement as needed)
+async function handleUsers(event, headers, method, id) {
+  const { role, userId } = event.auth || {};
+
+  if (!requireRole(role, ['admin', 'manager'])) {
+    return {
+      statusCode: 403,
+      headers,
+      body: JSON.stringify({ error: 'Insufficient permissions' })
+    };
+  }
+
+  // Implement users logic here
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({ message: 'Users endpoint' })
+  };
+}
