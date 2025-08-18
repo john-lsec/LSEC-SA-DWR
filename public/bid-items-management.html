@@ -301,7 +301,7 @@
             <p>LSEC SA Project Bid Items</p>
             <div class="user-info">
                 <div class="user-name" id="userDisplay">Loading...</div>
-                <button class="logout-btn" onclick="logout()">Logout</button>
+                <button class="logout-btn" onclick="handleLogout()">Logout</button>
             </div>
         </div>
         
@@ -425,11 +425,12 @@
             <button type="button" id="confirmDeleteBtn" class="btn btn-danger">Delete</button>
         </div>
     </div>
-
-    <script src="/js/auth-helper.js"></script>
+    
+    <!-- Include AuthHelper -->
+    <script src="auth-helper.js"></script>
     
     <script>
-        const API_BASE = '/.netlify/functions/';
+        // State variables
         let allBidItems = [];
         let projectBidItems = [];
         let selectedProjectId = null;
@@ -437,32 +438,34 @@
         let bidItemsLookup = {};
         
         // Initialize page on DOM load
-        document.addEventListener('DOMContentLoaded', function() {
-            if (!AuthHelper.isAuthenticated()) {
-                AuthHelper.redirectToLogin();
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize authentication
+            const isAuthenticated = await AuthHelper.init({
+                onAuthenticated: function(userInfo) {
+                    // Update user display
+                    const userDisplay = document.getElementById('userDisplay');
+                    if (userDisplay) {
+                        userDisplay.textContent = userInfo.name + ' (' + userInfo.role + ')';
+                    }
+                    
+                    // Initialize the page functionality
+                    loadProjects();
+                    setupEventListeners();
+                }
+            });
+            
+            if (!isAuthenticated) {
+                // User will be redirected to login by AuthHelper
                 return;
             }
-            
-            loadUserInfo();
-            loadProjects();
-            setupEventListeners();
         });
         
-        // Load user information
-        function loadUserInfo() {
-            const userInfo = AuthHelper.getUserInfo();
-            const userDisplay = document.getElementById('userDisplay');
-            if (userDisplay) {
-                userDisplay.textContent = userInfo.name + ' (' + userInfo.role + ')';
-            }
-        }
-        
-        // Logout function
-        function logout() {
+        // Logout handler
+        function handleLogout() {
             AuthHelper.logout();
         }
         
-        // Update loadProjects:
+        // Load projects using AuthHelper
         async function loadProjects() {
             try {
                 const projects = await AuthHelper.apiCall('projects');
@@ -478,179 +481,10 @@
             }
         }
         
-        // Update loadAllBidItems:
+        // Load all bid items using AuthHelper
         async function loadAllBidItems() {
             try {
                 allBidItems = await AuthHelper.apiCall('bid-items');
-                bidItemsLookup = {};
-                allBidItems.forEach(item => {
-                    bidItemsLookup[item.id] = item;
-                });
-                setupBidItemAutocomplete();
-                const categories = [...new Set(allBidItems.map(item => item.category))].sort();
-                populateCategoryFilter(categories);
-            } catch (error) {
-                showMessage('Error loading bid items.', 'error');
-            }
-        }
-        
-        // Update loadProjectBidItems:
-        async function loadProjectBidItems(projectId) {
-            if (!projectId) return;
-            try {
-                projectBidItems = await AuthHelper.apiCall('project-bid-items?project_id=' + projectId);
-                renderBidItemsTable();
-                updateStats();
-                document.getElementById('bidItemsSection').classList.remove('hidden');
-            } catch (error) {
-                showMessage('Error loading project bid items.', 'error');
-            }
-        }
-        
-        // Update saveBidItem:
-        async function saveBidItem(event) {
-            event.preventDefault();
-            
-            const projectBidItemId = document.getElementById('projectBidItemId').value;
-            const bidItemId = document.getElementById('bidItemId').value;
-            const rate = parseFloat(document.getElementById('itemRate').value);
-            
-            if (!bidItemId) {
-                showMessage('Please select a bid item.', 'error');
-                return;
-            }
-            
-            const selectedBidItem = bidItemsLookup[bidItemId];
-            const materialCost = selectedBidItem.material_cost || 0;
-            const unit = selectedBidItem.default_unit || 'EA';
-            
-            try {
-                const itemData = {
-                    project_id: selectedProjectId,
-                    bid_item_id: bidItemId,
-                    rate: rate,
-                    material_cost: materialCost,
-                    unit: unit
-                };
-                
-                if (projectBidItemId) {
-                    await AuthHelper.apiCall('update-project-bid-item/' + projectBidItemId, {
-                        method: 'PUT',
-                        body: JSON.stringify(itemData)
-                    });
-                    showMessage('Bid item updated successfully.', 'success');
-                } else {
-                    const exists = projectBidItems.some(item => item.bid_item_id == bidItemId);
-                    if (exists) {
-                        showMessage('This bid item is already in the project.', 'error');
-                        return;
-                    }
-                    
-                    await AuthHelper.apiCall('add-project-bid-item', {
-                        method: 'POST',
-                        body: JSON.stringify(itemData)
-                    });
-                    showMessage('Bid item added successfully.', 'success');
-                }
-                
-                loadProjectBidItems(selectedProjectId);
-                closeBidItemModal();
-            } catch (error) {
-                showMessage('Error saving bid item: ' + error.message, 'error');
-            }
-        }
-        
-        // Update deleteBidItem:
-        async function deleteBidItem() {
-            if (!itemToDeleteId) return;
-            
-            try {
-                await AuthHelper.apiCall('delete-project-bid-item/' + itemToDeleteId, { method: 'DELETE' });
-                showMessage('Bid item removed successfully.', 'success');
-                loadProjectBidItems(selectedProjectId);
-                closeDeleteModal();
-            } catch (error) {
-                showMessage('Error deleting bid item: ' + error.message, 'error');
-            }
-        }
-        
-        // Load user information
-        function loadUserInfo() {
-            const userName = localStorage.getItem('userName') || 'User';
-            const userRole = localStorage.getItem('userRole') || 'Employee';
-            
-            // Display user info
-            const userDisplay = document.getElementById('userDisplay');
-            if (userDisplay) {
-                userDisplay.textContent = userName + ' (' + userRole + ')';
-            }
-        }
-        
-        // Logout function
-        function logout() {
-            // Clear session data
-            localStorage.removeItem('sessionToken');
-            localStorage.removeItem('userRole');
-            localStorage.removeItem('userId');
-            localStorage.removeItem('userName');
-            
-            // Redirect to login page
-            window.location.href = '/login';
-        }
-        
-        // API call helper with authentication
-        async function apiCall(endpoint, options = {}) {
-            try {
-                // Add authentication token to all API calls
-                const token = localStorage.getItem('sessionToken');
-                const headers = {
-                    'Content-Type': 'application/json',
-                    ...options.headers
-                };
-                
-                if (token) {
-                    headers['Authorization'] = 'Bearer ' + token;
-                }
-                
-                const response = await fetch(API_BASE + 'api/' + endpoint, {
-                    ...options,
-                    headers: headers
-                });
-                
-                // Handle 401 Unauthorized
-                if (response.status === 401) {
-                    // Token expired or invalid
-                    localStorage.clear();
-                    window.location.href = '/login';
-                    return;
-                }
-                
-                if (!response.ok) throw new Error('HTTP error! status: ' + response.status);
-                return await response.json();
-            } catch (error) {
-                console.error('API call failed for ' + endpoint + ':', error);
-                throw error;
-            }
-        }
-        
-        async function loadProjects() {
-            try {
-                const projects = await apiCall('projects');
-                const select = document.getElementById('project');
-                projects.forEach(project => {
-                    const option = document.createElement('option');
-                    option.value = project.id;
-                    option.textContent = project.name;
-                    select.appendChild(option);
-                });
-            } catch (error) {
-                showMessage('Error loading projects.', 'error');
-            }
-        }
-        
-        async function loadAllBidItems() {
-            try {
-                allBidItems = await apiCall('bid-items');
                 bidItemsLookup = {};
                 allBidItems.forEach(item => {
                     bidItemsLookup[item.id] = item;
@@ -734,10 +568,11 @@
             });
         }
         
+        // Load project bid items using AuthHelper
         async function loadProjectBidItems(projectId) {
             if (!projectId) return;
             try {
-                projectBidItems = await apiCall('project-bid-items?project_id=' + projectId);
+                projectBidItems = await AuthHelper.apiCall('project-bid-items?project_id=' + projectId);
                 renderBidItemsTable();
                 updateStats();
                 document.getElementById('bidItemsSection').classList.remove('hidden');
@@ -878,6 +713,7 @@
             itemToDeleteId = null;
         }
         
+        // Save bid item using AuthHelper
         async function saveBidItem(event) {
             event.preventDefault();
             
@@ -904,7 +740,7 @@
                 };
                 
                 if (projectBidItemId) {
-                    await apiCall('update-project-bid-item/' + projectBidItemId, {
+                    await AuthHelper.apiCall('update-project-bid-item/' + projectBidItemId, {
                         method: 'PUT',
                         body: JSON.stringify(itemData)
                     });
@@ -916,7 +752,7 @@
                         return;
                     }
                     
-                    await apiCall('add-project-bid-item', {
+                    await AuthHelper.apiCall('add-project-bid-item', {
                         method: 'POST',
                         body: JSON.stringify(itemData)
                     });
@@ -936,11 +772,14 @@
             document.getElementById('deleteModal').classList.add('show');
         }
         
+        // Delete bid item using AuthHelper
         async function deleteBidItem() {
             if (!itemToDeleteId) return;
             
             try {
-                await apiCall('delete-project-bid-item/' + itemToDeleteId, { method: 'DELETE' });
+                await AuthHelper.apiCall('delete-project-bid-item/' + itemToDeleteId, { 
+                    method: 'DELETE' 
+                });
                 showMessage('Bid item removed successfully.', 'success');
                 loadProjectBidItems(selectedProjectId);
                 closeDeleteModal();
