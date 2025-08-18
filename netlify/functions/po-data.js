@@ -1,9 +1,14 @@
+// netlify/functions/api/po-data.js
 const { neon } = require('@neondatabase/serverless');
+const jwt = require('jsonwebtoken');
+
+// JWT secret - should match your auth function
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 exports.handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Content-Type': 'application/json'
   };
@@ -20,7 +25,24 @@ exports.handler = async (event, context) => {
     };
   }
 
+  // Check for authentication token
+  const authHeader = event.headers.authorization || event.headers.Authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({ error: 'No authentication token provided' })
+    };
+  }
+
+  const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+
   try {
+    // Verify JWT token
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // Token is valid, proceed with fetching data
     const sql = neon(process.env.DATABASE_URL);
     
     // Fetch vendors and projects
@@ -38,7 +60,18 @@ exports.handler = async (event, context) => {
       })
     };
   } catch (error) {
-    console.error('Error fetching data:', error);
+    console.error('Error:', error);
+    
+    // Check if it's a JWT error
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Invalid or expired token' })
+      };
+    }
+    
+    // Database or other error
     return {
       statusCode: 500,
       headers,
