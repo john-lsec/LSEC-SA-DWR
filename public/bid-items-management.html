@@ -436,55 +436,139 @@
         
         // Initialize page on DOM load
         document.addEventListener('DOMContentLoaded', function() {
-            // Check authentication first
-            if (!checkAuth()) {
-                return; // Stop initialization if not authenticated
+            if (!AuthHelper.isAuthenticated()) {
+                AuthHelper.redirectToLogin();
+                return;
             }
             
-            // Load user info
             loadUserInfo();
-            
-            // Initialize the page functionality
             loadProjects();
             setupEventListeners();
         });
         
-        // Check if user is authenticated
-        function checkAuth() {
-            const token = localStorage.getItem('sessionToken');
-            if (!token) {
-                // Not authenticated, redirect to login
-                window.location.href = '/login';
-                return false;
+        // Load user information
+        function loadUserInfo() {
+            const userInfo = AuthHelper.getUserInfo();
+            const userDisplay = document.getElementById('userDisplay');
+            if (userDisplay) {
+                userDisplay.textContent = userInfo.name + ' (' + userInfo.role + ')';
             }
-            
-            // Optional: Verify token with backend
-            verifyToken(token);
-            return true;
         }
         
-        // Verify token validity with backend (optional)
-        async function verifyToken(token) {
+        // Logout function
+        function logout() {
+            AuthHelper.logout();
+        }
+        
+        // Update loadProjects:
+        async function loadProjects() {
             try {
-                const response = await fetch(API_BASE + 'auth/verify', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': 'Bearer ' + token
-                    }
+                const projects = await AuthHelper.apiCall('projects');
+                const select = document.getElementById('project');
+                projects.forEach(project => {
+                    const option = document.createElement('option');
+                    option.value = project.id;
+                    option.textContent = project.name;
+                    select.appendChild(option);
                 });
-                
-                if (!response.ok) {
-                    // Token is invalid, clear storage and redirect
-                    localStorage.removeItem('sessionToken');
-                    localStorage.removeItem('userRole');
-                    localStorage.removeItem('userId');
-                    localStorage.removeItem('userName');
-                    window.location.href = '/login';
-                }
             } catch (error) {
-                console.error('Token verification failed:', error);
-                // You might want to handle this differently
-                // For now, we'll let the user continue if verification fails
+                showMessage('Error loading projects.', 'error');
+            }
+        }
+        
+        // Update loadAllBidItems:
+        async function loadAllBidItems() {
+            try {
+                allBidItems = await AuthHelper.apiCall('bid-items');
+                bidItemsLookup = {};
+                allBidItems.forEach(item => {
+                    bidItemsLookup[item.id] = item;
+                });
+                setupBidItemAutocomplete();
+                const categories = [...new Set(allBidItems.map(item => item.category))].sort();
+                populateCategoryFilter(categories);
+            } catch (error) {
+                showMessage('Error loading bid items.', 'error');
+            }
+        }
+        
+        // Update loadProjectBidItems:
+        async function loadProjectBidItems(projectId) {
+            if (!projectId) return;
+            try {
+                projectBidItems = await AuthHelper.apiCall('project-bid-items?project_id=' + projectId);
+                renderBidItemsTable();
+                updateStats();
+                document.getElementById('bidItemsSection').classList.remove('hidden');
+            } catch (error) {
+                showMessage('Error loading project bid items.', 'error');
+            }
+        }
+        
+        // Update saveBidItem:
+        async function saveBidItem(event) {
+            event.preventDefault();
+            
+            const projectBidItemId = document.getElementById('projectBidItemId').value;
+            const bidItemId = document.getElementById('bidItemId').value;
+            const rate = parseFloat(document.getElementById('itemRate').value);
+            
+            if (!bidItemId) {
+                showMessage('Please select a bid item.', 'error');
+                return;
+            }
+            
+            const selectedBidItem = bidItemsLookup[bidItemId];
+            const materialCost = selectedBidItem.material_cost || 0;
+            const unit = selectedBidItem.default_unit || 'EA';
+            
+            try {
+                const itemData = {
+                    project_id: selectedProjectId,
+                    bid_item_id: bidItemId,
+                    rate: rate,
+                    material_cost: materialCost,
+                    unit: unit
+                };
+                
+                if (projectBidItemId) {
+                    await AuthHelper.apiCall('update-project-bid-item/' + projectBidItemId, {
+                        method: 'PUT',
+                        body: JSON.stringify(itemData)
+                    });
+                    showMessage('Bid item updated successfully.', 'success');
+                } else {
+                    const exists = projectBidItems.some(item => item.bid_item_id == bidItemId);
+                    if (exists) {
+                        showMessage('This bid item is already in the project.', 'error');
+                        return;
+                    }
+                    
+                    await AuthHelper.apiCall('add-project-bid-item', {
+                        method: 'POST',
+                        body: JSON.stringify(itemData)
+                    });
+                    showMessage('Bid item added successfully.', 'success');
+                }
+                
+                loadProjectBidItems(selectedProjectId);
+                closeBidItemModal();
+            } catch (error) {
+                showMessage('Error saving bid item: ' + error.message, 'error');
+            }
+        }
+        
+        // Update deleteBidItem:
+        async function deleteBidItem() {
+            if (!itemToDeleteId) return;
+            
+            try {
+                await AuthHelper.apiCall('delete-project-bid-item/' + itemToDeleteId, { method: 'DELETE' });
+                showMessage('Bid item removed successfully.', 'success');
+                loadProjectBidItems(selectedProjectId);
+                closeDeleteModal();
+            } catch (error) {
+                showMessage('Error deleting bid item: ' + error.message, 'error');
             }
         }
         
