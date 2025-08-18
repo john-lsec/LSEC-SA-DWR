@@ -900,12 +900,15 @@
     <script>
         // Configuration
 
-        // Global variables
+        // Global variables (existing ones remain the same)
         let currentItemCount = 0;
-        let projectBidItems = []; // Changed from projectBidItemsMap to projectBidItems array
+        let projectBidItems = [];
         let selectedLaborers = new Set();
         let selectedMachines = new Set();
         let map, selectedMarker, selectedLatLng, currentLocationInputId;
+        let googleMapsLoaded = false;
+        let googleMapsPromise = null;
+        let GOOGLE_MAPS_API_KEY = null;
 
         // Initialize page on DOM load
         document.addEventListener('DOMContentLoaded', async function() {
@@ -918,6 +921,11 @@
                     
                     // Initialize the page functionality
                     initializeApp();
+                    
+                    // Pre-load Google Maps API in background
+                    loadGoogleMaps().catch(error => {
+                        console.warn('Google Maps pre-loading failed:', error.message);
+                    });
                 }
             });
             
@@ -926,6 +934,236 @@
                 return;
             }
         });
+
+        // Async function to get API key from server
+        async function getGoogleMapsApiKey() {
+            if (GOOGLE_MAPS_API_KEY) {
+                return GOOGLE_MAPS_API_KEY;
+            }
+
+            try {
+                const config = await AuthHelper.apiCall('config');
+                GOOGLE_MAPS_API_KEY = config.googleMapsApiKey;
+                return GOOGLE_MAPS_API_KEY;
+            } catch (error) {
+                console.error('Failed to fetch Google Maps API key:', error);
+                throw new Error('Could not load Google Maps configuration');
+            }
+        }
+
+        // Async function to load Google Maps API
+        async function loadGoogleMaps() {
+            // Return existing promise if already loading
+            if (googleMapsPromise) {
+                return googleMapsPromise;
+            }
+
+            // Return immediately if already loaded
+            if (googleMapsLoaded) {
+                return Promise.resolve();
+            }
+
+            googleMapsPromise = new Promise(async (resolve, reject) => {
+                try {
+                    // Get API key from server
+                    const apiKey = await getGoogleMapsApiKey();
+                    
+                    if (!apiKey) {
+                        throw new Error('Google Maps API key not configured');
+                    }
+
+                    // Set up the global callback
+                    window.initGoogleMapsCallback = function() {
+                        googleMapsLoaded = true;
+                        console.log('Google Maps API loaded successfully');
+                        resolve();
+                    };
+
+                    // Create and load the script
+                    const script = document.createElement('script');
+                    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initGoogleMapsCallback&libraries=places`;
+                    script.async = true;
+                    script.defer = true;
+                    
+                    script.onerror = () => {
+                        googleMapsPromise = null;
+                        reject(new Error('Failed to load Google Maps API'));
+                    };
+
+                    document.head.appendChild(script);
+                } catch (error) {
+                    googleMapsPromise = null;
+                    reject(error);
+                }
+            });
+
+            return googleMapsPromise;
+        }
+
+        // Async function to get user's current location
+        async function getUserLocation() {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    console.log('Geolocation is not supported by this browser');
+                    resolve(null);
+                    return;
+                }
+
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const userLocation = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude
+                        };
+                        
+                        if (map) {
+                            map.setCenter(userLocation);
+                            map.setZoom(15);
+                        }
+                        
+                        console.log('User location set:', userLocation);
+                        resolve(userLocation);
+                    },
+                    function(error) {
+                        console.log('Error getting user location:', error.message);
+                        resolve(null);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 300000 // 5 minutes
+                    }
+                );
+            });
+        }
+
+        // Async function to initialize the map
+        async function initializeMap() {
+            try {
+                // Ensure Google Maps is loaded
+                await loadGoogleMaps();
+
+                // Default to center of USA
+                const defaultLocation = { lat: 39.8283, lng: -98.5795 };
+                
+                map = new google.maps.Map(document.getElementById('map'), {
+                    zoom: 10,
+                    center: defaultLocation,
+                    mapTypeId: google.maps.MapTypeId.HYBRID,
+                    streetViewControl: false,
+                    mapTypeControl: true,
+                    fullscreenControl: true
+                });
+                
+                map.addListener('click', function(event) {
+                    selectLocation(event.latLng);
+                });
+                
+                // Try to get user's location
+                await getUserLocation();
+                
+            } catch (error) {
+                console.error('Error initializing map:', error);
+                showMessage('Failed to load map. Please check your internet connection.', 'warning');
+            }
+        }
+
+        // Map functionality
+        async function openMapModal(itemIndex) {
+            currentLocationInputId = `location_${itemIndex}`;
+            document.getElementById('mapModal').classList.add('show');
+            
+            // Initialize map if not already done
+            if (!map) {
+                try {
+                    await initializeMap();
+                } catch (error) {
+                    console.error('Failed to initialize map:', error);
+                    showMessage('Failed to load map. Please try again.', 'error');
+                    closeMapModal();
+                    return;
+                }
+            }
+            
+            resetMapSelection();
+        }
+
+        function closeMapModal() {
+            document.getElementById('mapModal').classList.remove('show');
+        }
+
+        function selectLocation(latLng) {
+            selectedLatLng = latLng;
+            
+            // Remove previous marker
+            if (selectedMarker) {
+                selectedMarker.setMap(null);
+            }
+            
+            // Add new marker
+            selectedMarker = new google.maps.Marker({
+                position: latLng,
+                map: map,
+                title: 'Selected Location',
+                draggable: true
+            });
+
+            // Allow dragging the marker
+            selectedMarker.addListener('dragend', function(event) {
+                selectedLatLng = event.latLng;
+                updateCoordinatesDisplay();
+            });
+            
+            updateCoordinatesDisplay();
+            document.getElementById('confirmLocationBtn').disabled = false;
+        }
+
+        function updateCoordinatesDisplay() {
+            if (selectedLatLng) {
+                const lat = selectedLatLng.lat().toFixed(6);
+                const lng = selectedLatLng.lng().toFixed(6);
+                document.getElementById('coordinatesDisplay').innerHTML = 
+                    `<strong>Selected Coordinates:</strong><br>Latitude: ${lat}<br>Longitude: ${lng}`;
+                document.getElementById('coordinatesDisplay').classList.remove('hidden');
+            }
+        }
+
+        async function confirmLocation() {
+            if (selectedLatLng && currentLocationInputId) {
+                const lat = selectedLatLng.lat().toFixed(6);
+                const lng = selectedLatLng.lng().toFixed(6);
+                
+                // Try to get address using reverse geocoding
+                try {
+                    await loadGoogleMaps(); // Ensure maps is loaded
+                    const geocoder = new google.maps.Geocoder();
+                    
+                    geocoder.geocode({ location: selectedLatLng }, (results, status) => {
+                        if (status === 'OK' && results[0]) {
+                            const address = results[0].formatted_address;
+                            document.getElementById(currentLocationInputId).value = `${address} (${lat}, ${lng})`;
+                        } else {
+                            document.getElementById(currentLocationInputId).value = `${lat}, ${lng}`;
+                        }
+                    });
+                } catch (error) {
+                    console.warn('Could not get address:', error);
+                    document.getElementById(currentLocationInputId).value = `${lat}, ${lng}`;
+                }
+                
+                closeMapModal();
+            }
+        }
+
+        function resetMapSelection() {
+            selectedLatLng = null;
+            if (selectedMarker) {
+                selectedMarker.setMap(null);
+                selectedMarker = null;
+            }
+            document.getElementById('coordinatesDisplay').classList.add('hidden');
+            document.getElementById('confirmLocationBtn').disabled = true;
+        }
         
         // Logout handler
         function handleLogout() {
