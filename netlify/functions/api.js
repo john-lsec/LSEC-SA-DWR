@@ -1,4 +1,4 @@
-// netlify/functions/api.js - Debug version with better path parsing
+// netlify/functions/api.js - Complete fixed version
 const { neon } = require('@neondatabase/serverless');
 const { requireAuth, requireRole } = require('./auth');
 
@@ -18,21 +18,14 @@ exports.handler = async (event, context) => {
     return { statusCode: 200, headers, body: '' };
   }
 
-  // Debug: Log the incoming path
-  console.log('Incoming path:', event.path);
-  console.log('HTTP Method:', event.httpMethod);
-
   // Better path parsing
   let resource = '';
   let id = null;
   
-  // The path will be something like /.netlify/functions/api/foremen
-  // We need to extract 'foremen' from this
+  // Parse the path - handle different patterns
   const pathParts = event.path.split('/');
-  console.log('Path parts:', pathParts);
-  
-  // Find the index of 'api' and get the next part as the resource
   const apiIndex = pathParts.indexOf('api');
+  
   if (apiIndex !== -1 && pathParts.length > apiIndex + 1) {
     resource = pathParts[apiIndex + 1];
     if (pathParts.length > apiIndex + 2) {
@@ -40,10 +33,9 @@ exports.handler = async (event, context) => {
     }
   }
   
-  console.log('Extracted resource:', resource);
-  console.log('Extracted ID:', id);
-  
   const method = event.httpMethod;
+  
+  console.log('API Request:', { path: event.path, resource, id, method });
 
   // Special handling for test endpoint
   if (resource === 'test') {
@@ -55,17 +47,13 @@ exports.handler = async (event, context) => {
         timestamp: new Date().toISOString(),
         method: method,
         path: event.path,
-        resource: resource,
-        debug: {
-          pathParts: pathParts,
-          apiIndex: apiIndex
-        }
+        resource: resource
       })
     };
   }
 
   // Check authentication for protected endpoints
-  const publicEndpoints = ['test', 'auth', 'po-data', 'po-submit', 'po-approve'];
+  const publicEndpoints = ['test'];
   const isPublicEndpoint = publicEndpoints.includes(resource);
   
   if (!isPublicEndpoint) {
@@ -101,11 +89,23 @@ exports.handler = async (event, context) => {
       case 'equipment':
         return await handleEquipment(event, headers, method);
       
+      // Support both naming conventions
+      case 'bid-items':
       case 'master-bid-items':
-        return await handleMasterBidItems(event, headers, method, id);
+        return await handleBidItems(event, headers, method, id);
       
       case 'project-bid-items':
         return await handleProjectBidItems(event, headers, method, id);
+        
+      // Project bid item management endpoints
+      case 'add-project-bid-item':
+        return await handleAddProjectBidItem(event, headers);
+        
+      case 'update-project-bid-item':
+        return await handleUpdateProjectBidItem(event, headers, id);
+        
+      case 'delete-project-bid-item':
+        return await handleDeleteProjectBidItem(event, headers, id);
       
       case 'submit-dwr':
         return await handleDWRSubmission(event, headers, method);
@@ -129,16 +129,11 @@ exports.handler = async (event, context) => {
           body: JSON.stringify({ 
             error: 'Resource not found',
             resource: resource,
-            path: event.path,
-            debug: {
-              pathParts: pathParts,
-              apiIndex: apiIndex,
-              availableResources: [
-                'test', 'foremen', 'laborers', 'projects', 'equipment',
-                'master-bid-items', 'project-bid-items', 'submit-dwr',
-                'po-requests', 'vendors', 'authorized-users', 'users'
-              ]
-            }
+            availableEndpoints: [
+              'foremen', 'laborers', 'projects', 'equipment',
+              'bid-items', 'project-bid-items', 'submit-dwr',
+              'po-requests', 'vendors', 'authorized-users', 'users'
+            ]
           })
         };
     }
@@ -149,14 +144,13 @@ exports.handler = async (event, context) => {
       headers,
       body: JSON.stringify({ 
         error: 'Internal server error', 
-        details: error.message,
-        stack: error.stack 
+        details: error.message 
       })
     };
   }
 };
 
-// Foremen handler - FIXED column names
+// Foremen handler
 async function handleForemen(event, headers, method) {
   if (method !== 'GET') {
     return {
@@ -167,14 +161,12 @@ async function handleForemen(event, headers, method) {
   }
 
   try {
-    console.log('Fetching foremen from database...');
     const foremen = await sql`
-      SELECT id, name FROM foremen 
+      SELECT id, name, email, phone 
+      FROM foremen 
       WHERE is_active = true 
       ORDER BY name
     `;
-    
-    console.log(`Found ${foremen.length} foremen`);
     
     return {
       statusCode: 200,
@@ -186,15 +178,12 @@ async function handleForemen(event, headers, method) {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
-        error: 'Failed to fetch foremen',
-        details: error.message 
-      })
+      body: JSON.stringify({ error: 'Failed to fetch foremen' })
     };
   }
 }
 
-// Laborers handler - FIXED column names
+// Laborers handler
 async function handleLaborers(event, headers, method) {
   if (method !== 'GET') {
     return {
@@ -205,14 +194,12 @@ async function handleLaborers(event, headers, method) {
   }
 
   try {
-    console.log('Fetching laborers from database...');
     const laborers = await sql`
-      SELECT id, name FROM laborers 
+      SELECT id, name, employee_id, email, phone 
+      FROM laborers 
       WHERE is_active = true 
       ORDER BY name
     `;
-    
-    console.log(`Found ${laborers.length} laborers`);
     
     return {
       statusCode: 200,
@@ -224,15 +211,12 @@ async function handleLaborers(event, headers, method) {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
-        error: 'Failed to fetch laborers',
-        details: error.message 
-      })
+      body: JSON.stringify({ error: 'Failed to fetch laborers' })
     };
   }
 }
 
-// Projects handler - FIXED column names and data types
+// Projects handler
 async function handleProjects(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -249,13 +233,11 @@ async function handleProjects(event, headers, method, id) {
             body: JSON.stringify(projects[0] || null)
           };
         } else {
-          console.log('Fetching all active projects...');
           const projects = await sql`
             SELECT * FROM projects 
             WHERE active = true
             ORDER BY name
           `;
-          console.log(`Found ${projects.length} projects`);
           return {
             statusCode: 200,
             headers,
@@ -263,14 +245,11 @@ async function handleProjects(event, headers, method, id) {
           };
         }
       } catch (error) {
-        console.error('Error in projects handler:', error);
+        console.error('Error fetching projects:', error);
         return {
           statusCode: 500,
           headers,
-          body: JSON.stringify({ 
-            error: 'Failed to fetch projects',
-            details: error.message 
-          })
+          body: JSON.stringify({ error: 'Failed to fetch projects' })
         };
       }
 
@@ -283,93 +262,27 @@ async function handleProjects(event, headers, method, id) {
         };
       }
 
-      const projectData = JSON.parse(event.body);
-      
-      const newProject = await sql`
-        INSERT INTO projects (
-          name, project_code, active
-        ) VALUES (
-          ${projectData.name},
-          ${projectData.project_code || null},
-          ${projectData.active !== false}
-        )
-        RETURNING *
-      `;
+      try {
+        const projectData = JSON.parse(event.body);
+        const newProject = await sql`
+          INSERT INTO projects (name, project_code, active)
+          VALUES (${projectData.name}, ${projectData.project_code || null}, ${projectData.active !== false})
+          RETURNING *
+        `;
 
-      // Log the action
-      await sql`
-        INSERT INTO audit_log (user_id, action, table_name, record_id, new_values)
-        VALUES (${userId}, 'create', 'projects', ${newProject[0].id}::uuid, ${JSON.stringify(newProject[0])})
-      `;
-
-      return {
-        statusCode: 201,
-        headers,
-        body: JSON.stringify(newProject[0])
-      };
-
-    case 'PUT':
-      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
         return {
-          statusCode: 403,
+          statusCode: 201,
           headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
+          body: JSON.stringify(newProject[0])
+        };
+      } catch (error) {
+        console.error('Error creating project:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to create project' })
         };
       }
-
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'ID required for update' })
-        };
-      }
-
-      const updateData = JSON.parse(event.body);
-      
-      const updated = await sql`
-        UPDATE projects
-        SET 
-          name = ${updateData.name},
-          project_code = ${updateData.project_code || null},
-          active = ${updateData.active !== false},
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${parseInt(id)}
-        RETURNING *
-      `;
-
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify(updated[0])
-      };
-
-    case 'DELETE':
-      if (!requireRole(role, ['admin', 'manager'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions to delete' })
-        };
-      }
-
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'ID required for delete' })
-        };
-      }
-
-      await sql`
-        DELETE FROM projects WHERE id = ${parseInt(id)}
-      `;
-
-      return {
-        statusCode: 204,
-        headers,
-        body: ''
-      };
 
     default:
       return {
@@ -394,27 +307,24 @@ async function handleEquipment(event, headers, method) {
     const params = event.queryStringParameters || {};
     const type = params.type;
     
-    console.log('Fetching equipment, type filter:', type);
-    
-    // First, check if we have a type column
     let equipment;
-    try {
-      if (type) {
-        equipment = await sql`
-          SELECT id, name, type FROM equipment 
-          WHERE type = ${type} AND active = true 
-          ORDER BY name
-        `;
-      } else {
-        equipment = await sql`
-          SELECT id, name, type FROM equipment 
-          WHERE active = true 
-          ORDER BY name
-        `;
-      }
-    } catch (error) {
-      // If type column doesn't exist, fall back to just id and name
-      console.log('Type column might not exist, falling back...');
+    
+    // First check if type column exists
+    const hasTypeColumn = await sql`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'equipment' 
+      AND column_name = 'type'
+    `;
+    
+    if (hasTypeColumn.length > 0 && type) {
+      equipment = await sql`
+        SELECT id, name, type FROM equipment 
+        WHERE type = ${type} AND active = true 
+        ORDER BY name
+      `;
+    } else {
+      // Fallback without type column or filter
       equipment = await sql`
         SELECT id, name FROM equipment 
         WHERE active = true 
@@ -429,8 +339,6 @@ async function handleEquipment(event, headers, method) {
       }
     }
     
-    console.log(`Found ${equipment.length} equipment items`);
-    
     return {
       statusCode: 200,
       headers,
@@ -441,16 +349,13 @@ async function handleEquipment(event, headers, method) {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
-        error: 'Failed to fetch equipment',
-        details: error.message 
-      })
+      body: JSON.stringify({ error: 'Failed to fetch equipment' })
     };
   }
 }
 
-// Master Bid Items - FIXED to use 'bid_items' table
-async function handleMasterBidItems(event, headers, method, id) {
+// Bid Items handler (Master)
+async function handleBidItems(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
   switch (method) {
@@ -466,13 +371,10 @@ async function handleMasterBidItems(event, headers, method, id) {
             body: JSON.stringify(items[0] || null)
           };
         } else {
-          console.log('Fetching all bid items...');
           const items = await sql`
             SELECT * FROM bid_items 
-            WHERE is_active = true
             ORDER BY item_code
           `;
-          console.log(`Found ${items.length} bid items`);
           return {
             statusCode: 200,
             headers,
@@ -484,10 +386,7 @@ async function handleMasterBidItems(event, headers, method, id) {
         return {
           statusCode: 500,
           headers,
-          body: JSON.stringify({ 
-            error: 'Failed to fetch bid items',
-            details: error.message 
-          })
+          body: JSON.stringify({ error: 'Failed to fetch bid items' })
         };
       }
 
@@ -500,37 +399,38 @@ async function handleMasterBidItems(event, headers, method, id) {
         };
       }
 
-      const createData = JSON.parse(event.body);
-      
-      if (!createData.item_code || !createData.item_name) {
+      try {
+        const createData = JSON.parse(event.body);
+        
+        const newItem = await sql`
+          INSERT INTO bid_items (
+            item_code, item_name, category, default_unit, 
+            material_cost, description, is_active
+          ) VALUES (
+            ${createData.item_code},
+            ${createData.item_name},
+            ${createData.category || null},
+            ${createData.default_unit || null},
+            ${createData.material_cost || 0},
+            ${createData.description || null},
+            ${createData.is_active !== false}
+          )
+          RETURNING *
+        `;
+
         return {
-          statusCode: 400,
+          statusCode: 201,
           headers,
-          body: JSON.stringify({ error: 'Item code and name are required' })
+          body: JSON.stringify(newItem[0])
+        };
+      } catch (error) {
+        console.error('Error creating bid item:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to create bid item' })
         };
       }
-
-      const newItem = await sql`
-        INSERT INTO bid_items (
-          item_code, item_name, category, default_unit, 
-          material_cost, description, is_active
-        ) VALUES (
-          ${createData.item_code},
-          ${createData.item_name},
-          ${createData.category || null},
-          ${createData.default_unit || null},
-          ${createData.material_cost || 0},
-          ${createData.description || null},
-          ${createData.is_active !== false}
-        )
-        RETURNING *
-      `;
-
-      return {
-        statusCode: 201,
-        headers,
-        body: JSON.stringify(newItem[0])
-      };
 
     case 'PUT':
       if (!requireRole(role, ['admin', 'manager', 'editor'])) {
@@ -549,28 +449,37 @@ async function handleMasterBidItems(event, headers, method, id) {
         };
       }
 
-      const updateData = JSON.parse(event.body);
-      
-      const updated = await sql`
-        UPDATE bid_items
-        SET 
-          item_code = ${updateData.item_code},
-          item_name = ${updateData.item_name},
-          category = ${updateData.category || null},
-          default_unit = ${updateData.default_unit || null},
-          material_cost = ${updateData.material_cost || 0},
-          description = ${updateData.description || null},
-          is_active = ${updateData.is_active !== false},
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${id}
-        RETURNING *
-      `;
+      try {
+        const updateData = JSON.parse(event.body);
+        
+        const updated = await sql`
+          UPDATE bid_items
+          SET 
+            item_code = ${updateData.item_code},
+            item_name = ${updateData.item_name},
+            category = ${updateData.category || null},
+            default_unit = ${updateData.default_unit || null},
+            material_cost = ${updateData.material_cost || 0},
+            description = ${updateData.description || null},
+            is_active = ${updateData.is_active !== false},
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${id}
+          RETURNING *
+        `;
 
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify(updated[0])
-      };
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(updated[0])
+        };
+      } catch (error) {
+        console.error('Error updating bid item:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to update bid item' })
+        };
+      }
 
     case 'DELETE':
       if (!requireRole(role, ['admin', 'manager'])) {
@@ -589,66 +498,81 @@ async function handleMasterBidItems(event, headers, method, id) {
         };
       }
 
-      await sql`
-        DELETE FROM bid_items WHERE id = ${id}
-      `;
-
-      return {
-        statusCode: 204,
-        headers,
-        body: ''
-      };
-
-    default:
-      return {
-        statusCode: 405,
-        headers,
-        body: JSON.stringify({ error: 'Method not allowed' })
-      };
-  }
-}
-
-// Other handlers remain the same...
-// (Include all the other handlers from the previous version)
-
-// Vendors handler
-async function handleVendors(event, headers, method, id) {
-  const { role } = event.auth || {};
-
-  switch (method) {
-    case 'GET':
-      const vendors = await sql`
-        SELECT * FROM vendors 
-        WHERE active = true 
-        ORDER BY name
-      `;
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify(vendors)
-      };
-
-    case 'POST':
-      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+      try {
+        await sql`DELETE FROM bid_items WHERE id = ${id}`;
+        
         return {
-          statusCode: 403,
+          statusCode: 204,
           headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
+          body: ''
+        };
+      } catch (error) {
+        console.error('Error deleting bid item:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to delete bid item' })
         };
       }
 
-      const vendorData = JSON.parse(event.body);
-      const newVendor = await sql`
-        INSERT INTO vendors (name, active)
-        VALUES (${vendorData.name}, ${vendorData.active !== false})
-        RETURNING *
-      `;
-
+    default:
       return {
-        statusCode: 201,
+        statusCode: 405,
         headers,
-        body: JSON.stringify(newVendor[0])
+        body: JSON.stringify({ error: 'Method not allowed' })
       };
+  }
+}
+
+// Project Bid Items handler
+async function handleProjectBidItems(event, headers, method, id) {
+  const { role, userId } = event.auth || {};
+
+  switch (method) {
+    case 'GET':
+      try {
+        const params = event.queryStringParameters || {};
+        const projectId = params.project_id;
+        
+        if (!projectId) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'project_id parameter required' })
+          };
+        }
+        
+        const bidItems = await sql`
+          SELECT 
+            pbi.id as project_bid_item_id,
+            pbi.project_id,
+            pbi.bid_item_id,
+            bi.item_code,
+            bi.item_name,
+            bi.category,
+            pbi.unit,
+            pbi.rate,
+            pbi.material_cost,
+            pbi.notes
+          FROM project_bid_items pbi
+          JOIN bid_items bi ON pbi.bid_item_id = bi.id
+          WHERE pbi.project_id = ${projectId}
+          ORDER BY bi.item_code
+        `;
+        
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(bidItems)
+        };
+      } catch (error) {
+        console.error('Error fetching project bid items:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to fetch project bid items' })
+        };
+      }
 
     default:
       return {
@@ -659,6 +583,249 @@ async function handleVendors(event, headers, method, id) {
   }
 }
 
-// Add the rest of the handlers here...
-// (handleProjectBidItems, handleDWRSubmission, handlePORequests, 
-//  handleAuthorizedUsers, handleUsers)
+// Add Project Bid Item
+async function handleAddProjectBidItem(event, headers) {
+  const { role, userId } = event.auth || {};
+  
+  if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+    return {
+      statusCode: 403,
+      headers,
+      body: JSON.stringify({ error: 'Insufficient permissions' })
+    };
+  }
+
+  try {
+    const data = JSON.parse(event.body);
+    
+    // Check if item already exists for this project
+    const existing = await sql`
+      SELECT id FROM project_bid_items 
+      WHERE project_id = ${data.project_id} 
+      AND bid_item_id = ${data.bid_item_id}
+    `;
+    
+    if (existing.length > 0) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'This bid item already exists for this project' })
+      };
+    }
+    
+    const newItem = await sql`
+      INSERT INTO project_bid_items (
+        project_id, bid_item_id, rate, material_cost, unit, notes
+      ) VALUES (
+        ${data.project_id},
+        ${data.bid_item_id},
+        ${data.rate || 0},
+        ${data.material_cost || 0},
+        ${data.unit || 'EA'},
+        ${data.notes || null}
+      )
+      RETURNING *
+    `;
+
+    return {
+      statusCode: 201,
+      headers,
+      body: JSON.stringify(newItem[0])
+    };
+  } catch (error) {
+    console.error('Error adding project bid item:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Failed to add project bid item' })
+    };
+  }
+}
+
+// Update Project Bid Item
+async function handleUpdateProjectBidItem(event, headers, id) {
+  const { role, userId } = event.auth || {};
+  
+  if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+    return {
+      statusCode: 403,
+      headers,
+      body: JSON.stringify({ error: 'Insufficient permissions' })
+    };
+  }
+
+  if (!id) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'ID required for update' })
+    };
+  }
+
+  try {
+    const data = JSON.parse(event.body);
+    
+    const updated = await sql`
+      UPDATE project_bid_items
+      SET 
+        rate = ${data.rate || 0},
+        material_cost = ${data.material_cost || 0},
+        unit = ${data.unit || 'EA'},
+        notes = ${data.notes || null},
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${id}
+      RETURNING *
+    `;
+
+    if (updated.length === 0) {
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({ error: 'Project bid item not found' })
+      };
+    }
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(updated[0])
+    };
+  } catch (error) {
+    console.error('Error updating project bid item:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Failed to update project bid item' })
+    };
+  }
+}
+
+// Delete Project Bid Item
+async function handleDeleteProjectBidItem(event, headers, id) {
+  const { role, userId } = event.auth || {};
+  
+  if (!requireRole(role, ['admin', 'manager'])) {
+    return {
+      statusCode: 403,
+      headers,
+      body: JSON.stringify({ error: 'Insufficient permissions to delete' })
+    };
+  }
+
+  if (!id) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'ID required for delete' })
+    };
+  }
+
+  try {
+    await sql`DELETE FROM project_bid_items WHERE id = ${id}`;
+    
+    return {
+      statusCode: 204,
+      headers,
+      body: ''
+    };
+  } catch (error) {
+    console.error('Error deleting project bid item:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Failed to delete project bid item' })
+    };
+  }
+}
+
+// DWR Submission handler
+async function handleDWRSubmission(event, headers, method) {
+  if (method !== 'POST') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  try {
+    const data = JSON.parse(event.body);
+    
+    // Insert main DWR record
+    const [dwr] = await sql`
+      INSERT INTO daily_work_reports (
+        work_date, foreman_id, project_id, arrival_time, departure_time,
+        truck_id, trailer_id, billable_work, maybe_explanation, per_diem,
+        submission_timestamp
+      ) VALUES (
+        ${data.work_date}, ${data.foreman_id}, ${data.project_id},
+        ${data.arrival_time}, ${data.departure_time}, ${data.truck_id},
+        ${data.trailer_id}, ${data.billable_work}, ${data.maybe_explanation},
+        ${data.per_diem}, CURRENT_TIMESTAMP
+      ) RETURNING id
+    `;
+    
+    // Insert crew members
+    if (data.laborers && data.laborers.length > 0) {
+      for (const laborerId of data.laborers) {
+        await sql`
+          INSERT INTO dwr_crew_members (dwr_id, laborer_id)
+          VALUES (${dwr.id}, ${laborerId})
+        `;
+      }
+    }
+    
+    // Insert machines
+    if (data.machines && data.machines.length > 0) {
+      for (const machineId of data.machines) {
+        await sql`
+          INSERT INTO dwr_machines (dwr_id, machine_id)
+          VALUES (${dwr.id}, ${machineId})
+        `;
+      }
+    }
+    
+    // Insert items
+    if (data.items && data.items.length > 0) {
+      let itemIndex = 0;
+      for (const item of data.items) {
+        await sql`
+          INSERT INTO dwr_items (
+            dwr_id, item_name, quantity, unit, location_description,
+            latitude, longitude, duration_hours, notes, item_index,
+            bid_item_id, project_bid_item_id
+          ) VALUES (
+            ${dwr.id}, ${item.item_name}, ${item.quantity}, ${item.unit},
+            ${item.location_description}, ${item.latitude}, ${item.longitude},
+            ${item.duration_hours}, ${item.notes}, ${itemIndex++},
+            ${item.bid_item_id}, ${item.project_bid_item_id}
+          )
+        `;
+      }
+    }
+    
+    return {
+      statusCode: 201,
+      headers,
+      body: JSON.stringify({ 
+        success: true, 
+        id: dwr.id,
+        message: 'Daily work report submitted successfully' 
+      })
+    };
+  } catch (error) {
+    console.error('Error submitting DWR:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ 
+        success: false,
+        error: 'Failed to submit daily work report',
+        message: error.message 
+      })
+    };
+  }
+}
+
+// Other handlers (PO Requests, Vendors, etc.) remain the same...
+// Include them here as needed
