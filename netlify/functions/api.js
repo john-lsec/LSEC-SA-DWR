@@ -1,4 +1,4 @@
-// netlify/functions/api.js - Complete version with PO functionality
+// netlify/functions/api.js - Complete version with all fixes
 const { neon } = require('@neondatabase/serverless');
 const { requireAuth, requireRole } = require('./auth');
 
@@ -70,7 +70,8 @@ exports.handler = async (event, context) => {
     // Store auth info for use in handlers
     event.auth = {
       userId: auth.userId,
-      role: auth.role
+      role: auth.role,
+      email: auth.email
     };
   }
 
@@ -532,7 +533,7 @@ async function handleBidItems(event, headers, method, id) {
   }
 }
 
-// Project Bid Items handler
+// Project Bid Items handler - FIXED to include all necessary fields
 async function handleProjectBidItems(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -561,10 +562,17 @@ async function handleProjectBidItems(event, headers, method, id) {
             pbi.unit,
             pbi.rate,
             pbi.material_cost,
+            pbi.material_cost as current_cost,
+            CASE 
+              WHEN pbi.material_cost > 0 THEN 
+                ((pbi.rate - pbi.material_cost) / pbi.material_cost * 100)
+              ELSE 0 
+            END as markup_percentage,
             pbi.notes
           FROM project_bid_items pbi
           JOIN bid_items bi ON pbi.bid_item_id = bi.id
           WHERE pbi.project_id = ${projectId}
+            AND pbi.is_active = true
           ORDER BY bi.item_code
         `;
         
@@ -611,6 +619,7 @@ async function handleAddProjectBidItem(event, headers) {
       SELECT id FROM project_bid_items 
       WHERE project_id = ${data.project_id} 
       AND bid_item_id = ${data.bid_item_id}
+      AND is_active = true
     `;
     
     if (existing.length > 0) {
@@ -623,14 +632,15 @@ async function handleAddProjectBidItem(event, headers) {
     
     const newItem = await sql`
       INSERT INTO project_bid_items (
-        project_id, bid_item_id, rate, material_cost, unit, notes
+        project_id, bid_item_id, rate, material_cost, unit, notes, is_active
       ) VALUES (
         ${data.project_id},
         ${data.bid_item_id},
         ${data.rate || 0},
         ${data.material_cost || 0},
         ${data.unit || 'EA'},
-        ${data.notes || null}
+        ${data.notes || null},
+        true
       )
       RETURNING *
     `;
@@ -729,7 +739,12 @@ async function handleDeleteProjectBidItem(event, headers, id) {
   }
 
   try {
-    await sql`DELETE FROM project_bid_items WHERE id = ${id}`;
+    // Soft delete instead of hard delete
+    await sql`
+      UPDATE project_bid_items 
+      SET is_active = false, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ${id}
+    `;
     
     return {
       statusCode: 204,
@@ -954,7 +969,7 @@ async function handlePOSubmit(event, headers, method) {
       headers,
       body: JSON.stringify({
         success: true,
-        poNumber: `PO-${poNumber}`,
+        poNumber: poNumber.toString(),
         authorized: authorized,
         message: authorized 
           ? 'PO request automatically approved' 
@@ -1129,8 +1144,8 @@ async function handleVendors(event, headers, method, id) {
         const data = JSON.parse(event.body);
         
         const newVendor = await sql`
-          INSERT INTO vendors (name, contact_info, active)
-          VALUES (${data.name}, ${data.contact_info || null}, ${data.active !== false})
+          INSERT INTO vendors (name, active)
+          VALUES (${data.name}, ${data.active !== false})
           RETURNING *
         `;
 
@@ -1172,7 +1187,6 @@ async function handleVendors(event, headers, method, id) {
           UPDATE vendors
           SET 
             name = ${data.name},
-            contact_info = ${data.contact_info || null},
             active = ${data.active !== false}
           WHERE id = ${id}
           RETURNING *
