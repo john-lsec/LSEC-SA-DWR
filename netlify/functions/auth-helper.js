@@ -176,7 +176,7 @@ const AuthHelper = {
                 headers['Authorization'] = `Bearer ${token}`;
             }
             
-            const response = await fetch(AUTH_CONFIG.API_BASE + 'api/' + endpoint, {
+            const response = await fetch(AUTH_CONFIG.API_BASE + endpoint, {
                 ...options,
                 headers: headers
             });
