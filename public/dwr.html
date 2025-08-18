@@ -907,144 +907,101 @@
 
         // ===== AUTHENTICATION FUNCTIONS =====
         
+        // Configuration
+        const API_BASE = '/.netlify/functions/';
+        const GOOGLE_MAPS_API_KEY = 'AIzaSyBQq_tXLv0APu8LFfjLogSh4cIqo49yJVg';
+
+        // Global variables
+        let currentItemCount = 0;
+        let projectBidItemsMap = {};
+        let selectedLaborers = new Set();
+        let selectedMachines = new Set();
+        let map, selectedMarker, selectedLatLng, currentLocationInputId;
+        
         // Check authentication on page load
         document.addEventListener('DOMContentLoaded', function() {
-            checkAuth();
-        });
-        
-        // Check if user is authenticated
-        async function checkAuth() {
-            const token = localStorage.getItem('jwtToken');
-            const sessionToken = localStorage.getItem('sessionToken');
-            
-            if (!token || !sessionToken) {
-                // Not authenticated, redirect to login
-                window.location.href = '/login.html';
+            if (!AuthHelper.isAuthenticated()) {
+                AuthHelper.redirectToLogin();
                 return;
             }
             
-            // Verify token is still valid with backend
-            try {
-                const response = await fetch(API_BASE + 'auth/verify', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Invalid token');
-                }
-                
-                const data = await response.json();
-                if (data.valid) {
-                    // Token is valid, update user info
-                    localStorage.setItem('userName', data.name || 'User');
-                    localStorage.setItem('userRole', data.role || 'Employee');
-                    localStorage.setItem('userId', data.userId);
-                    localStorage.setItem('userEmail', data.email || '');
-                    
-                    loadUserInfo();
-                    // Initialize the application after successful auth
-                    initializeApp();
-                } else {
-                    throw new Error('Session invalid');
-                }
-            } catch (error) {
-                console.error('Auth verification failed:', error);
-                // Clear stored tokens and redirect to login
-                clearAuthData();
-                window.location.href = '/login.html';
-            }
-        }
+            loadUserInfo();
+            initializeApp();
+        });
         
-        // Load user information into UI
+        // Load user information
         function loadUserInfo() {
-            const userName = localStorage.getItem('userName') || 'User';
-            const userRole = localStorage.getItem('userRole') || 'Employee';
-            
-            document.getElementById('userName').textContent = userName;
-            document.getElementById('userRole').textContent = userRole;
+            const userInfo = AuthHelper.getUserInfo();
+            document.getElementById('userName').textContent = userInfo.name || 'User';
+            document.getElementById('userRole').textContent = userInfo.role || 'Employee';
         }
         
         // Logout function
-        async function logout() {
-            const token = localStorage.getItem('jwtToken');
-            
-            if (token) {
-                try {
-                    // Call logout endpoint
-                    await fetch(API_BASE + 'auth/logout', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                } catch (error) {
-                    console.error('Logout error:', error);
-                }
-            }
-            
-            // Clear local storage and redirect
-            clearAuthData();
-            window.location.href = '/login.html';
+        function logout() {
+            AuthHelper.logout();
         }
         
-        // Clear authentication data
-        function clearAuthData() {
-            localStorage.removeItem('jwtToken');
-            localStorage.removeItem('sessionToken');
-            localStorage.removeItem('userName');
-            localStorage.removeItem('userRole');
-            localStorage.removeItem('userId');
-            localStorage.removeItem('userEmail');
-        }
-        
-        // API Helper function with authentication
-        async function apiCall(endpoint, options = {}) {
-            const token = localStorage.getItem('jwtToken');
-            
-            if (!token) {
-                window.location.href = '/login.html';
-                throw new Error('No authentication token');
-            }
-            
-            try {
-                const response = await fetch(API_BASE + 'api/' + endpoint, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                        ...options.headers
-                    },
-                    ...options
-                });
-                
-                // Handle authentication errors
-                if (response.status === 401) {
-                    clearAuthData();
-                    window.location.href = '/login.html';
-                    throw new Error('Authentication expired');
-                }
-                
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-                }
-                
-                return await response.json();
-            } catch (error) {
-                console.error(`API call failed for ${endpoint}:`, error);
-                throw error;
-            }
-        }
-        
-        // Initialize the application after authentication
+        // Initialize the application
         function initializeApp() {
             loadMasterData();
             setupEventListeners();
         }
+        
+        // Remove the old apiCall function and update all API calls to use AuthHelper.apiCall
+        
+        // Update loadForemen:
+        async function loadForemen() {
+            const loader = document.getElementById('foremanLoader');
+            const select = document.getElementById('foreman');
+            
+            try {
+                loader.classList.remove('hidden');
+                const foremen = await AuthHelper.apiCall('foremen');
+                
+                foremen.forEach(foreman => {
+                    const option = document.createElement('option');
+                    option.value = foreman.id;
+                    option.textContent = foreman.name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading foremen:', error);
+                showMessage('Error loading foremen data.', 'error');
+            } finally {
+                loader.classList.add('hidden');
+            }
+        }
+
+        // Update all other load functions similarly, replacing apiCall with AuthHelper.apiCall
+        // For example, loadLaborers:
+        async function loadLaborers() {
+            const loader = document.getElementById('laborerLoader');
+            const container = document.getElementById('laborersContainer');
+            
+            try {
+                const laborers = await AuthHelper.apiCall('laborers');
+                container.innerHTML = '';
+                laborers.forEach(laborer => {
+                    const item = createMultiSelectItem(laborer.id, laborer.name, 'laborer');
+                    container.appendChild(item);
+                });
+            } catch (error) {
+                console.error('Error loading laborers:', error);
+                container.innerHTML = '<div style="padding: 15px; color: #dc3545;">Error loading laborers</div>';
+            }
+        }
+        
+        // Update handleSubmit (around line 1693):
+        const result = await AuthHelper.apiCall('submit-dwr', {
+            method: 'POST',
+            body: JSON.stringify(formData)
+        });
+                
+                // Initialize the application after authentication
+                function initializeApp() {
+                    loadMasterData();
+                    setupEventListeners();
+                }
 
         // ===== APPLICATION FUNCTIONS =====
 
