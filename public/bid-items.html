@@ -641,166 +641,11 @@
             </div>
         </div>
     </div>
-
-    <script src="/js/auth-helper.js"></script>
+    
+    <!-- Include AuthHelper -->
+    <script src="auth-helper.js"></script>
     
     <script>
-        // Configuration
-        const API_BASE = '/.netlify/functions/';
-        
-        // State variables
-        let bidItems = [];
-        let filteredItems = [];
-        let currentPage = 1;
-        const itemsPerPage = 20;
-        let itemToDelete = null;
-        let categories = new Set();
-        let units = new Set();
-        let modifiedItems = {};
-        let originalData = {};
-        
-        // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            if (!AuthHelper.isAuthenticated()) {
-                AuthHelper.redirectToLogin();
-                return;
-            }
-            
-            loadBidItems();
-            setupEventListeners();
-        });
-        
-        // Remove the old apiCall function and update loadBidItems:
-        async function loadBidItems() {
-            try {
-                document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" class="loading">Loading bid items</td></tr>';
-                
-                bidItems = await AuthHelper.apiCall('master-bid-items');
-                
-                // Store original data for comparison
-                bidItems.forEach(item => {
-                    originalData[item.id] = {...item};
-                });
-                
-                // Extract unique categories and units
-                categories.clear();
-                units.clear();
-                
-                bidItems.forEach(item => {
-                    if (item.category) categories.add(item.category);
-                    if (item.default_unit) units.add(item.default_unit);
-                });
-                
-                populateFilters();
-                updateStats();
-                filterAndDisplay();
-                
-            } catch (error) {
-                showMessage('Error loading bid items: ' + error.message, 'error');
-            }
-        }
-        
-        // Update saveAllChanges function (around line 831):
-        async function saveAllChanges() {
-            const saveButton = event.target;
-            saveButton.disabled = true;
-            saveButton.textContent = 'Saving...';
-            
-            try {
-                const updates = [];
-                
-                for (const [itemId, changes] of Object.entries(modifiedItems)) {
-                    const item = bidItems.find(i => i.id === itemId);
-                    const updateData = {
-                        item_code: changes.item_code !== undefined ? changes.item_code : item.item_code,
-                        item_name: changes.item_name !== undefined ? changes.item_name : item.item_name,
-                        category: changes.category !== undefined ? changes.category : item.category,
-                        default_unit: changes.default_unit !== undefined ? changes.default_unit : item.default_unit,
-                        material_cost: changes.material_cost !== undefined ? parseFloat(changes.material_cost) : item.material_cost,
-                        description: item.description,
-                        is_active: changes.is_active !== undefined ? changes.is_active : item.is_active
-                    };
-                    
-                    updates.push(AuthHelper.apiCall('master-bid-items/' + itemId, {
-                        method: 'PUT',
-                        body: JSON.stringify(updateData)
-                    }));
-                }
-                
-                await Promise.all(updates);
-                
-                showMessage(`Successfully updated ${updates.length} item(s)`, 'success');
-                modifiedItems = {};
-                updateSaveBar();
-                await loadBidItems();
-                
-            } catch (error) {
-                showMessage('Error saving changes: ' + error.message, 'error');
-            } finally {
-                saveButton.disabled = false;
-                saveButton.textContent = 'Save All Changes';
-            }
-        }
-        
-        // Update saveNewItem function:
-        async function saveNewItem(e) {
-            e.preventDefault();
-            
-            const data = {
-                item_code: document.getElementById('newItemCode').value.trim(),
-                item_name: document.getElementById('newItemName').value.trim(),
-                category: document.getElementById('newCategory').value,
-                default_unit: document.getElementById('newDefaultUnit').value,
-                material_cost: parseFloat(document.getElementById('newMaterialCost').value) || 0,
-                description: document.getElementById('newDescription').value.trim(),
-                is_active: document.getElementById('newIsActive').checked
-            };
-            
-            try {
-                await AuthHelper.apiCall('master-bid-items', {
-                    method: 'POST',
-                    body: JSON.stringify(data)
-                });
-                
-                showMessage('Bid item created successfully', 'success');
-                closeModal();
-                loadBidItems();
-                
-            } catch (error) {
-                showMessage('Error creating bid item: ' + error.message, 'error');
-            }
-        }
-        
-        // Update confirmDelete function:
-        async function confirmDelete() {
-            if (!itemToDelete) return;
-            
-            try {
-                await AuthHelper.apiCall('master-bid-items/' + itemToDelete, {
-                    method: 'DELETE'
-                });
-                
-                showMessage('Bid item deleted successfully', 'success');
-                closeDeleteModal();
-                loadBidItems();
-                
-            } catch (error) {
-                showMessage('Error deleting bid item: ' + error.message, 'error');
-            }
-        }
-        
-        // Load user information
-        function loadUserInfo() {
-            const userName = localStorage.getItem('userName') || 'User';
-            const userRole = localStorage.getItem('userRole') || 'Employee';
-            
-            document.getElementById('userName').textContent = userName;
-            document.getElementById('userRole').textContent = userRole;
-        }
-        
-        // Configuration
-        const API_BASE = '/.netlify/functions/';
-        
         // State
         let bidItems = [];
         let filteredItems = [];
@@ -813,40 +658,29 @@
         let originalData = {};
         
         // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            loadBidItems();
-            setupEventListeners();
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize authentication
+            const isAuthenticated = await AuthHelper.init({
+                onAuthenticated: function(userInfo) {
+                    console.log('User authenticated:', userInfo.name);
+                    // Load bid items data
+                    loadBidItems();
+                    setupEventListeners();
+                }
+            });
+            
+            if (!isAuthenticated) {
+                // User will be redirected to login by AuthHelper
+                return;
+            }
         });
         
-        // API Helper
-        async function apiCall(endpoint, options = {}) {
-            try {
-                const response = await fetch(API_BASE + 'api/' + endpoint, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...options.headers
-                    },
-                    ...options
-                });
-                
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || 'Request failed');
-                }
-                
-                return await response.json();
-            } catch (error) {
-                console.error('API call failed:', error);
-                throw error;
-            }
-        }
-        
-        // Load bid items
+        // Load bid items using AuthHelper
         async function loadBidItems() {
             try {
                 document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" class="loading">Loading bid items</td></tr>';
                 
-                bidItems = await apiCall('master-bid-items');
+                bidItems = await AuthHelper.apiCall('master-bid-items');
                 
                 // Store original data for comparison
                 bidItems.forEach(item => {
@@ -1160,7 +994,7 @@
             }
         }
         
-        // Save all changes
+        // Save all changes using AuthHelper
         async function saveAllChanges() {
             const saveButton = event.target;
             saveButton.disabled = true;
@@ -1181,7 +1015,7 @@
                         is_active: changes.is_active !== undefined ? changes.is_active : item.is_active
                     };
                     
-                    updates.push(apiCall('master-bid-items/' + itemId, {
+                    updates.push(AuthHelper.apiCall('master-bid-items/' + itemId, {
                         method: 'PUT',
                         body: JSON.stringify(updateData)
                     }));
@@ -1252,7 +1086,7 @@
             document.getElementById('itemModal').classList.add('show');
         }
         
-        // Save new item
+        // Save new item using AuthHelper
         async function saveNewItem(e) {
             e.preventDefault();
             
@@ -1267,7 +1101,7 @@
             };
             
             try {
-                await apiCall('master-bid-items', {
+                await AuthHelper.apiCall('master-bid-items', {
                     method: 'POST',
                     body: JSON.stringify(data)
                 });
@@ -1292,12 +1126,12 @@
             document.getElementById('deleteModal').classList.add('show');
         }
         
-        // Confirm delete
+        // Confirm delete using AuthHelper
         async function confirmDelete() {
             if (!itemToDelete) return;
             
             try {
-                await apiCall('master-bid-items/' + itemToDelete, {
+                await AuthHelper.apiCall('master-bid-items/' + itemToDelete, {
                     method: 'DELETE'
                 });
                 
