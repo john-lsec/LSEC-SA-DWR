@@ -726,7 +726,7 @@
                 <span class="user-name" id="userName">Loading...</span>
                 <span class="user-role" id="userRole">Loading...</span>
             </div>
-            <button type="button" class="logout-btn" onclick="logout()">Logout</button>
+            <button type="button" class="logout-btn" onclick="handleLogout()">Logout</button>
         </div>
 
         <div class="header">
@@ -894,105 +894,43 @@
         </div>
     </div>
     
+    <!-- Include AuthHelper -->
+    <script src="auth-helper.js"></script>
+    
     <script>
         // Configuration
-        const API_BASE = '/.netlify/functions/';
         const GOOGLE_MAPS_API_KEY = 'AIzaSyBQq_tXLv0APu8LFfjLogSh4cIqo49yJVg';
 
         // Global variables
         let currentItemCount = 0;
-        let projectBidItems = {};
+        let projectBidItems = []; // Changed from projectBidItemsMap to projectBidItems array
         let selectedLaborers = new Set();
         let selectedMachines = new Set();
         let map, selectedMarker, selectedLatLng, currentLocationInputId;
-        let authToken = null;
-        let currentUser = null;
 
-        // Check authentication on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            if (!isAuthenticated()) {
-                redirectToLogin();
+        // Initialize page on DOM load
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize authentication using AuthHelper
+            const isAuthenticated = await AuthHelper.init({
+                onAuthenticated: function(userInfo) {
+                    // Update user display
+                    document.getElementById('userName').textContent = userInfo.name;
+                    document.getElementById('userRole').textContent = userInfo.role;
+                    
+                    // Initialize the page functionality
+                    initializeApp();
+                }
+            });
+            
+            if (!isAuthenticated) {
+                // User will be redirected to login by AuthHelper
                 return;
             }
-            
-            loadUserInfo();
-            initializeApp();
         });
-
-        // Authentication Helper Functions
-        function isAuthenticated() {
-            authToken = localStorage.getItem('sessionToken');
-            return authToken !== null;
-        }
-
-        function redirectToLogin() {
-            window.location.href = '/login.html';
-        }
-
-        function getUserInfo() {
-            return {
-                name: localStorage.getItem('userName') || 'User',
-                role: localStorage.getItem('userRole') || 'Employee',
-                email: localStorage.getItem('userEmail') || 'N/A'
-            };
-        }
-
-        // API Call Helper
-        async function apiCall(endpoint, options = {}) {
-            if (!authToken) {
-                throw new Error('Not authenticated');
-            }
-
-            const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}api/${endpoint}`;
-            
-            const defaultOptions = {
-                headers: {
-                    'Authorization': `Bearer ${authToken}`,
-                    'Content-Type': 'application/json'
-                }
-            };
-
-            const mergedOptions = {
-                ...defaultOptions,
-                ...options,
-                headers: {
-                    ...defaultOptions.headers,
-                    ...options.headers
-                }
-            };
-
-            const response = await fetch(url, mergedOptions);
-
-            if (response.status === 401) {
-                // Token expired, redirect to login
-                localStorage.clear();
-                redirectToLogin();
-                throw new Error('Authentication expired');
-            }
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`API Error: ${response.status} - ${errorText}`);
-            }
-
-            return await response.json();
-        }
         
-        // Load user information
-        function loadUserInfo() {
-            const userInfo = getUserInfo();
-            document.getElementById('userName').textContent = userInfo.name;
-            document.getElementById('userRole').textContent = userInfo.role;
-        }
-        
-        // Logout function
-        function logout() {
-            if (confirm('Are you sure you want to logout?')) {
-                localStorage.clear();
-                authToken = null;
-                currentUser = null;
-                redirectToLogin();
-            }
+        // Logout handler
+        function handleLogout() {
+            AuthHelper.logout();
         }
         
         // Initialize the application
@@ -1016,7 +954,7 @@
             }
         }
 
-        // Load foremen
+        // Load foremen using AuthHelper
         async function loadForemen() {
             const loader = document.getElementById('foremanLoader');
             const select = document.getElementById('foreman');
@@ -1024,7 +962,7 @@
             try {
                 loader.classList.remove('hidden');
                 
-                const foremen = await apiCall('foremen');
+                const foremen = await AuthHelper.apiCall('foremen');
 
                 foremen.forEach(foreman => {
                     const option = document.createElement('option');
@@ -1040,13 +978,13 @@
             }
         }
 
-        // Load laborers
+        // Load laborers using AuthHelper
         async function loadLaborers() {
             const loader = document.getElementById('laborerLoader');
             const container = document.getElementById('laborersContainer');
             
             try {
-                const laborers = await apiCall('laborers');
+                const laborers = await AuthHelper.apiCall('laborers');
 
                 container.innerHTML = '';
                 laborers.forEach(laborer => {
@@ -1059,7 +997,7 @@
             }
         }
 
-        // Load projects
+        // Load projects using AuthHelper
         async function loadProjects() {
             const loader = document.getElementById('projectLoader');
             const select = document.getElementById('project');
@@ -1067,7 +1005,7 @@
             try {
                 loader.classList.remove('hidden');
                 
-                const projects = await apiCall('projects');
+                const projects = await AuthHelper.apiCall('projects');
 
                 projects.forEach(project => {
                     const option = document.createElement('option');
@@ -1083,7 +1021,7 @@
             }
         }
 
-        // Load equipment by type
+        // Load equipment by type using AuthHelper
         async function loadEquipment() {
             try {
                 await Promise.all([
@@ -1103,7 +1041,7 @@
             try {
                 loader.classList.remove('hidden');
                 
-                const equipment = await apiCall(`equipment?type=${encodeURIComponent(type)}`);
+                const equipment = await AuthHelper.apiCall(`equipment?type=${encodeURIComponent(type)}`);
 
                 equipment.forEach(item => {
                     const option = document.createElement('option');
@@ -1123,7 +1061,7 @@
             const container = document.getElementById('machinesContainer');
             
             try {
-                const machines = await apiCall('equipment?type=MACHINE');
+                const machines = await AuthHelper.apiCall('equipment?type=MACHINE');
 
                 container.innerHTML = '';
                 machines.forEach(machine => {
@@ -1136,15 +1074,15 @@
             }
         }
 
-        // Load project bid items using the consolidated endpoint
+        // Load project bid items using AuthHelper
         async function loadProjectBidItems(projectId) {
             if (!projectId) return;
             try {
                 projectBidItems = await AuthHelper.apiCall('project-bid-items?project_id=' + projectId);
-                renderBidItemsTable();
-                updateStats();
-                document.getElementById('bidItemsSection').classList.remove('hidden');
+                // After loading, update all item dropdowns
+                updateAllItemDropdowns();
             } catch (error) {
+                console.error('Error loading project bid items:', error);
                 showMessage('Error loading project bid items.', 'error');
             }
         }
@@ -1417,10 +1355,10 @@
             }
         }
 
-        // Update all item dropdowns
+        // Update all item dropdowns - Fixed to use projectBidItems array
         function updateAllItemDropdowns() {
             const projectId = document.getElementById('project').value;
-            if (!projectId) return;
+            if (!projectId || !projectBidItems || projectBidItems.length === 0) return;
 
             document.querySelectorAll('.item-section').forEach(section => {
                 const index = section.dataset.itemIndex;
@@ -1432,21 +1370,19 @@
                     select.remove(1);
                 }
                 
-                if (projectBidItemsMap[projectId]) {
-                    // Add bid items
-                    projectBidItemsMap[projectId].forEach(item => {
-                        const option = document.createElement('option');
-                        option.value = item.item_name;
-                        option.textContent = `${item.item_code} - ${item.item_name}`;
-                        option.dataset.unit = item.unit;
-                        option.dataset.bidItemId = item.bid_item_id;
-                        option.dataset.projectBidItemId = item.project_bid_item_id;
-                        option.dataset.rate = item.rate;
-                        option.dataset.cost = item.current_cost;
-                        option.dataset.markup = item.markup_percentage || 0;
-                        select.appendChild(option);
-                    });
-                }
+                // Add bid items from the projectBidItems array
+                projectBidItems.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.item_name;
+                    option.textContent = `${item.item_code} - ${item.item_name}`;
+                    option.dataset.unit = item.unit;
+                    option.dataset.bidItemId = item.bid_item_id;
+                    option.dataset.projectBidItemId = item.project_bid_item_id;
+                    option.dataset.rate = item.rate;
+                    option.dataset.cost = item.material_cost || item.current_cost;
+                    option.dataset.markup = item.markup_percentage || 0;
+                    select.appendChild(option);
+                });
                 
                 // Restore selection if exists and still valid
                 if (currentValue) {
@@ -1598,7 +1534,7 @@
             document.getElementById('confirmLocationBtn').disabled = true;
         }
 
-        // Form submission
+        // Form submission using AuthHelper
         async function handleSubmit(event) {
             event.preventDefault();
             
@@ -1617,8 +1553,8 @@
                     return;
                 }
                 
-                // Submit to database using direct API call
-                const result = await apiCall('submit-dwr', {
+                // Submit to database using AuthHelper
+                const result = await AuthHelper.apiCall('submit-dwr', {
                     method: 'POST',
                     body: JSON.stringify(formData)
                 });
