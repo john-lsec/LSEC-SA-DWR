@@ -417,7 +417,7 @@
                     <span class="user-role" id="userRole">...</span>
                 </div>
             </div>
-            <button class="logout-btn" onclick="logout()">
+            <button class="logout-btn" onclick="handleLogout()">
                 <span>🚪</span>
                 <span>Logout</span>
             </button>
@@ -517,46 +517,55 @@
         <p style="margin-top: 5px;">Session expires in <span id="sessionTimer">24:00:00</span></p>
     </footer>
 
+    <!-- Include AuthHelper -->
+    <script src="auth-helper.js"></script>
+    
     <script>
-        // Check authentication on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            checkAuth();
-            loadUserInfo();
-            loadStats();
-            startSessionTimer();
-        });
+        // Session timer variables
+        let sessionTimerInterval;
         
-        // Check if user is authenticated
-        function checkAuth() {
-            const token = localStorage.getItem('sessionToken');
-            if (!token) {
-                // Not authenticated, redirect to login
-                window.location.href = '/login.html';
+        // Initialize page on DOM load
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize authentication
+            const isAuthenticated = await AuthHelper.init({
+                onAuthenticated: function(userInfo) {
+                    // Update user display elements
+                    document.getElementById('userName').textContent = userInfo.name;
+                    document.getElementById('userRole').textContent = userInfo.role;
+                    
+                    // Load dashboard data
+                    loadStats();
+                    startSessionTimer();
+                }
+            });
+            
+            if (!isAuthenticated) {
+                // User will be redirected to login by AuthHelper
                 return;
             }
-            
-            // Verify token is still valid (optional - implement with your backend)
-            // verifyToken(token);
-        }
-        
-        // Load user information
-        function loadUserInfo() {
-            const userName = localStorage.getItem('userName') || 'User';
-            const userRole = localStorage.getItem('userRole') || 'Employee';
-            
-            document.getElementById('userName').textContent = userName;
-            document.getElementById('userRole').textContent = userRole;
-        }
+        });
         
         // Load dashboard statistics
-        function loadStats() {
-            // Simulate loading stats - replace with actual API calls
-            setTimeout(() => {
-                document.getElementById('activeProjects').textContent = '12';
-                document.getElementById('pendingReports').textContent = '3';
-                document.getElementById('openBids').textContent = '7';
-                document.getElementById('pendingPOs').textContent = '5';
-            }, 500);
+        async function loadStats() {
+            try {
+                // These would be actual API calls in production
+                // Using AuthHelper.apiCall for consistency
+                
+                // Simulate loading stats
+                setTimeout(() => {
+                    document.getElementById('activeProjects').textContent = '12';
+                    document.getElementById('pendingReports').textContent = '3';
+                    document.getElementById('openBids').textContent = '7';
+                    document.getElementById('pendingPOs').textContent = '5';
+                }, 500);
+                
+                // Example of how to make an actual API call:
+                // const stats = await AuthHelper.apiCall('dashboard/stats');
+                // document.getElementById('activeProjects').textContent = stats.activeProjects;
+                
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
         }
         
         // Session timer
@@ -565,7 +574,7 @@
             let minutes = 0;
             let seconds = 0;
             
-            setInterval(() => {
+            sessionTimerInterval = setInterval(() => {
                 if (seconds > 0) {
                     seconds--;
                 } else if (minutes > 0) {
@@ -577,7 +586,8 @@
                     seconds = 59;
                 } else {
                     // Session expired
-                    logout();
+                    clearInterval(sessionTimerInterval);
+                    AuthHelper.logout();
                     return;
                 }
                 
@@ -586,27 +596,26 @@
                     String(minutes).padStart(2, '0') + ':' +
                     String(seconds).padStart(2, '0');
                 
-                document.getElementById('sessionTimer').textContent = display;
+                const timerElement = document.getElementById('sessionTimer');
+                if (timerElement) {
+                    timerElement.textContent = display;
+                }
             }, 1000);
         }
         
-        // Logout function
-        function logout() {
-            // Clear session data
-            localStorage.removeItem('sessionToken');
-            localStorage.removeItem('userRole');
-            localStorage.removeItem('userId');
-            localStorage.removeItem('userName');
-            
-            // Redirect to login page
-            window.location.href = '/login.html';
+        // Logout handler
+        function handleLogout() {
+            if (sessionTimerInterval) {
+                clearInterval(sessionTimerInterval);
+            }
+            AuthHelper.logout();
         }
         
         // Add keyboard shortcuts
         document.addEventListener('keydown', function(e) {
             // Alt + L for logout
             if (e.altKey && e.key === 'l') {
-                logout();
+                handleLogout();
             }
             
             // Alt + 1-4 for quick navigation
@@ -640,10 +649,17 @@
             const thirtyMinutes = 30 * 60 * 1000;
             
             if (inactiveTime > thirtyMinutes) {
-                // Show warning or auto-logout after extended inactivity
                 console.log('User inactive for 30 minutes');
+                // Could show a warning or auto-logout
             }
         }, 60000);
+        
+        // Clean up on page unload
+        window.addEventListener('beforeunload', function() {
+            if (sessionTimerInterval) {
+                clearInterval(sessionTimerInterval);
+            }
+        });
     </script>
 </body>
 </html>
