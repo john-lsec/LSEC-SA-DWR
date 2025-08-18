@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LSEC SA Daily Work Report</title>
     <style>
+        /* Keep all existing styles as-is */
         /* Reset and base styles */
         * {
             box-sizing: border-box;
@@ -893,24 +894,12 @@
         </div>
     </div>
 
-    <script src="/js/auth-helper.js"></script>
-
+    <!-- Include AuthHelper first -->
+    <script src="auth-helper.js"></script>
+    
+    <!-- Then your page script -->
     <script>
-        // Configuration - Update for your deployment
-        const API_BASE = '/.netlify/functions/';
-        const GOOGLE_MAPS_API_KEY = 'AIzaSyBQq_tXLv0APu8LFfjLogSh4cIqo49yJVg'; // Optional
-
-        // Global variables
-        let currentItemCount = 0;
-        let projectBidItemsMap = {};
-        let selectedLaborers = new Set();
-        let selectedMachines = new Set();
-        let map, selectedMarker, selectedLatLng, currentLocationInputId;
-
-        // ===== AUTHENTICATION FUNCTIONS =====
-        
         // Configuration
-        const API_BASE = '/.netlify/functions/';
         const GOOGLE_MAPS_API_KEY = 'AIzaSyBQq_tXLv0APu8LFfjLogSh4cIqo49yJVg';
 
         // Global variables
@@ -919,7 +908,7 @@
         let selectedLaborers = new Set();
         let selectedMachines = new Set();
         let map, selectedMarker, selectedLatLng, currentLocationInputId;
-        
+
         // Check authentication on page load
         document.addEventListener('DOMContentLoaded', function() {
             if (!AuthHelper.isAuthenticated()) {
@@ -948,18 +937,32 @@
             loadMasterData();
             setupEventListeners();
         }
-        
-        // Remove the old apiCall function and update all API calls to use AuthHelper.apiCall
-        
-        // Update loadForemen:
+
+        // Load all master data
+        async function loadMasterData() {
+            try {
+                await Promise.all([
+                    loadForemen(),
+                    loadLaborers(),
+                    loadProjects(),
+                    loadEquipment()
+                ]);
+            } catch (error) {
+                console.error('Error loading master data:', error);
+                showMessage('Error loading form data. Please refresh the page.', 'error');
+            }
+        }
+
+        // Load foremen
         async function loadForemen() {
             const loader = document.getElementById('foremanLoader');
             const select = document.getElementById('foreman');
             
             try {
                 loader.classList.remove('hidden');
-                const foremen = await AuthHelper.apiCall('foremen');
                 
+                const foremen = await AuthHelper.apiCall('foremen');
+
                 foremen.forEach(foreman => {
                     const option = document.createElement('option');
                     option.value = foreman.id;
@@ -974,14 +977,14 @@
             }
         }
 
-        // Update all other load functions similarly, replacing apiCall with AuthHelper.apiCall
-        // For example, loadLaborers:
+        // Load laborers
         async function loadLaborers() {
             const loader = document.getElementById('laborerLoader');
             const container = document.getElementById('laborersContainer');
             
             try {
                 const laborers = await AuthHelper.apiCall('laborers');
+
                 container.innerHTML = '';
                 laborers.forEach(laborer => {
                     const item = createMultiSelectItem(laborer.id, laborer.name, 'laborer');
@@ -990,86 +993,6 @@
             } catch (error) {
                 console.error('Error loading laborers:', error);
                 container.innerHTML = '<div style="padding: 15px; color: #dc3545;">Error loading laborers</div>';
-            }
-        }
-        
-        // Update handleSubmit (around line 1693):
-        const result = await AuthHelper.apiCall('submit-dwr', {
-            method: 'POST',
-            body: JSON.stringify(formData)
-        });
-                
-                // Initialize the application after authentication
-                function initializeApp() {
-                    loadMasterData();
-                    setupEventListeners();
-                }
-
-        // ===== APPLICATION FUNCTIONS =====
-
-        // Load all master data
-        async function loadMasterData() {
-            try {
-                await Promise.all([
-                    loadForemen(),
-                    loadLaborers(),
-                    loadProjects(),
-                    loadEquipment()
-                ]);
-            } catch (error) {
-                console.error('Error loading master data:', error);
-                if (error.message.includes('Authentication')) {
-                    // Authentication error handled in apiCall
-                    return;
-                }
-                showMessage('Error loading form data. Please refresh the page.', 'error');
-            }
-        }
-
-        // Load foremen
-        async function loadForemen() {
-            const loader = document.getElementById('foremanLoader');
-            const select = document.getElementById('foreman');
-            
-            try {
-                loader.classList.remove('hidden');
-                
-                const foremen = await apiCall('foremen');
-
-                foremen.forEach(foreman => {
-                    const option = document.createElement('option');
-                    option.value = foreman.id;
-                    option.textContent = foreman.name;
-                    select.appendChild(option);
-                });
-            } catch (error) {
-                console.error('Error loading foremen:', error);
-                if (!error.message.includes('Authentication')) {
-                    showMessage('Error loading foremen data.', 'error');
-                }
-            } finally {
-                loader.classList.add('hidden');
-            }
-        }
-
-        // Load laborers
-        async function loadLaborers() {
-            const loader = document.getElementById('laborerLoader');
-            const container = document.getElementById('laborersContainer');
-            
-            try {
-                const laborers = await apiCall('laborers');
-
-                container.innerHTML = '';
-                laborers.forEach(laborer => {
-                    const item = createMultiSelectItem(laborer.id, laborer.name, 'laborer');
-                    container.appendChild(item);
-                });
-            } catch (error) {
-                console.error('Error loading laborers:', error);
-                if (!error.message.includes('Authentication')) {
-                    container.innerHTML = '<div style="padding: 15px; color: #dc3545;">Error loading laborers</div>';
-                }
             }
         }
 
@@ -1081,7 +1004,7 @@
             try {
                 loader.classList.remove('hidden');
                 
-                const projects = await apiCall('projects');
+                const projects = await AuthHelper.apiCall('projects');
 
                 projects.forEach(project => {
                     const option = document.createElement('option');
@@ -1091,9 +1014,7 @@
                 });
             } catch (error) {
                 console.error('Error loading projects:', error);
-                if (!error.message.includes('Authentication')) {
-                    showMessage('Error loading projects data.', 'error');
-                }
+                showMessage('Error loading projects data.', 'error');
             } finally {
                 loader.classList.add('hidden');
             }
@@ -1119,7 +1040,7 @@
             try {
                 loader.classList.remove('hidden');
                 
-                const equipment = await apiCall(`equipment?type=${encodeURIComponent(type)}`);
+                const equipment = await AuthHelper.apiCall(`equipment?type=${encodeURIComponent(type)}`);
 
                 equipment.forEach(item => {
                     const option = document.createElement('option');
@@ -1139,7 +1060,7 @@
             const container = document.getElementById('machinesContainer');
             
             try {
-                const machines = await apiCall('equipment?type=MACHINE');
+                const machines = await AuthHelper.apiCall('equipment?type=MACHINE');
 
                 container.innerHTML = '';
                 machines.forEach(machine => {
@@ -1148,9 +1069,7 @@
                 });
             } catch (error) {
                 console.error('Error loading machines:', error);
-                if (!error.message.includes('Authentication')) {
-                    container.innerHTML = '<div style="padding: 15px; color: #dc3545;">Error loading machines</div>';
-                }
+                container.innerHTML = '<div style="padding: 15px; color: #dc3545;">Error loading machines</div>';
             }
         }
 
@@ -1159,14 +1078,12 @@
             if (!projectId) return;
 
             try {
-                const bidItems = await apiCall(`project-bid-items?project_id=${projectId}`);
+                const bidItems = await AuthHelper.apiCall(`project-bid-items?project_id=${projectId}`);
                 projectBidItemsMap[projectId] = bidItems;
                 updateAllItemDropdowns();
             } catch (error) {
                 console.error('Error loading project bid items:', error);
-                if (!error.message.includes('Authentication')) {
-                    showMessage('Error loading project bid items.', 'error');
-                }
+                showMessage('Error loading project bid items.', 'error');
             }
         }
 
@@ -1284,7 +1201,7 @@
             }
         }
 
-        // Add item section
+        // Add item section (keeping all the existing HTML generation)
         function addItemSection() {
             currentItemCount++;
             const container = document.getElementById('itemsContainer');
@@ -1638,8 +1555,8 @@
                     return;
                 }
                 
-                // Submit to database
-                const result = await apiCall('submit-dwr', {
+                // Submit to database using AuthHelper
+                const result = await AuthHelper.apiCall('submit-dwr', {
                     method: 'POST',
                     body: JSON.stringify(formData)
                 });
@@ -1653,9 +1570,7 @@
                 
             } catch (error) {
                 console.error('Error submitting form:', error);
-                if (!error.message.includes('Authentication')) {
-                    showMessage('Error submitting form: ' + error.message, 'error');
-                }
+                showMessage('Error submitting form: ' + error.message, 'error');
             } finally {
                 submitBtn.disabled = false;
                 submitLoader.classList.add('hidden');
