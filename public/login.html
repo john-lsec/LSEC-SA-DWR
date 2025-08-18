@@ -453,16 +453,16 @@
         </div>
     </div>
     
+    <!-- Include AuthHelper -->
+    <script src="auth-helper.js"></script>
+    
     <script>
-        // Configuration
-        const API_BASE = '/.netlify/functions/';
-        
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Login page loaded');
             
-            // Check if already logged in
-            checkExistingSession();
+            // Check if already logged in (AuthHelper will handle redirect)
+            AuthHelper.init();
             
             // Setup form handler
             document.getElementById('loginForm').addEventListener('submit', handleLogin);
@@ -474,34 +474,6 @@
                 document.getElementById('remember').checked = true;
             }
         });
-        
-        // Check existing session
-        async function checkExistingSession() {
-            const token = localStorage.getItem('sessionToken');
-            if (token) {
-                try {
-                    // Call the auth verify endpoint directly
-                    const response = await fetch(API_BASE + 'auth/verify', {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': 'Bearer ' + token
-                        }
-                    });
-                    
-                    if (response.ok) {
-                        // Session is valid, redirect to dashboard
-                        window.location.href = '/dashboard';
-                    } else {
-                        // Invalid session, clear it
-                        localStorage.removeItem('sessionToken');
-                        localStorage.removeItem('userRole');
-                        console.log('Invalid session cleared');
-                    }
-                } catch (error) {
-                    console.error('Session check failed:', error);
-                }
-            }
-        }
         
         // Handle login
         async function handleLogin(e) {
@@ -526,32 +498,10 @@
             console.log('Attempting login for:', username);
             
             try {
-                // Call the auth endpoint for login
-                const loginUrl = API_BASE + 'auth/login';
-                console.log('Login URL:', loginUrl);
+                // Use AuthHelper for login
+                const result = await AuthHelper.login(username, password);
                 
-                const response = await fetch(loginUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        username: username,
-                        password: password
-                    })
-                });
-                
-                console.log('Login response status:', response.status);
-                const data = await response.json();
-                console.log('Login response:', data);
-                
-                if (response.ok) {
-                    // Store session token
-                    localStorage.setItem('sessionToken', data.token);
-                    localStorage.setItem('userRole', data.role);
-                    localStorage.setItem('userId', data.userId);
-                    localStorage.setItem('userName', data.name);
-                    
+                if (result.success) {
                     // Remember username if checked
                     if (remember) {
                         localStorage.setItem('rememberedUsername', username);
@@ -561,26 +511,25 @@
                     
                     showAlert('Login successful! Redirecting...', 'success');
                     
-                    // Redirect to dashboard
+                    // Redirect to intended page or dashboard
                     setTimeout(() => {
-                        window.location.href = '/dashboard';
+                        AuthHelper.redirectToIntendedOrDashboard();
                     }, 1000);
                     
                 } else {
                     // Handle specific error cases
-                    if (data.error === 'Account locked') {
+                    if (result.error === 'Account locked') {
                         showAlert('Account is temporarily locked due to multiple failed attempts. Please try again later.', 'warning');
-                    } else if (data.error === 'Invalid credentials') {
-                        const attemptsLeft = data.attemptsLeft;
-                        if (attemptsLeft !== undefined && attemptsLeft < 3) {
-                            showAlert(`Invalid username or password. ${attemptsLeft} attempt(s) remaining before account lock.`, 'error');
+                    } else if (result.error === 'Invalid credentials') {
+                        if (result.attemptsLeft !== undefined && result.attemptsLeft < 3) {
+                            showAlert(`Invalid username or password. ${result.attemptsLeft} attempt(s) remaining before account lock.`, 'error');
                         } else {
                             showAlert('Invalid username or password', 'error');
                         }
-                    } else if (data.error === 'Account inactive') {
+                    } else if (result.error === 'Account inactive') {
                         showAlert('Your account has been deactivated. Please contact an administrator.', 'warning');
                     } else {
-                        showAlert(data.error || 'Login failed. Please try again.', 'error');
+                        showAlert(result.error || 'Login failed. Please try again.', 'error');
                     }
                 }
                 
