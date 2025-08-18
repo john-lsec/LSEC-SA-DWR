@@ -1059,7 +1059,7 @@ async function handleProjectBidItems(event, headers, method, id) {
       };
   }
 }
-// DWR Submission handler - Enhanced for better error handling
+// DWR Submission handler - Final version after UUID migration is complete
 async function handleDWRSubmission(event, headers, method) {
   if (method !== 'POST') {
     return {
@@ -1089,22 +1089,150 @@ async function handleDWRSubmission(event, headers, method) {
       }
     }
 
-    // Convert string IDs to appropriate types
-    const projectId = parseInt(data.project_id);
-    const foremanId = data.foreman_id; // UUID
-    const truckId = data.truck_id ? parseInt(data.truck_id) : null;
-    const trailerId = data.trailer_id ? parseInt(data.trailer_id) : null;
+    // Validate billable_work values
+    const validBillableWork = ['Yes', 'No', 'Maybe'];
+    if (!validBillableWork.includes(data.billable_work)) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          success: false,
+          error: 'Invalid billable_work value. Must be Yes, No, or Maybe' 
+        })
+      };
+    }
+
+    // Validate foreman exists
+    const foremanCheck = await sql`
+      SELECT id FROM foremen WHERE id = ${data.foreman_id} AND is_active = true
+    `;
+    if (foremanCheck.length === 0) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          success: false,
+          error: 'Invalid or inactive foreman_id' 
+        })
+      };
+    }
+
+    // Validate project exists
+    const projectCheck = await sql`
+      SELECT id FROM projects WHERE id = ${data.project_id} AND active = true
+    `;
+    if (projectCheck.length === 0) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          success: false,
+          error: 'Invalid or inactive project_id' 
+        })
+      };
+    }
+
+    // Validate equipment if provided
+    let truckId = null;
+    let trailerId = null;
+
+    if (data.truck_id) {
+      const truckCheck = await sql`
+        SELECT id FROM equipment WHERE id = ${data.truck_id} AND active = true
+      `;
+      if (truckCheck.length === 0) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ 
+            success: false,
+            error: 'Invalid or inactive truck_id' 
+          })
+        };
+      }
+      truckId = data.truck_id;
+    }
+
+    if (data.trailer_id) {
+      const trailerCheck = await sql`
+        SELECT id FROM equipment WHERE id = ${data.trailer_id} AND active = true
+      `;
+      if (trailerCheck.length === 0) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ 
+            success: false,
+            error: 'Invalid or inactive trailer_id' 
+          })
+        };
+      }
+      trailerId = data.trailer_id;
+    }
+
+    // Validate laborers if provided
+    if (data.laborers && Array.isArray(data.laborers) && data.laborers.length > 0) {
+      for (const laborerId of data.laborers) {
+        const laborerCheck = await sql`
+          SELECT id FROM laborers WHERE id = ${laborerId} AND is_active = true
+        `;
+        if (laborerCheck.length === 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ 
+              success: false,
+              error: `Invalid or inactive laborer_id: ${laborerId}` 
+            })
+          };
+        }
+      }
+    }
+
+    // Validate machines if provided
+    if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
+      for (const machineId of data.machines) {
+        const machineCheck = await sql`
+          SELECT id FROM equipment WHERE id = ${machineId} AND active = true AND type = 'MACHINE'
+        `;
+        if (machineCheck.length === 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ 
+              success: false,
+              error: `Invalid or inactive machine_id: ${machineId}` 
+            })
+          };
+        }
+      }
+    }
+
+    // Generate DWR ID
+    const dwrId = crypto.randomUUID();
 
     // Insert main DWR record
-    const [dwr] = await sql`
+    await sql`
       INSERT INTO daily_work_reports (
-        work_date, foreman_id, project_id, arrival_time, departure_time,
-        truck_id, trailer_id, billable_work, maybe_explanation, per_diem,
-        submission_timestamp
+        id,
+        work_date, 
+        foreman_id, 
+        project_id, 
+        arrival_time, 
+        departure_time,
+        truck_id, 
+        trailer_id, 
+        billable_work, 
+        maybe_explanation, 
+        per_diem,
+        submission_timestamp,
+        created_at,
+        updated_at
       ) VALUES (
+        ${dwrId},
         ${data.work_date}, 
-        ${foremanId}, 
-        ${projectId},
+        ${data.foreman_id}, 
+        ${data.project_id},
         ${data.arrival_time}, 
         ${data.departure_time}, 
         ${truckId},
@@ -1112,16 +1240,19 @@ async function handleDWRSubmission(event, headers, method) {
         ${data.billable_work}, 
         ${data.maybe_explanation || null},
         ${data.per_diem || false}, 
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP,
         CURRENT_TIMESTAMP
-      ) RETURNING id
+      )
     `;
     
     // Insert crew members if provided
     if (data.laborers && Array.isArray(data.laborers) && data.laborers.length > 0) {
       for (const laborerId of data.laborers) {
+        const crewMemberId = crypto.randomUUID();
         await sql`
-          INSERT INTO dwr_crew_members (dwr_id, laborer_id)
-          VALUES (${dwr.id}, ${laborerId})
+          INSERT INTO dwr_crew_members (id, dwr_id, laborer_id, created_at)
+          VALUES (${crewMemberId}, ${dwrId}, ${laborerId}, CURRENT_TIMESTAMP)
         `;
       }
     }
@@ -1129,25 +1260,73 @@ async function handleDWRSubmission(event, headers, method) {
     // Insert machines if provided
     if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
       for (const machineId of data.machines) {
-        const machineIdInt = parseInt(machineId);
+        const dwrMachineId = crypto.randomUUID();
         await sql`
-          INSERT INTO dwr_machines (dwr_id, machine_id)
-          VALUES (${dwr.id}, ${machineIdInt})
+          INSERT INTO dwr_machines (id, dwr_id, machine_id, created_at)
+          VALUES (${dwrMachineId}, ${dwrId}, ${machineId}, CURRENT_TIMESTAMP)
         `;
       }
     }
     
     // Insert items if provided
     if (data.items && Array.isArray(data.items) && data.items.length > 0) {
-      let itemIndex = 0;
-      for (const item of data.items) {
+      for (let i = 0; i < data.items.length; i++) {
+        const item = data.items[i];
+        const itemId = crypto.randomUUID();
+        
+        // Validate bid_item_id and project_bid_item_id if provided
+        if (item.bid_item_id) {
+          const bidItemCheck = await sql`
+            SELECT id FROM bid_items WHERE id = ${item.bid_item_id} AND is_active = true
+          `;
+          if (bidItemCheck.length === 0) {
+            return {
+              statusCode: 400,
+              headers,
+              body: JSON.stringify({ 
+                success: false,
+                error: `Invalid bid_item_id in item ${i + 1}: ${item.bid_item_id}` 
+              })
+            };
+          }
+        }
+
+        if (item.project_bid_item_id) {
+          const projectBidItemCheck = await sql`
+            SELECT id FROM project_bid_items WHERE id = ${item.project_bid_item_id} AND is_active = true
+          `;
+          if (projectBidItemCheck.length === 0) {
+            return {
+              statusCode: 400,
+              headers,
+              body: JSON.stringify({ 
+                success: false,
+                error: `Invalid project_bid_item_id in item ${i + 1}: ${item.project_bid_item_id}` 
+              })
+            };
+          }
+        }
+
         await sql`
           INSERT INTO dwr_items (
-            dwr_id, item_name, quantity, unit, location_description,
-            latitude, longitude, duration_hours, notes, item_index,
-            bid_item_id, project_bid_item_id
+            id,
+            dwr_id, 
+            item_name, 
+            quantity, 
+            unit, 
+            location_description,
+            latitude, 
+            longitude, 
+            duration_hours, 
+            notes, 
+            item_index,
+            bid_item_id, 
+            project_bid_item_id,
+            created_at,
+            updated_at
           ) VALUES (
-            ${dwr.id}, 
+            ${itemId},
+            ${dwrId}, 
             ${item.item_name}, 
             ${item.quantity}, 
             ${item.unit || 'EA'},
@@ -1156,9 +1335,11 @@ async function handleDWRSubmission(event, headers, method) {
             ${item.longitude || null},
             ${item.duration_hours}, 
             ${item.notes || null}, 
-            ${itemIndex++},
+            ${i},
             ${item.bid_item_id || null}, 
-            ${item.project_bid_item_id || null}
+            ${item.project_bid_item_id || null},
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
           )
         `;
       }
@@ -1169,19 +1350,45 @@ async function handleDWRSubmission(event, headers, method) {
       headers,
       body: JSON.stringify({ 
         success: true, 
-        id: dwr.id,
+        id: dwrId,
         message: 'Daily work report submitted successfully' 
       })
     };
   } catch (error) {
     console.error('Error submitting DWR:', error);
+    
+    // Handle specific database errors
+    if (error.message.includes('foreign key constraint')) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          success: false,
+          error: 'Invalid reference to related data',
+          details: error.message 
+        })
+      };
+    }
+    
+    if (error.message.includes('duplicate key')) {
+      return {
+        statusCode: 409,
+        headers,
+        body: JSON.stringify({ 
+          success: false,
+          error: 'Duplicate record detected',
+          details: error.message 
+        })
+      };
+    }
+    
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
         success: false,
         error: 'Failed to submit daily work report',
-        details: error.message 
+        details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       })
     };
   }
