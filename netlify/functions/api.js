@@ -428,7 +428,7 @@ async function handleProjects(event, headers, method, id) {
   }
 }
 
-// Equipment handler
+// Equipment handler - Return integer IDs for frontend compatibility
 async function handleEquipment(event, headers, method) {
   if (method !== 'GET') {
     return {
@@ -444,46 +444,46 @@ async function handleEquipment(event, headers, method) {
     
     let equipment;
     
-    // Check if type column exists and use it for filtering
-    const hasTypeColumn = await sql`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'equipment' 
-      AND column_name = 'type'
-    `;
-    
-    if (hasTypeColumn.length > 0 && type) {
-      // Use type column for exact matching
+    if (type) {
+      // Filter by type if specified
       equipment = await sql`
-        SELECT id, name, type FROM equipment 
+        SELECT 
+          id as uuid_id,
+          name, 
+          type,
+          active,
+          ROW_NUMBER() OVER (ORDER BY name) as integer_id
+        FROM equipment 
         WHERE type = ${type} AND active = true 
         ORDER BY name
       `;
-    } else if (type) {
-      // Fallback: filter by name pattern if type was requested but column doesn't exist
-      equipment = await sql`
-        SELECT id, name FROM equipment 
-        WHERE active = true 
-        ORDER BY name
-      `;
-      
-      // Filter by name pattern
-      equipment = equipment.filter(e => 
-        e.name.toUpperCase().includes(type.toUpperCase())
-      );
     } else {
-      // No type filter requested
+      // No type filter
       equipment = await sql`
-        SELECT id, name FROM equipment 
+        SELECT 
+          id as uuid_id,
+          name, 
+          type,
+          active,
+          ROW_NUMBER() OVER (ORDER BY name) as integer_id
+        FROM equipment 
         WHERE active = true 
         ORDER BY name
       `;
     }
     
+    // Transform data to return integer IDs for frontend compatibility
+    const transformedEquipment = equipment.map(item => ({
+      id: item.integer_id, // Frontend gets integer ID
+      name: item.name,
+      type: item.type || null,
+      uuid_id: item.uuid_id // Keep UUID for internal reference if needed
+    }));
+    
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify(equipment)
+      body: JSON.stringify(transformedEquipment)
     };
   } catch (error) {
     console.error('Error fetching equipment:', error);
