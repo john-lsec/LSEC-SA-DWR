@@ -882,7 +882,7 @@ async function handlePOSubmit(event, headers, method) {
 
   try {
     const data = JSON.parse(event.body);
-    const { userId } = event.auth || {};
+    const { userId, email } = event.auth || {};
     
     // Validate required fields
     if (!data.name || !data.phone || !data.vendor || !data.project || !data.quotedPrice || !data.taxable) {
@@ -896,28 +896,30 @@ async function handlePOSubmit(event, headers, method) {
       };
     }
     
-    // Generate PO number with timestamp and random component
-    const timestamp = Date.now().toString().slice(-6);
-    const random = Math.floor(Math.random() * 100).toString().padStart(2, '0');
-    const poNumber = `PO-${timestamp}${random}`;
+    // Generate PO number - just use a random number since it's an integer in your DB
+    const poNumber = Math.floor(Math.random() * 900000) + 100000; // 6-digit number
     
-    // Insert PO request
+    // Insert PO request with correct column names
     const result = await sql`
       INSERT INTO po_requests (
         po_number, 
-        requester_name, 
-        requester_phone, 
-        vendor,
-        project, 
+        request_date,
+        requested_by_name, 
+        requested_by_email,
+        phone, 
+        vendor_name,
+        project_name, 
         quoted_price, 
         taxable, 
         material_requested,
-        status, 
-        created_by,
+        approved,
+        sms_sent,
         created_at
       ) VALUES (
         ${poNumber}, 
+        CURRENT_TIMESTAMP,
         ${data.name}, 
+        ${email || null},
         ${data.phone}, 
         ${data.vendor},
         ${data.project}, 
@@ -925,7 +927,7 @@ async function handlePOSubmit(event, headers, method) {
         ${data.taxable},
         ${data.materialRequested || null}, 
         'PENDING',
-        ${userId || 'unknown'},
+        false,
         CURRENT_TIMESTAMP
       ) RETURNING *
     `;
@@ -940,7 +942,7 @@ async function handlePOSubmit(event, headers, method) {
       // Update status to approved
       await sql`
         UPDATE po_requests 
-        SET status = 'APPROVED', 
+        SET approved = 'APPROVED', 
             approved_at = CURRENT_TIMESTAMP,
             approved_by = 'AUTO'
         WHERE po_number = ${poNumber}
@@ -952,7 +954,7 @@ async function handlePOSubmit(event, headers, method) {
       headers,
       body: JSON.stringify({
         success: true,
-        poNumber: poNumber,
+        poNumber: `PO-${poNumber}`,
         authorized: authorized,
         message: authorized 
           ? 'PO request automatically approved' 
@@ -966,7 +968,8 @@ async function handlePOSubmit(event, headers, method) {
       headers,
       body: JSON.stringify({ 
         success: false,
-        error: 'Failed to submit PO request' 
+        error: 'Failed to submit PO request',
+        details: error.message 
       })
     };
   }
@@ -974,7 +977,7 @@ async function handlePOSubmit(event, headers, method) {
 
 // PO Requests handler - view PO requests
 async function handlePORequests(event, headers, method, id) {
-  const { role, userId } = event.auth || {};
+  const { role, userId, email } = event.auth || {};
 
   switch (method) {
     case 'GET':
@@ -994,14 +997,14 @@ async function handlePORequests(event, headers, method, id) {
           if (role === 'admin' || role === 'manager') {
             requests = await sql`
               SELECT * FROM po_requests 
-              ORDER BY created_at DESC
+              ORDER BY request_date DESC
               LIMIT 100
             `;
           } else {
             requests = await sql`
               SELECT * FROM po_requests 
-              WHERE created_by = ${userId}
-              ORDER BY created_at DESC
+              WHERE requested_by_email = ${email}
+              ORDER BY request_date DESC
               LIMIT 50
             `;
           }
@@ -1044,10 +1047,10 @@ async function handlePORequests(event, headers, method, id) {
         const updated = await sql`
           UPDATE po_requests
           SET 
-            status = ${data.status || 'PENDING'},
+            approved = ${data.approved || 'PENDING'},
             approved_by = ${data.approved_by || null},
-            approved_at = ${data.status === 'APPROVED' ? 'CURRENT_TIMESTAMP' : null},
-            notes = ${data.notes || null}
+            approved_at = ${data.approved === 'APPROVED' ? sql`CURRENT_TIMESTAMP` : null},
+            updated_at = CURRENT_TIMESTAMP
           WHERE id = ${id}
           RETURNING *
         `;
