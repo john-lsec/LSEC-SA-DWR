@@ -1059,7 +1059,7 @@ async function handleProjectBidItems(event, headers, method, id) {
       };
   }
 }
-// DWR Submission handler - Final version after UUID migration is complete
+// DWR Submission handler - Corrected for actual database schema
 async function handleDWRSubmission(event, headers, method) {
   if (method !== 'POST') {
     return {
@@ -1132,42 +1132,58 @@ async function handleDWRSubmission(event, headers, method) {
       };
     }
 
-    // Validate equipment if provided
+    // Handle equipment IDs - Frontend sends integers, database now uses UUIDs
+    // Simple approach: Find equipment by position/order
     let truckId = null;
     let trailerId = null;
 
     if (data.truck_id) {
+      const intId = parseInt(data.truck_id);
+      // Get equipment by selecting the Nth truck (ordered by name)
       const truckCheck = await sql`
-        SELECT id FROM equipment WHERE id = ${data.truck_id} AND active = true
+        SELECT id, name 
+        FROM equipment 
+        WHERE active = true 
+        AND (type = 'CREW TRUCK' OR type ILIKE '%truck%' OR name ILIKE '%truck%')
+        ORDER BY name
+        LIMIT 1 OFFSET ${Math.max(0, intId - 1)}
       `;
+      
       if (truckCheck.length === 0) {
         return {
           statusCode: 400,
           headers,
           body: JSON.stringify({ 
             success: false,
-            error: 'Invalid or inactive truck_id' 
+            error: `No truck found at position ${intId}. Available trucks: ${intId}` 
           })
         };
       }
-      truckId = data.truck_id;
+      truckId = truckCheck[0].id;
     }
 
     if (data.trailer_id) {
+      const intId = parseInt(data.trailer_id);
       const trailerCheck = await sql`
-        SELECT id FROM equipment WHERE id = ${data.trailer_id} AND active = true
+        SELECT id, name 
+        FROM equipment 
+        WHERE active = true 
+        AND (type = 'TRAILER' OR name ILIKE '%trailer%')
+        ORDER BY name
+        LIMIT 1 OFFSET ${Math.max(0, intId - 1)}
       `;
+      
       if (trailerCheck.length === 0) {
         return {
           statusCode: 400,
           headers,
           body: JSON.stringify({ 
             success: false,
-            error: 'Invalid or inactive trailer_id' 
+            error: `No trailer found at position ${intId}` 
           })
         };
       }
-      trailerId = data.trailer_id;
+      trailerId = trailerCheck[0].id;
     }
 
     // Validate laborers if provided
@@ -1189,26 +1205,33 @@ async function handleDWRSubmission(event, headers, method) {
       }
     }
 
-    // Validate machines if provided
+    // Validate machines if provided - Handle integer to UUID conversion
     if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
       for (const machineId of data.machines) {
+        const intId = parseInt(machineId);
         const machineCheck = await sql`
-          SELECT id FROM equipment WHERE id = ${machineId} AND active = true AND type = 'MACHINE'
+          SELECT id, name 
+          FROM equipment 
+          WHERE active = true 
+          AND (type = 'MACHINE' OR name ILIKE '%machine%')
+          ORDER BY name
+          LIMIT 1 OFFSET ${Math.max(0, intId - 1)}
         `;
+        
         if (machineCheck.length === 0) {
           return {
             statusCode: 400,
             headers,
             body: JSON.stringify({ 
               success: false,
-              error: `Invalid or inactive machine_id: ${machineId}` 
+              error: `No machine found at position ${intId}` 
             })
           };
         }
       }
     }
 
-    // Generate DWR ID
+    // Begin transaction
     const dwrId = crypto.randomUUID();
 
     // Insert main DWR record
@@ -1257,14 +1280,28 @@ async function handleDWRSubmission(event, headers, method) {
       }
     }
     
-    // Insert machines if provided
+    // Insert machines if provided - Convert integer IDs to UUIDs
     if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
       for (const machineId of data.machines) {
         const dwrMachineId = crypto.randomUUID();
-        await sql`
-          INSERT INTO dwr_machines (id, dwr_id, machine_id, created_at)
-          VALUES (${dwrMachineId}, ${dwrId}, ${machineId}, CURRENT_TIMESTAMP)
+        const intId = parseInt(machineId);
+        
+        // Get the UUID for this machine position
+        const machineCheck = await sql`
+          SELECT id, name 
+          FROM equipment 
+          WHERE active = true 
+          AND (type = 'MACHINE' OR name ILIKE '%machine%')
+          ORDER BY name
+          LIMIT 1 OFFSET ${Math.max(0, intId - 1)}
         `;
+        
+        if (machineCheck.length > 0) {
+          await sql`
+            INSERT INTO dwr_machines (id, dwr_id, machine_id, created_at)
+            VALUES (${dwrMachineId}, ${dwrId}, ${machineCheck[0].id}, CURRENT_TIMESTAMP)
+          `;
+        }
       }
     }
     
