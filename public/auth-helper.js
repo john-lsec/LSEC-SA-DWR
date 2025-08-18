@@ -9,7 +9,8 @@ const AUTH_CONFIG = {
     USER_KEY: 'userName',
     ROLE_KEY: 'userRole',
     USER_ID_KEY: 'userId',
-    EMAIL_KEY: 'userEmail'
+    EMAIL_KEY: 'userEmail',
+    REDIRECT_KEY: 'intendedPage'  // Store where user was trying to go
 };
 
 // Authentication Helper Object
@@ -19,6 +20,8 @@ const AuthHelper = {
         const token = localStorage.getItem(AUTH_CONFIG.TOKEN_KEY);
         
         if (!token) {
+            // Store current page before redirecting to login
+            this.storeIntendedPage();
             this.redirectToLogin();
             return false;
         }
@@ -34,6 +37,7 @@ const AuthHelper = {
             
             if (!response.ok) {
                 this.clearAuth();
+                this.storeIntendedPage();
                 this.redirectToLogin();
                 return false;
             }
@@ -45,6 +49,7 @@ const AuthHelper = {
                 return true;
             } else {
                 this.clearAuth();
+                this.storeIntendedPage();
                 this.redirectToLogin();
                 return false;
             }
@@ -53,6 +58,25 @@ const AuthHelper = {
             // Allow user to continue for now
             return true;
         }
+    },
+    
+    // Store the page user was trying to access
+    storeIntendedPage: function() {
+        const currentPath = window.location.pathname + window.location.search;
+        // Don't store login page as intended destination
+        if (!currentPath.includes('login')) {
+            localStorage.setItem(AUTH_CONFIG.REDIRECT_KEY, currentPath);
+        }
+    },
+    
+    // Get and clear intended page
+    getIntendedPage: function() {
+        const intendedPage = localStorage.getItem(AUTH_CONFIG.REDIRECT_KEY);
+        if (intendedPage) {
+            localStorage.removeItem(AUTH_CONFIG.REDIRECT_KEY);
+            return intendedPage;
+        }
+        return null;
     },
     
     // Update user information in localStorage
@@ -99,6 +123,16 @@ const AuthHelper = {
         window.location.href = AUTH_CONFIG.DASHBOARD_PAGE;
     },
     
+    // Redirect to intended page or dashboard
+    redirectToIntendedOrDashboard: function() {
+        const intendedPage = this.getIntendedPage();
+        if (intendedPage) {
+            window.location.href = intendedPage;
+        } else {
+            this.redirectToDashboard();
+        }
+    },
+    
     // Logout function
     logout: async function() {
         const token = this.getToken();
@@ -117,6 +151,8 @@ const AuthHelper = {
         }
         
         this.clearAuth();
+        // Clear any stored redirect when logging out
+        localStorage.removeItem(AUTH_CONFIG.REDIRECT_KEY);
         this.redirectToLogin();
     },
     
@@ -125,6 +161,7 @@ const AuthHelper = {
         const token = this.getToken();
         
         if (!token && !options.skipAuth) {
+            this.storeIntendedPage();
             this.redirectToLogin();
             throw new Error('No authentication token');
         }
@@ -147,6 +184,7 @@ const AuthHelper = {
             // Handle authentication errors
             if (response.status === 401) {
                 this.clearAuth();
+                this.storeIntendedPage();
                 this.redirectToLogin();
                 throw new Error('Authentication expired');
             }
@@ -211,7 +249,7 @@ const AuthHelper = {
     
     // Initialize authentication on page load
     init: async function(options = {}) {
-        // Skip auth check on login page
+        // Check if we're on the login page
         if (window.location.pathname.includes('login')) {
             // Check if already logged in
             const token = this.getToken();
@@ -225,8 +263,8 @@ const AuthHelper = {
                     });
                     
                     if (response.ok) {
-                        // Already logged in, redirect to dashboard
-                        this.redirectToDashboard();
+                        // Already logged in, redirect to intended page or dashboard
+                        this.redirectToIntendedOrDashboard();
                     }
                 } catch (error) {
                     console.error('Session check failed:', error);
