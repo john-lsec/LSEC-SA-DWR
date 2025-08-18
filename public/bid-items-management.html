@@ -569,7 +569,7 @@
         }
         
         // Load project bid items using AuthHelper
-        async function loadProjectBidItems(projectId) {
+        async function handleProjectBidItems(projectId) {
             if (!projectId) return;
             try {
                 projectBidItems = await AuthHelper.apiCall('project-bid-items?project_id=' + projectId);
