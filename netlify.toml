@@ -1,20 +1,62 @@
 [build]
-  # Directory to deploy (where your HTML files are)
-  publish = "public/"
+  # Directory where your HTML files are (root directory)
+  publish = "."
+  
+  # Directory containing serverless functions
+  functions = "netlify/functions"
   
   # No build command needed for static files
   command = "echo 'No build required'"
 
 [functions]
-  # Directory containing serverless functions
-  directory = "netlify/functions"
+  # Node bundler for better performance
+  node_bundler = "esbuild"
 
 [dev]
   # Local development settings
-  publish = "public/"
   port = 8888
-  
-# Headers for security (optional but recommended)
+  # Enable auto-reload
+  autoLaunch = false
+
+# Redirects for cleaner URLs (optional)
+[[redirects]]
+  from = "/"
+  to = "/dashboard.html"
+  status = 200
+  conditions = {Role = ["user"]}
+
+[[redirects]]
+  from = "/"
+  to = "/login.html"
+  status = 200
+
+# Redirect common routes to HTML files
+[[redirects]]
+  from = "/login"
+  to = "/login.html"
+  status = 200
+
+[[redirects]]
+  from = "/dashboard"
+  to = "/dashboard.html"
+  status = 200
+
+[[redirects]]
+  from = "/dwr"
+  to = "/dwr.html"
+  status = 200
+
+[[redirects]]
+  from = "/bid-items"
+  to = "/bid-items.html"
+  status = 200
+
+[[redirects]]
+  from = "/bid-items-management"
+  to = "/bid-items-management.html"
+  status = 200
+
+# Headers for security
 [[headers]]
   for = "/*"
   [headers.values]
@@ -22,3 +64,5 @@
     X-XSS-Protection = "1; mode=block"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    # Allow Google Maps if using
+    Content-Security-Policy = "default-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://*.gstatic.com https://*.google.com; img-src 'self' data: https:; connect-src 'self' https://*.googleapis.com"
