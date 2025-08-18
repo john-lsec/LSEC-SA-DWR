@@ -1,4 +1,4 @@
-// netlify/functions/api.js - Complete version with all fixes
+// netlify/functions/api.js - Complete version with DWR functionality
 const { neon } = require('@neondatabase/serverless');
 const { requireAuth, requireRole } = require('./auth');
 
@@ -318,7 +318,7 @@ async function handleEquipment(event, headers, method) {
     
     let equipment;
     
-    // First check if type column exists
+    // Check if type column exists and use it for filtering
     const hasTypeColumn = await sql`
       SELECT column_name 
       FROM information_schema.columns 
@@ -327,25 +327,31 @@ async function handleEquipment(event, headers, method) {
     `;
     
     if (hasTypeColumn.length > 0 && type) {
+      // Use type column for exact matching
       equipment = await sql`
         SELECT id, name, type FROM equipment 
         WHERE type = ${type} AND active = true 
         ORDER BY name
       `;
-    } else {
-      // Fallback without type column or filter
+    } else if (type) {
+      // Fallback: filter by name pattern if type was requested but column doesn't exist
       equipment = await sql`
         SELECT id, name FROM equipment 
         WHERE active = true 
         ORDER BY name
       `;
       
-      // Filter by name pattern if type was requested
-      if (type) {
-        equipment = equipment.filter(e => 
-          e.name.toUpperCase().includes(type.toUpperCase())
-        );
-      }
+      // Filter by name pattern
+      equipment = equipment.filter(e => 
+        e.name.toUpperCase().includes(type.toUpperCase())
+      );
+    } else {
+      // No type filter requested
+      equipment = await sql`
+        SELECT id, name FROM equipment 
+        WHERE active = true 
+        ORDER BY name
+      `;
     }
     
     return {
@@ -382,6 +388,7 @@ async function handleBidItems(event, headers, method, id) {
         } else {
           const items = await sql`
             SELECT * FROM bid_items 
+            WHERE is_active = true
             ORDER BY item_code
           `;
           return {
@@ -533,7 +540,7 @@ async function handleBidItems(event, headers, method, id) {
   }
 }
 
-// Project Bid Items handler - FIXED to include all necessary fields
+// Project Bid Items handler - Updated with calculated fields for DWR form
 async function handleProjectBidItems(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -563,16 +570,16 @@ async function handleProjectBidItems(event, headers, method, id) {
             pbi.rate,
             pbi.material_cost,
             pbi.material_cost as current_cost,
+            pbi.notes,
             CASE 
-              WHEN pbi.material_cost > 0 THEN 
-                ((pbi.rate - pbi.material_cost) / pbi.material_cost * 100)
+              WHEN pbi.material_cost > 0 
+              THEN ((pbi.rate - pbi.material_cost) / pbi.material_cost * 100)
               ELSE 0 
             END as markup_percentage,
-            pbi.notes
+            pbi.is_active
           FROM project_bid_items pbi
           JOIN bid_items bi ON pbi.bid_item_id = bi.id
-          WHERE pbi.project_id = ${projectId}
-            AND pbi.is_active = true
+          WHERE pbi.project_id = ${projectId} AND pbi.is_active = true
           ORDER BY bi.item_code
         `;
         
@@ -640,7 +647,7 @@ async function handleAddProjectBidItem(event, headers) {
         ${data.material_cost || 0},
         ${data.unit || 'EA'},
         ${data.notes || null},
-        true
+        ${data.is_active !== false}
       )
       RETURNING *
     `;
@@ -690,6 +697,7 @@ async function handleUpdateProjectBidItem(event, headers, id) {
         material_cost = ${data.material_cost || 0},
         unit = ${data.unit || 'EA'},
         notes = ${data.notes || null},
+        is_active = ${data.is_active !== false},
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ${id}
       RETURNING *
@@ -739,7 +747,7 @@ async function handleDeleteProjectBidItem(event, headers, id) {
   }
 
   try {
-    // Soft delete instead of hard delete
+    // Soft delete by setting is_active to false
     await sql`
       UPDATE project_bid_items 
       SET is_active = false, updated_at = CURRENT_TIMESTAMP 
@@ -761,7 +769,7 @@ async function handleDeleteProjectBidItem(event, headers, id) {
   }
 }
 
-// DWR Submission handler
+// DWR Submission handler - Enhanced for better error handling
 async function handleDWRSubmission(event, headers, method) {
   if (method !== 'POST') {
     return {
@@ -771,9 +779,32 @@ async function handleDWRSubmission(event, headers, method) {
     };
   }
 
+  const { userId } = event.auth || {};
+
   try {
     const data = JSON.parse(event.body);
     
+    // Validate required fields
+    const requiredFields = ['work_date', 'foreman_id', 'project_id', 'arrival_time', 'departure_time', 'billable_work'];
+    for (const field of requiredFields) {
+      if (!data[field]) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ 
+            success: false,
+            error: `Missing required field: ${field}` 
+          })
+        };
+      }
+    }
+
+    // Convert string IDs to appropriate types
+    const projectId = parseInt(data.project_id);
+    const foremanId = data.foreman_id; // UUID
+    const truckId = data.truck_id ? parseInt(data.truck_id) : null;
+    const trailerId = data.trailer_id ? parseInt(data.trailer_id) : null;
+
     // Insert main DWR record
     const [dwr] = await sql`
       INSERT INTO daily_work_reports (
@@ -781,15 +812,22 @@ async function handleDWRSubmission(event, headers, method) {
         truck_id, trailer_id, billable_work, maybe_explanation, per_diem,
         submission_timestamp
       ) VALUES (
-        ${data.work_date}, ${data.foreman_id}, ${data.project_id},
-        ${data.arrival_time}, ${data.departure_time}, ${data.truck_id},
-        ${data.trailer_id}, ${data.billable_work}, ${data.maybe_explanation},
-        ${data.per_diem}, CURRENT_TIMESTAMP
+        ${data.work_date}, 
+        ${foremanId}, 
+        ${projectId},
+        ${data.arrival_time}, 
+        ${data.departure_time}, 
+        ${truckId},
+        ${trailerId}, 
+        ${data.billable_work}, 
+        ${data.maybe_explanation || null},
+        ${data.per_diem || false}, 
+        CURRENT_TIMESTAMP
       ) RETURNING id
     `;
     
-    // Insert crew members
-    if (data.laborers && data.laborers.length > 0) {
+    // Insert crew members if provided
+    if (data.laborers && Array.isArray(data.laborers) && data.laborers.length > 0) {
       for (const laborerId of data.laborers) {
         await sql`
           INSERT INTO dwr_crew_members (dwr_id, laborer_id)
@@ -798,18 +836,19 @@ async function handleDWRSubmission(event, headers, method) {
       }
     }
     
-    // Insert machines
-    if (data.machines && data.machines.length > 0) {
+    // Insert machines if provided
+    if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
       for (const machineId of data.machines) {
+        const machineIdInt = parseInt(machineId);
         await sql`
           INSERT INTO dwr_machines (dwr_id, machine_id)
-          VALUES (${dwr.id}, ${machineId})
+          VALUES (${dwr.id}, ${machineIdInt})
         `;
       }
     }
     
-    // Insert items
-    if (data.items && data.items.length > 0) {
+    // Insert items if provided
+    if (data.items && Array.isArray(data.items) && data.items.length > 0) {
       let itemIndex = 0;
       for (const item of data.items) {
         await sql`
@@ -818,10 +857,18 @@ async function handleDWRSubmission(event, headers, method) {
             latitude, longitude, duration_hours, notes, item_index,
             bid_item_id, project_bid_item_id
           ) VALUES (
-            ${dwr.id}, ${item.item_name}, ${item.quantity}, ${item.unit},
-            ${item.location_description}, ${item.latitude}, ${item.longitude},
-            ${item.duration_hours}, ${item.notes}, ${itemIndex++},
-            ${item.bid_item_id}, ${item.project_bid_item_id}
+            ${dwr.id}, 
+            ${item.item_name}, 
+            ${item.quantity}, 
+            ${item.unit || 'EA'},
+            ${item.location_description}, 
+            ${item.latitude || null}, 
+            ${item.longitude || null},
+            ${item.duration_hours}, 
+            ${item.notes || null}, 
+            ${itemIndex++},
+            ${item.bid_item_id || null}, 
+            ${item.project_bid_item_id || null}
           )
         `;
       }
@@ -844,7 +891,7 @@ async function handleDWRSubmission(event, headers, method) {
       body: JSON.stringify({ 
         success: false,
         error: 'Failed to submit daily work report',
-        message: error.message 
+        details: error.message 
       })
     };
   }
@@ -969,7 +1016,7 @@ async function handlePOSubmit(event, headers, method) {
       headers,
       body: JSON.stringify({
         success: true,
-        poNumber: poNumber.toString(),
+        poNumber: `PO-${poNumber}`,
         authorized: authorized,
         message: authorized 
           ? 'PO request automatically approved' 
@@ -1187,7 +1234,8 @@ async function handleVendors(event, headers, method, id) {
           UPDATE vendors
           SET 
             name = ${data.name},
-            active = ${data.active !== false}
+            active = ${data.active !== false},
+            updated_at = CURRENT_TIMESTAMP
           WHERE id = ${id}
           RETURNING *
         `;
@@ -1215,7 +1263,7 @@ async function handleVendors(event, headers, method, id) {
   }
 }
 
-// Authorized Users handler (placeholder - implement as needed)
+// Authorized Users handler
 async function handleAuthorizedUsers(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -1227,15 +1275,72 @@ async function handleAuthorizedUsers(event, headers, method, id) {
     };
   }
 
-  // Implement authorized users logic here
-  return {
-    statusCode: 200,
-    headers,
-    body: JSON.stringify({ message: 'Authorized users endpoint' })
-  };
+  switch (method) {
+    case 'GET':
+      try {
+        if (id) {
+          const users = await sql`
+            SELECT * FROM authorized_users WHERE id = ${parseInt(id)}
+          `;
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(users[0] || null)
+          };
+        } else {
+          const users = await sql`
+            SELECT * FROM authorized_users 
+            ORDER BY name
+          `;
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(users)
+          };
+        }
+      } catch (error) {
+        console.error('Error fetching authorized users:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to fetch authorized users' })
+        };
+      }
+
+    case 'POST':
+      try {
+        const data = JSON.parse(event.body);
+        
+        const newUser = await sql`
+          INSERT INTO authorized_users (email, name, phone, active)
+          VALUES (${data.email}, ${data.name || null}, ${data.phone || null}, ${data.active !== false})
+          RETURNING *
+        `;
+
+        return {
+          statusCode: 201,
+          headers,
+          body: JSON.stringify(newUser[0])
+        };
+      } catch (error) {
+        console.error('Error creating authorized user:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to create authorized user' })
+        };
+      }
+
+    default:
+      return {
+        statusCode: 405,
+        headers,
+        body: JSON.stringify({ error: 'Method not allowed' })
+      };
+  }
 }
 
-// Users handler (placeholder - implement as needed)
+// Users handler
 async function handleUsers(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -1247,10 +1352,46 @@ async function handleUsers(event, headers, method, id) {
     };
   }
 
-  // Implement users logic here
-  return {
-    statusCode: 200,
-    headers,
-    body: JSON.stringify({ message: 'Users endpoint' })
-  };
+  switch (method) {
+    case 'GET':
+      try {
+        if (id) {
+          const users = await sql`
+            SELECT id, username, email, first_name, last_name, role, is_active, last_login, created_at 
+            FROM users 
+            WHERE id = ${id}
+          `;
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(users[0] || null)
+          };
+        } else {
+          const users = await sql`
+            SELECT id, username, email, first_name, last_name, role, is_active, last_login, created_at 
+            FROM users 
+            ORDER BY created_at DESC
+          `;
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(users)
+          };
+        }
+      } catch (error) {
+        console.error('Error fetching users:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to fetch users' })
+        };
+      }
+
+    default:
+      return {
+        statusCode: 405,
+        headers,
+        body: JSON.stringify({ error: 'Method not allowed' })
+      };
+  }
 }
