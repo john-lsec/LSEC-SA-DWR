@@ -893,13 +893,10 @@
             </div>
         </div>
     </div>
-
-    <!-- Include AuthHelper first -->
-    <script src="auth-helper.js"></script>
     
-    <!-- Then your page script -->
     <script>
         // Configuration
+        const API_BASE = '/.netlify/functions/';
         const GOOGLE_MAPS_API_KEY = 'AIzaSyBQq_tXLv0APu8LFfjLogSh4cIqo49yJVg';
 
         // Global variables
@@ -908,28 +905,94 @@
         let selectedLaborers = new Set();
         let selectedMachines = new Set();
         let map, selectedMarker, selectedLatLng, currentLocationInputId;
+        let authToken = null;
+        let currentUser = null;
 
         // Check authentication on page load
         document.addEventListener('DOMContentLoaded', function() {
-            if (!AuthHelper.isAuthenticated()) {
-                AuthHelper.redirectToLogin();
+            if (!isAuthenticated()) {
+                redirectToLogin();
                 return;
             }
             
             loadUserInfo();
             initializeApp();
         });
+
+        // Authentication Helper Functions
+        function isAuthenticated() {
+            authToken = localStorage.getItem('sessionToken');
+            return authToken !== null;
+        }
+
+        function redirectToLogin() {
+            window.location.href = '/login.html';
+        }
+
+        function getUserInfo() {
+            return {
+                name: localStorage.getItem('userName') || 'User',
+                role: localStorage.getItem('userRole') || 'Employee',
+                email: localStorage.getItem('userEmail') || 'N/A'
+            };
+        }
+
+        // API Call Helper
+        async function apiCall(endpoint, options = {}) {
+            if (!authToken) {
+                throw new Error('Not authenticated');
+            }
+
+            const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}api/${endpoint}`;
+            
+            const defaultOptions = {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`,
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            const mergedOptions = {
+                ...defaultOptions,
+                ...options,
+                headers: {
+                    ...defaultOptions.headers,
+                    ...options.headers
+                }
+            };
+
+            const response = await fetch(url, mergedOptions);
+
+            if (response.status === 401) {
+                // Token expired, redirect to login
+                localStorage.clear();
+                redirectToLogin();
+                throw new Error('Authentication expired');
+            }
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`API Error: ${response.status} - ${errorText}`);
+            }
+
+            return await response.json();
+        }
         
         // Load user information
         function loadUserInfo() {
-            const userInfo = AuthHelper.getUserInfo();
-            document.getElementById('userName').textContent = userInfo.name || 'User';
-            document.getElementById('userRole').textContent = userInfo.role || 'Employee';
+            const userInfo = getUserInfo();
+            document.getElementById('userName').textContent = userInfo.name;
+            document.getElementById('userRole').textContent = userInfo.role;
         }
         
         // Logout function
         function logout() {
-            AuthHelper.logout();
+            if (confirm('Are you sure you want to logout?')) {
+                localStorage.clear();
+                authToken = null;
+                currentUser = null;
+                redirectToLogin();
+            }
         }
         
         // Initialize the application
@@ -961,7 +1024,7 @@
             try {
                 loader.classList.remove('hidden');
                 
-                const foremen = await AuthHelper.apiCall('foremen');
+                const foremen = await apiCall('foremen');
 
                 foremen.forEach(foreman => {
                     const option = document.createElement('option');
@@ -983,7 +1046,7 @@
             const container = document.getElementById('laborersContainer');
             
             try {
-                const laborers = await AuthHelper.apiCall('laborers');
+                const laborers = await apiCall('laborers');
 
                 container.innerHTML = '';
                 laborers.forEach(laborer => {
@@ -1004,7 +1067,7 @@
             try {
                 loader.classList.remove('hidden');
                 
-                const projects = await AuthHelper.apiCall('projects');
+                const projects = await apiCall('projects');
 
                 projects.forEach(project => {
                     const option = document.createElement('option');
@@ -1040,7 +1103,7 @@
             try {
                 loader.classList.remove('hidden');
                 
-                const equipment = await AuthHelper.apiCall(`equipment?type=${encodeURIComponent(type)}`);
+                const equipment = await apiCall(`equipment?type=${encodeURIComponent(type)}`);
 
                 equipment.forEach(item => {
                     const option = document.createElement('option');
@@ -1060,7 +1123,7 @@
             const container = document.getElementById('machinesContainer');
             
             try {
-                const machines = await AuthHelper.apiCall('equipment?type=MACHINE');
+                const machines = await apiCall('equipment?type=MACHINE');
 
                 container.innerHTML = '';
                 machines.forEach(machine => {
@@ -1078,7 +1141,7 @@
             if (!projectId) return;
 
             try {
-                const bidItems = await AuthHelper.apiCall(`project-bid-items?project_id=${projectId}`);
+                const bidItems = await apiCall(`project-bid-items?project_id=${projectId}`);
                 projectBidItemsMap[projectId] = bidItems;
                 updateAllItemDropdowns();
             } catch (error) {
@@ -1555,8 +1618,8 @@
                     return;
                 }
                 
-                // Submit to database using AuthHelper
-                const result = await AuthHelper.apiCall('submit-dwr', {
+                // Submit to database using direct API call
+                const result = await apiCall('submit-dwr', {
                     method: 'POST',
                     body: JSON.stringify(formData)
                 });
