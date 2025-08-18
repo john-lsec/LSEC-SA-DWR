@@ -1136,16 +1136,15 @@
             }
         }
 
-        // Load project bid items
-        async function handleProjectBidItems(projectId) {
+        // Load project bid items using the consolidated endpoint
+        async function loadProjectBidItems(projectId) {
             if (!projectId) return;
-
             try {
-                const bidItems = await apiCall(`project-bid-items?project_id=${projectId}`);
-                projectBidItemsMap[projectId] = bidItems;
-                updateAllItemDropdowns();
+                projectBidItems = await AuthHelper.apiCall('project-bid-items?project_id=' + projectId);
+                renderBidItemsTable();
+                updateStats();
+                document.getElementById('bidItemsSection').classList.remove('hidden');
             } catch (error) {
-                console.error('Error loading project bid items:', error);
                 showMessage('Error loading project bid items.', 'error');
             }
         }
