@@ -544,7 +544,7 @@
     </div>
 
     <script>
-                // Check authentication on page load
+         // Check authentication on page load
         document.addEventListener('DOMContentLoaded', function() {
             checkAuth();
             loadUserInfo();
@@ -583,36 +583,61 @@
         let currentFocus = -1;
 
         // Initialize the application
+        // Check authentication on page load
         document.addEventListener('DOMContentLoaded', function() {
+                // Check if user is authenticated
+            if (!AuthHelper.isAuthenticated()) {
+                AuthHelper.redirectToLogin();
+                return;
+            }
+    
+            loadUserInfo();
             loadMasterData();
             setupEventListeners();
             setupPhoneFormatting();
         });
 
-        // API Helper function
-        async function apiCall(endpoint, options = {}) {
+        // Load user information
+        function loadUserInfo() {
+            const userInfo = AuthHelper.getUserInfo();
+            // You can display user info if you have a UI element for it
+            // For now, just using the stored info
+        }
+
+        // Replace the existing apiCall function (lines 611-632) with:
+        // Just use AuthHelper.apiCall directly, no need for wrapper
+
+        // Update loadVendors function:
+        async function loadVendors() {
             try {
-                const response = await fetch(API_BASE + endpoint, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...options.headers
-                    },
-                    ...options
-                });
-                
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.message || `HTTP error! status: ${response.status}`);
-                }
-                
-                return await response.json();
+                const response = await AuthHelper.apiCall('po-data');
+                vendors = response.vendors || [];
+                setupAutocomplete('vendor', vendors);
             } catch (error) {
-                console.error(`API call failed for ${endpoint}:`, error);
-                throw error;
+                console.error('Error loading vendors:', error);
+                vendors = [];
             }
         }
 
-        // Load all master data
+        // Update loadProjects function:
+        async function loadProjects() {
+            try {
+                const response = await AuthHelper.apiCall('po-data');
+                projects = response.projects || [];
+                setupAutocomplete('project', projects);
+            } catch (error) {
+                console.error('Error loading projects:', error);
+                projects = [];
+            }
+        }
+
+        // Update handleSubmit function (around line 864):
+        // Replace the apiCall with:
+        const result = await AuthHelper.apiCall('po-submit', {
+            method: 'POST',
+            body: JSON.stringify(formData)
+        });
+       // Load all master data
         async function loadMasterData() {
             try {
                 await Promise.all([
