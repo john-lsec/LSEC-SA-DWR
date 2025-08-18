@@ -1,8 +1,67 @@
 // netlify/functions/api.js - Complete version with DWR functionality
 const { neon } = require('@neondatabase/serverless');
-const { requireAuth, requireRole } = require('./auth');
+const jwt = require('jsonwebtoken');
 
 const sql = neon(process.env.DATABASE_URL);
+const JWT_SECRET = process.env.JWT_SECRET || '416cf56a29ba481816ab028346c8dcdc169b2241187b10e9b274192da564523234ad0aec4f6dd567e1896c6e52c10f7e8494d6d15938afab7ef11db09630fd8fa8005';
+
+// Helper function to verify JWT token
+function verifyJWT(token) {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (error) {
+    return null;
+  }
+}
+
+// Middleware to check authentication for protected routes
+async function requireAuth(event) {
+  const authHeader = event.headers.authorization || event.headers.Authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return { authorized: false, error: 'No token provided' };
+  }
+
+  const token = authHeader.substring(7);
+  const decoded = verifyJWT(token);
+
+  if (!decoded) {
+    return { authorized: false, error: 'Invalid token' };
+  }
+
+  try {
+    // Verify session is still valid
+    const sessions = await sql`
+      SELECT u.id, u.role, u.email, u.is_active
+      FROM user_sessions s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.user_id = ${decoded.userId}
+        AND s.expires_at > CURRENT_TIMESTAMP
+        AND u.is_active = true
+      LIMIT 1
+    `;
+
+    if (sessions.length === 0) {
+      return { authorized: false, error: 'Session expired' };
+    }
+
+    return { 
+      authorized: true, 
+      userId: decoded.userId, 
+      role: sessions[0].role,
+      email: sessions[0].email
+    };
+
+  } catch (error) {
+    console.error('Auth check error:', error);
+    return { authorized: false, error: 'Authorization failed' };
+  }
+}
+
+// Middleware to check specific role permissions
+function requireRole(userRole, requiredRoles) {
+  return requiredRoles.includes(userRole);
+}
 
 exports.handler = async (event, context) => {
   // CORS headers
