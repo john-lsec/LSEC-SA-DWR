@@ -275,7 +275,7 @@ async function handleLaborers(event, headers, method) {
   }
 }
 
-// Projects handler
+// Corrected Projects handler for fixed schema
 async function handleProjects(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -283,8 +283,9 @@ async function handleProjects(event, headers, method, id) {
     case 'GET':
       try {
         if (id) {
+          // Get specific project by UUID
           const projects = await sql`
-            SELECT * FROM projects WHERE id = ${parseInt(id)}
+            SELECT * FROM projects WHERE id = ${id}
           `;
           return {
             statusCode: 200,
@@ -292,6 +293,7 @@ async function handleProjects(event, headers, method, id) {
             body: JSON.stringify(projects[0] || null)
           };
         } else {
+          // Get all active projects
           const projects = await sql`
             SELECT * FROM projects 
             WHERE active = true
@@ -323,9 +325,25 @@ async function handleProjects(event, headers, method, id) {
 
       try {
         const projectData = JSON.parse(event.body);
+        
+        // Validate required fields
+        if (!projectData.name) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'Project name is required' })
+          };
+        }
+        
         const newProject = await sql`
-          INSERT INTO projects (name, project_code, active)
-          VALUES (${projectData.name}, ${projectData.project_code || null}, ${projectData.active !== false})
+          INSERT INTO projects (name, project_code, active, created_at, updated_at)
+          VALUES (
+            ${projectData.name}, 
+            ${projectData.project_code || null}, 
+            ${projectData.active !== false},
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+          )
           RETURNING *
         `;
 
@@ -339,7 +357,65 @@ async function handleProjects(event, headers, method, id) {
         return {
           statusCode: 500,
           headers,
-          body: JSON.stringify({ error: 'Failed to create project' })
+          body: JSON.stringify({ error: 'Failed to create project: ' + error.message })
+        };
+      }
+
+    case 'PUT':
+      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions' })
+        };
+      }
+
+      if (!id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'ID required for update' })
+        };
+      }
+
+      try {
+        const updateData = JSON.parse(event.body);
+        
+        // Check if project exists
+        const existing = await sql`
+          SELECT * FROM projects WHERE id = ${id}
+        `;
+        
+        if (existing.length === 0) {
+          return {
+            statusCode: 404,
+            headers,
+            body: JSON.stringify({ error: 'Project not found' })
+          };
+        }
+        
+        const updated = await sql`
+          UPDATE projects
+          SET 
+            name = ${updateData.name || existing[0].name},
+            project_code = ${updateData.project_code !== undefined ? updateData.project_code : existing[0].project_code},
+            active = ${updateData.active !== undefined ? updateData.active : existing[0].active},
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${id}
+          RETURNING *
+        `;
+
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(updated[0])
+        };
+      } catch (error) {
+        console.error('Error updating project:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to update project: ' + error.message })
         };
       }
 
@@ -590,7 +666,7 @@ async function handleBidItems(event, headers, method, id) {
   }
 }
 
-// Enhanced Project Bid Items handler - handles all CRUD operations
+// Corrected Project Bid Items handler for fixed schema
 async function handleProjectBidItems(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -610,6 +686,7 @@ async function handleProjectBidItems(event, headers, method, id) {
               bi.item_code,
               bi.item_name,
               bi.category,
+              bi.description,
               pbi.unit,
               pbi.rate,
               pbi.material_cost,
@@ -643,7 +720,20 @@ async function handleProjectBidItems(event, headers, method, id) {
           };
         }
         
-        // Get all project bid items for a project
+        // Verify project exists
+        const projectCheck = await sql`
+          SELECT id, name FROM projects WHERE id = ${projectId} AND active = true
+        `;
+        
+        if (projectCheck.length === 0) {
+          return {
+            statusCode: 404,
+            headers,
+            body: JSON.stringify({ error: 'Project not found or inactive' })
+          };
+        }
+        
+        // Get all project bid items for the project
         const bidItems = await sql`
           SELECT 
             pbi.id as project_bid_item_id,
@@ -668,7 +758,8 @@ async function handleProjectBidItems(event, headers, method, id) {
             pbi.updated_at
           FROM project_bid_items pbi
           JOIN bid_items bi ON pbi.bid_item_id = bi.id
-          WHERE pbi.project_id = ${projectId} AND pbi.is_active = true
+          WHERE pbi.project_id = ${projectId} 
+            AND pbi.is_active = true
           ORDER BY bi.item_code
         `;
         
@@ -677,12 +768,16 @@ async function handleProjectBidItems(event, headers, method, id) {
           headers,
           body: JSON.stringify(bidItems)
         };
+        
       } catch (error) {
         console.error('Error fetching project bid items:', error);
         return {
           statusCode: 500,
           headers,
-          body: JSON.stringify({ error: 'Failed to fetch project bid items' })
+          body: JSON.stringify({ 
+            error: 'Failed to fetch project bid items',
+            details: error.message
+          })
         };
       }
 
@@ -708,12 +803,25 @@ async function handleProjectBidItems(event, headers, method, id) {
           };
         }
         
+        // Verify project exists
+        const projectExists = await sql`
+          SELECT id FROM projects WHERE id = ${data.project_id} AND active = true
+        `;
+        
+        if (projectExists.length === 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'Invalid or inactive project_id' })
+          };
+        }
+        
         // Check if item already exists for this project
         const existing = await sql`
           SELECT id FROM project_bid_items 
           WHERE project_id = ${data.project_id} 
-          AND bid_item_id = ${data.bid_item_id}
-          AND is_active = true
+            AND bid_item_id = ${data.bid_item_id}
+            AND is_active = true
         `;
         
         if (existing.length > 0) {
@@ -726,31 +834,34 @@ async function handleProjectBidItems(event, headers, method, id) {
         
         // Get bid item details for defaults
         const bidItem = await sql`
-          SELECT material_cost, default_unit FROM bid_items WHERE id = ${data.bid_item_id}
+          SELECT material_cost, default_unit FROM bid_items 
+          WHERE id = ${data.bid_item_id} AND is_active = true
         `;
         
         if (bidItem.length === 0) {
           return {
             statusCode: 400,
             headers,
-            body: JSON.stringify({ error: 'Invalid bid_item_id' })
+            body: JSON.stringify({ error: 'Invalid or inactive bid_item_id' })
           };
         }
         
         const defaultMaterialCost = bidItem[0].material_cost || 0;
         const defaultUnit = bidItem[0].default_unit || 'EA';
         
+        // Insert new project bid item
         const newItem = await sql`
           INSERT INTO project_bid_items (
-            project_id, bid_item_id, rate, material_cost, unit, notes, is_active, created_at
+            project_id, bid_item_id, rate, material_cost, unit, notes, is_active, created_at, updated_at
           ) VALUES (
             ${data.project_id},
             ${data.bid_item_id},
             ${data.rate || 0},
-            ${data.material_cost || defaultMaterialCost},
+            ${data.material_cost !== undefined ? data.material_cost : defaultMaterialCost},
             ${data.unit || defaultUnit},
             ${data.notes || null},
             ${data.is_active !== false},
+            CURRENT_TIMESTAMP,
             CURRENT_TIMESTAMP
           )
           RETURNING *
@@ -787,6 +898,7 @@ async function handleProjectBidItems(event, headers, method, id) {
           headers,
           body: JSON.stringify(createdItem[0])
         };
+        
       } catch (error) {
         console.error('Error adding project bid item:', error);
         return {
@@ -830,6 +942,7 @@ async function handleProjectBidItems(event, headers, method, id) {
           };
         }
         
+        // Update the item
         const updated = await sql`
           UPDATE project_bid_items
           SET 
@@ -874,6 +987,7 @@ async function handleProjectBidItems(event, headers, method, id) {
           headers,
           body: JSON.stringify(updatedItem[0])
         };
+        
       } catch (error) {
         console.error('Error updating project bid item:', error);
         return {
@@ -927,6 +1041,7 @@ async function handleProjectBidItems(event, headers, method, id) {
           headers,
           body: ''
         };
+        
       } catch (error) {
         console.error('Error deleting project bid item:', error);
         return {
@@ -944,7 +1059,6 @@ async function handleProjectBidItems(event, headers, method, id) {
       };
   }
 }
-
 // DWR Submission handler - Enhanced for better error handling
 async function handleDWRSubmission(event, headers, method) {
   if (method !== 'POST') {
