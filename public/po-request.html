@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LSEC Purchase Order Request</title>
     <style>
+        /* Keep all your existing styles as-is */
         /* Reset and base styles */
         * {
             box-sizing: border-box;
@@ -543,103 +544,29 @@
         </div>
     </div>
 
-    <script src="/js/auth-helper.js"></script>
-
+    <!-- Include AuthHelper first -->
+    <script src="auth-helper.js"></script>
+    
+    <!-- Then your page script -->
     <script>
-         // Check authentication on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            checkAuth();
-            loadUserInfo();
-            loadStats();
-            startSessionTimer();
-        });
-        
-        // Check if user is authenticated
-        function checkAuth() {
-            const token = localStorage.getItem('sessionToken');
-            if (!token) {
-                // Not authenticated, redirect to login
-                window.location.href = '/login.html';
-                return;
-            }
-            
-            // Verify token is still valid (optional - implement with your backend)
-            // verifyToken(token);
-        }
-        
-        // Load user information
-        function loadUserInfo() {
-            const userName = localStorage.getItem('userName') || 'User';
-            const userRole = localStorage.getItem('userRole') || 'Employee';
-            
-            document.getElementById('userName').textContent = userName;
-            document.getElementById('userRole').textContent = userRole;
-        }
-        
-        // Configuration
-        const API_BASE = '/.netlify/functions/';
-        
         // Global variables
         let vendors = [];
         let projects = [];
         let currentFocus = -1;
 
-        // Initialize the application
         // Check authentication on page load
         document.addEventListener('DOMContentLoaded', function() {
-                // Check if user is authenticated
             if (!AuthHelper.isAuthenticated()) {
                 AuthHelper.redirectToLogin();
                 return;
             }
-    
-            loadUserInfo();
+            
             loadMasterData();
             setupEventListeners();
             setupPhoneFormatting();
         });
 
-        // Load user information
-        function loadUserInfo() {
-            const userInfo = AuthHelper.getUserInfo();
-            // You can display user info if you have a UI element for it
-            // For now, just using the stored info
-        }
-
-        // Replace the existing apiCall function (lines 611-632) with:
-        // Just use AuthHelper.apiCall directly, no need for wrapper
-
-        // Update loadVendors function:
-        async function loadVendors() {
-            try {
-                const response = await AuthHelper.apiCall('po-data');
-                vendors = response.vendors || [];
-                setupAutocomplete('vendor', vendors);
-            } catch (error) {
-                console.error('Error loading vendors:', error);
-                vendors = [];
-            }
-        }
-
-        // Update loadProjects function:
-        async function loadProjects() {
-            try {
-                const response = await AuthHelper.apiCall('po-data');
-                projects = response.projects || [];
-                setupAutocomplete('project', projects);
-            } catch (error) {
-                console.error('Error loading projects:', error);
-                projects = [];
-            }
-        }
-
-        // Update handleSubmit function (around line 864):
-        // Replace the apiCall with:
-        const result = await AuthHelper.apiCall('po-submit', {
-            method: 'POST',
-            body: JSON.stringify(formData)
-        });
-       // Load all master data
+        // Load all master data
         async function loadMasterData() {
             try {
                 await Promise.all([
@@ -655,7 +582,7 @@
         // Load vendors
         async function loadVendors() {
             try {
-                const response = await apiCall('po-data');
+                const response = await AuthHelper.apiCall('po-data');
                 vendors = response.vendors || [];
                 setupAutocomplete('vendor', vendors);
             } catch (error) {
@@ -667,7 +594,7 @@
         // Load projects
         async function loadProjects() {
             try {
-                const response = await apiCall('po-data');
+                const response = await AuthHelper.apiCall('po-data');
                 projects = response.projects || [];
                 setupAutocomplete('project', projects);
             } catch (error) {
@@ -863,8 +790,8 @@
                     throw new Error('Please enter a valid 10-digit phone number');
                 }
                 
-                // Submit to API
-                const result = await apiCall('po-submit', {
+                // Submit to API using AuthHelper
+                const result = await AuthHelper.apiCall('po-submit', {
                     method: 'POST',
                     body: JSON.stringify(formData)
                 });
