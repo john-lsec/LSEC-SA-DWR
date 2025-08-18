@@ -1929,3 +1929,40 @@ async function handleUsers(event, headers, method, id) {
       };
   }
 }
+
+// In your switch statement, add this case:
+case 'config':
+  return await handleConfig(event, headers, method);
+
+// And add this function at the end of your api.js file:
+
+// Configuration handler - serves client-safe configuration
+async function handleConfig(event, headers, method) {
+  if (method !== 'GET') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  try {
+    // Only return non-sensitive config that's safe for client-side use
+    const config = {
+      googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || null,
+    };
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(config)
+    };
+  } catch (error) {
+    console.error('Error fetching config:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Failed to fetch configuration' })
+    };
+  }
+}
