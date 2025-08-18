@@ -154,18 +154,9 @@ exports.handler = async (event, context) => {
       case 'master-bid-items':
         return await handleBidItems(event, headers, method, id);
       
+      // Consolidated project bid items endpoint - handles all CRUD operations
       case 'project-bid-items':
         return await handleProjectBidItems(event, headers, method, id);
-        
-      // Project bid item management endpoints
-      case 'add-project-bid-item':
-        return await handleAddProjectBidItem(event, headers);
-        
-      case 'update-project-bid-item':
-        return await handleUpdateProjectBidItem(event, headers, id);
-        
-      case 'delete-project-bid-item':
-        return await handleDeleteProjectBidItem(event, headers, id);
       
       case 'submit-dwr':
         return await handleDWRSubmission(event, headers, method);
@@ -599,7 +590,7 @@ async function handleBidItems(event, headers, method, id) {
   }
 }
 
-// Project Bid Items handler - Updated with calculated fields for DWR form
+// Enhanced Project Bid Items handler - handles all CRUD operations
 async function handleProjectBidItems(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -609,6 +600,41 @@ async function handleProjectBidItems(event, headers, method, id) {
         const params = event.queryStringParameters || {};
         const projectId = params.project_id;
         
+        if (id) {
+          // Get specific project bid item by ID
+          const bidItems = await sql`
+            SELECT 
+              pbi.id as project_bid_item_id,
+              pbi.project_id,
+              pbi.bid_item_id,
+              bi.item_code,
+              bi.item_name,
+              bi.category,
+              pbi.unit,
+              pbi.rate,
+              pbi.material_cost,
+              pbi.material_cost as current_cost,
+              pbi.notes,
+              CASE 
+                WHEN pbi.material_cost > 0 
+                THEN ((pbi.rate - pbi.material_cost) / pbi.material_cost * 100)
+                ELSE 0 
+              END as markup_percentage,
+              pbi.is_active,
+              pbi.created_at,
+              pbi.updated_at
+            FROM project_bid_items pbi
+            JOIN bid_items bi ON pbi.bid_item_id = bi.id
+            WHERE pbi.id = ${id} AND pbi.is_active = true
+          `;
+          
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(bidItems[0] || null)
+          };
+        }
+        
         if (!projectId) {
           return {
             statusCode: 400,
@@ -617,6 +643,7 @@ async function handleProjectBidItems(event, headers, method, id) {
           };
         }
         
+        // Get all project bid items for a project
         const bidItems = await sql`
           SELECT 
             pbi.id as project_bid_item_id,
@@ -625,6 +652,7 @@ async function handleProjectBidItems(event, headers, method, id) {
             bi.item_code,
             bi.item_name,
             bi.category,
+            bi.description,
             pbi.unit,
             pbi.rate,
             pbi.material_cost,
@@ -635,7 +663,9 @@ async function handleProjectBidItems(event, headers, method, id) {
               THEN ((pbi.rate - pbi.material_cost) / pbi.material_cost * 100)
               ELSE 0 
             END as markup_percentage,
-            pbi.is_active
+            pbi.is_active,
+            pbi.created_at,
+            pbi.updated_at
           FROM project_bid_items pbi
           JOIN bid_items bi ON pbi.bid_item_id = bi.id
           WHERE pbi.project_id = ${projectId} AND pbi.is_active = true
@@ -656,175 +686,262 @@ async function handleProjectBidItems(event, headers, method, id) {
         };
       }
 
+    case 'POST':
+      // Add new project bid item
+      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions' })
+        };
+      }
+
+      try {
+        const data = JSON.parse(event.body);
+        
+        // Validate required fields
+        if (!data.project_id || !data.bid_item_id) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'project_id and bid_item_id are required' })
+          };
+        }
+        
+        // Check if item already exists for this project
+        const existing = await sql`
+          SELECT id FROM project_bid_items 
+          WHERE project_id = ${data.project_id} 
+          AND bid_item_id = ${data.bid_item_id}
+          AND is_active = true
+        `;
+        
+        if (existing.length > 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'This bid item already exists for this project' })
+          };
+        }
+        
+        // Get bid item details for defaults
+        const bidItem = await sql`
+          SELECT material_cost, default_unit FROM bid_items WHERE id = ${data.bid_item_id}
+        `;
+        
+        if (bidItem.length === 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'Invalid bid_item_id' })
+          };
+        }
+        
+        const defaultMaterialCost = bidItem[0].material_cost || 0;
+        const defaultUnit = bidItem[0].default_unit || 'EA';
+        
+        const newItem = await sql`
+          INSERT INTO project_bid_items (
+            project_id, bid_item_id, rate, material_cost, unit, notes, is_active, created_at
+          ) VALUES (
+            ${data.project_id},
+            ${data.bid_item_id},
+            ${data.rate || 0},
+            ${data.material_cost || defaultMaterialCost},
+            ${data.unit || defaultUnit},
+            ${data.notes || null},
+            ${data.is_active !== false},
+            CURRENT_TIMESTAMP
+          )
+          RETURNING *
+        `;
+
+        // Return the created item with joined bid item details
+        const createdItem = await sql`
+          SELECT 
+            pbi.id as project_bid_item_id,
+            pbi.project_id,
+            pbi.bid_item_id,
+            bi.item_code,
+            bi.item_name,
+            bi.category,
+            pbi.unit,
+            pbi.rate,
+            pbi.material_cost,
+            pbi.notes,
+            CASE 
+              WHEN pbi.material_cost > 0 
+              THEN ((pbi.rate - pbi.material_cost) / pbi.material_cost * 100)
+              ELSE 0 
+            END as markup_percentage,
+            pbi.is_active,
+            pbi.created_at,
+            pbi.updated_at
+          FROM project_bid_items pbi
+          JOIN bid_items bi ON pbi.bid_item_id = bi.id
+          WHERE pbi.id = ${newItem[0].id}
+        `;
+
+        return {
+          statusCode: 201,
+          headers,
+          body: JSON.stringify(createdItem[0])
+        };
+      } catch (error) {
+        console.error('Error adding project bid item:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to add project bid item: ' + error.message })
+        };
+      }
+
+    case 'PUT':
+      // Update project bid item
+      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions' })
+        };
+      }
+
+      if (!id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'ID required for update' })
+        };
+      }
+
+      try {
+        const data = JSON.parse(event.body);
+        
+        // Check if the item exists
+        const existing = await sql`
+          SELECT * FROM project_bid_items WHERE id = ${id} AND is_active = true
+        `;
+        
+        if (existing.length === 0) {
+          return {
+            statusCode: 404,
+            headers,
+            body: JSON.stringify({ error: 'Project bid item not found' })
+          };
+        }
+        
+        const updated = await sql`
+          UPDATE project_bid_items
+          SET 
+            rate = ${data.rate !== undefined ? data.rate : existing[0].rate},
+            material_cost = ${data.material_cost !== undefined ? data.material_cost : existing[0].material_cost},
+            unit = ${data.unit !== undefined ? data.unit : existing[0].unit},
+            notes = ${data.notes !== undefined ? data.notes : existing[0].notes},
+            is_active = ${data.is_active !== undefined ? data.is_active : existing[0].is_active},
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${id}
+          RETURNING *
+        `;
+
+        // Return the updated item with joined bid item details
+        const updatedItem = await sql`
+          SELECT 
+            pbi.id as project_bid_item_id,
+            pbi.project_id,
+            pbi.bid_item_id,
+            bi.item_code,
+            bi.item_name,
+            bi.category,
+            pbi.unit,
+            pbi.rate,
+            pbi.material_cost,
+            pbi.notes,
+            CASE 
+              WHEN pbi.material_cost > 0 
+              THEN ((pbi.rate - pbi.material_cost) / pbi.material_cost * 100)
+              ELSE 0 
+            END as markup_percentage,
+            pbi.is_active,
+            pbi.created_at,
+            pbi.updated_at
+          FROM project_bid_items pbi
+          JOIN bid_items bi ON pbi.bid_item_id = bi.id
+          WHERE pbi.id = ${id}
+        `;
+
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(updatedItem[0])
+        };
+      } catch (error) {
+        console.error('Error updating project bid item:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to update project bid item: ' + error.message })
+        };
+      }
+
+    case 'DELETE':
+      // Delete (soft delete) project bid item
+      if (!requireRole(role, ['admin', 'manager'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions to delete' })
+        };
+      }
+
+      if (!id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'ID required for delete' })
+        };
+      }
+
+      try {
+        // Check if the item exists
+        const existing = await sql`
+          SELECT id FROM project_bid_items WHERE id = ${id} AND is_active = true
+        `;
+        
+        if (existing.length === 0) {
+          return {
+            statusCode: 404,
+            headers,
+            body: JSON.stringify({ error: 'Project bid item not found' })
+          };
+        }
+        
+        // Soft delete by setting is_active to false
+        await sql`
+          UPDATE project_bid_items 
+          SET is_active = false, updated_at = CURRENT_TIMESTAMP 
+          WHERE id = ${id}
+        `;
+        
+        return {
+          statusCode: 204,
+          headers,
+          body: ''
+        };
+      } catch (error) {
+        console.error('Error deleting project bid item:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to delete project bid item: ' + error.message })
+        };
+      }
+
     default:
       return {
         statusCode: 405,
         headers,
         body: JSON.stringify({ error: 'Method not allowed' })
       };
-  }
-}
-
-// Add Project Bid Item
-async function handleAddProjectBidItem(event, headers) {
-  const { role, userId } = event.auth || {};
-  
-  if (!requireRole(role, ['admin', 'manager', 'editor'])) {
-    return {
-      statusCode: 403,
-      headers,
-      body: JSON.stringify({ error: 'Insufficient permissions' })
-    };
-  }
-
-  try {
-    const data = JSON.parse(event.body);
-    
-    // Check if item already exists for this project
-    const existing = await sql`
-      SELECT id FROM project_bid_items 
-      WHERE project_id = ${data.project_id} 
-      AND bid_item_id = ${data.bid_item_id}
-      AND is_active = true
-    `;
-    
-    if (existing.length > 0) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'This bid item already exists for this project' })
-      };
-    }
-    
-    const newItem = await sql`
-      INSERT INTO project_bid_items (
-        project_id, bid_item_id, rate, material_cost, unit, notes, is_active
-      ) VALUES (
-        ${data.project_id},
-        ${data.bid_item_id},
-        ${data.rate || 0},
-        ${data.material_cost || 0},
-        ${data.unit || 'EA'},
-        ${data.notes || null},
-        ${data.is_active !== false}
-      )
-      RETURNING *
-    `;
-
-    return {
-      statusCode: 201,
-      headers,
-      body: JSON.stringify(newItem[0])
-    };
-  } catch (error) {
-    console.error('Error adding project bid item:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to add project bid item' })
-    };
-  }
-}
-
-// Update Project Bid Item
-async function handleUpdateProjectBidItem(event, headers, id) {
-  const { role, userId } = event.auth || {};
-  
-  if (!requireRole(role, ['admin', 'manager', 'editor'])) {
-    return {
-      statusCode: 403,
-      headers,
-      body: JSON.stringify({ error: 'Insufficient permissions' })
-    };
-  }
-
-  if (!id) {
-    return {
-      statusCode: 400,
-      headers,
-      body: JSON.stringify({ error: 'ID required for update' })
-    };
-  }
-
-  try {
-    const data = JSON.parse(event.body);
-    
-    const updated = await sql`
-      UPDATE project_bid_items
-      SET 
-        rate = ${data.rate || 0},
-        material_cost = ${data.material_cost || 0},
-        unit = ${data.unit || 'EA'},
-        notes = ${data.notes || null},
-        is_active = ${data.is_active !== false},
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${id}
-      RETURNING *
-    `;
-
-    if (updated.length === 0) {
-      return {
-        statusCode: 404,
-        headers,
-        body: JSON.stringify({ error: 'Project bid item not found' })
-      };
-    }
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(updated[0])
-    };
-  } catch (error) {
-    console.error('Error updating project bid item:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to update project bid item' })
-    };
-  }
-}
-
-// Delete Project Bid Item
-async function handleDeleteProjectBidItem(event, headers, id) {
-  const { role, userId } = event.auth || {};
-  
-  if (!requireRole(role, ['admin', 'manager'])) {
-    return {
-      statusCode: 403,
-      headers,
-      body: JSON.stringify({ error: 'Insufficient permissions to delete' })
-    };
-  }
-
-  if (!id) {
-    return {
-      statusCode: 400,
-      headers,
-      body: JSON.stringify({ error: 'ID required for delete' })
-    };
-  }
-
-  try {
-    // Soft delete by setting is_active to false
-    await sql`
-      UPDATE project_bid_items 
-      SET is_active = false, updated_at = CURRENT_TIMESTAMP 
-      WHERE id = ${id}
-    `;
-    
-    return {
-      statusCode: 204,
-      headers,
-      body: ''
-    };
-  } catch (error) {
-    console.error('Error deleting project bid item:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to delete project bid item' })
-    };
   }
 }
 
