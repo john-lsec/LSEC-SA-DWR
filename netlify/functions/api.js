@@ -1060,216 +1060,216 @@ async function handleProjectBidItems(event, headers, method, id) {
   }
 }
 
-// DWR Submission handler - Fixed for correct schema
-async function handleDWRSubmission(event, headers, method) {
-  if (method !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
-  const { userId } = event.auth || {};
-
-  try {
-    const data = JSON.parse(event.body);
-    
-    // Validate required fields
-    const requiredFields = ['work_date', 'foreman_id', 'project_id', 'arrival_time', 'departure_time', 'billable_work'];
-    for (const field of requiredFields) {
-      if (!data[field]) {
+    // DWR Submission handler - Fixed for correct schema
+    async function handleDWRSubmission(event, headers, method) {
+      if (method !== 'POST') {
         return {
-          statusCode: 400,
+          statusCode: 405,
+          headers,
+          body: JSON.stringify({ error: 'Method not allowed' })
+        };
+      }
+    
+      const { userId } = event.auth || {};
+    
+      try {
+        const data = JSON.parse(event.body);
+        
+        // Validate required fields
+        const requiredFields = ['work_date', 'foreman_id', 'project_id', 'arrival_time', 'departure_time', 'billable_work'];
+        for (const field of requiredFields) {
+          if (!data[field]) {
+            return {
+              statusCode: 400,
+              headers,
+              body: JSON.stringify({ 
+                success: false,
+                error: `Missing required field: ${field}` 
+              })
+            };
+          }
+        }
+    
+        try {
+          // Insert main DWR record with all required fields matching schema
+          const dwrResult = await sql`
+            INSERT INTO daily_work_reports (
+              work_date, 
+              foreman_id, 
+              project_id, 
+              arrival_time, 
+              departure_time,
+              truck_id, 
+              trailer_id,
+              equipment_id,
+              billable_work, 
+              maybe_explanation, 
+              per_diem,
+              submission_timestamp,
+              created_at,
+              updated_at
+            ) VALUES (
+              ${data.work_date}, 
+              ${data.foreman_id}::uuid, 
+              ${data.project_id}::uuid,
+              ${data.arrival_time}, 
+              ${data.departure_time}, 
+              ${data.truck_id ? sql`${data.truck_id}::uuid` : null},
+              ${data.trailer_id ? sql`${data.trailer_id}::uuid` : null},
+              ${data.equipment_id ? sql`${data.new_id}::uuid` : null},
+              ${data.billable_work}, 
+              ${data.maybe_explanation || null},
+              ${data.per_diem || false}, 
+              CURRENT_TIMESTAMP,
+              CURRENT_TIMESTAMP,
+              CURRENT_TIMESTAMP
+            ) RETURNING id
+          `;
+          
+          const dwrId = dwrResult[0].id;
+          
+          // Insert crew members if provided
+          if (data.laborers && Array.isArray(data.laborers) && data.laborers.length > 0) {
+            for (const laborerId of data.laborers) {
+              try {
+                await sql`
+                  INSERT INTO dwr_crew_members (
+                    dwr_id, 
+                    laborer_id,
+                    created_at
+                  ) VALUES (
+                    ${dwrId}, 
+                    ${laborerId}::uuid,
+                    CURRENT_TIMESTAMP
+                  )
+                `;
+              } catch (error) {
+                console.error(`Error inserting laborer ${laborerId}:`, error);
+              }
+            }
+          }
+          
+          // Insert machines if provided - Handle equipment ID mapping
+          if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
+            for (const machineId of data.machines) {
+              try {
+                // Check if equipment table uses new_id (UUID) or old id (integer)
+                const equipment = await sql`
+                  SELECT new_id, id FROM equipment WHERE id = ${parseInt(machineId)}
+                `;
+                
+                if (equipment.length > 0) {
+                  const equipmentUuid = equipment[0].new_id || equipment[0].id;
+                  
+                  await sql`
+                    INSERT INTO dwr_machines (
+                      dwr_id, 
+                      machine_id,
+                      created_at
+                    ) VALUES (
+                      ${dwrId}, 
+                      ${equipmentUuid}::uuid,
+                      CURRENT_TIMESTAMP
+                    )
+                  `;
+                }
+              } catch (error) {
+                console.error(`Error inserting machine ${machineId}:`, error);
+              }
+            }
+          }
+          
+          // Insert items if provided
+          if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+            for (let i = 0; i < data.items.length; i++) {
+              const item = data.items[i];
+              try {
+                await sql`
+                  INSERT INTO dwr_items (
+                    dwr_id, 
+                    item_name, 
+                    quantity, 
+                    unit, 
+                    location_description,
+                    latitude, 
+                    longitude, 
+                    duration_hours, 
+                    notes, 
+                    item_index,
+                    bid_item_id, 
+                    project_bid_item_id,
+                    created_at,
+                    updated_at
+                  ) VALUES (
+                    ${dwrId}, 
+                    ${item.item_name}, 
+                    ${parseFloat(item.quantity)}, 
+                    ${item.unit || 'EA'},
+                    ${item.location_description}, 
+                    ${item.latitude ? parseFloat(item.latitude) : null}, 
+                    ${item.longitude ? parseFloat(item.longitude) : null},
+                    ${parseFloat(item.duration_hours)}, 
+                    ${item.notes || null}, 
+                    ${i},
+                    ${item.bid_item_id ? sql`${item.bid_item_id}::uuid` : null}, 
+                    ${item.project_bid_item_id ? sql`${item.project_bid_item_id}::uuid` : null},
+                    CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP
+                  )
+                `;
+              } catch (error) {
+                console.error(`Error inserting item ${i}:`, error);
+                console.error('Item data:', item);
+              }
+            }
+          }
+          
+          return {
+            statusCode: 201,
+            headers,
+            body: JSON.stringify({ 
+              success: true, 
+              id: dwrId,
+              message: 'Daily work report submitted successfully' 
+            })
+          };
+          
+        } catch (dbError) {
+          console.error('Database error in DWR submission:', dbError);
+          throw dbError;
+        }
+        
+      } catch (error) {
+        console.error('Error submitting DWR:', error);
+        
+        let errorMessage = 'Failed to submit daily work report';
+        let statusCode = 500;
+        
+        if (error.message.includes('JSON')) {
+          errorMessage = 'Invalid JSON data provided';
+          statusCode = 400;
+        } else if (error.message.includes('foreign key')) {
+          errorMessage = 'Invalid reference data (project, foreman, equipment, etc.)';
+          statusCode = 400;
+        } else if (error.message.includes('not null')) {
+          errorMessage = 'Missing required field in database';
+          statusCode = 400;
+        } else if (error.message.includes('uuid')) {
+          errorMessage = 'Invalid ID format provided';
+          statusCode = 400;
+        }
+        
+        return {
+          statusCode: statusCode,
           headers,
           body: JSON.stringify({ 
             success: false,
-            error: `Missing required field: ${field}` 
+            error: errorMessage,
+            details: error.message 
           })
         };
       }
     }
-
-    try {
-      // Insert main DWR record with all required fields matching schema
-      const dwrResult = await sql`
-        INSERT INTO daily_work_reports (
-          work_date, 
-          foreman_id, 
-          project_id, 
-          arrival_time, 
-          departure_time,
-          truck_id, 
-          trailer_id,
-          equipment_id,
-          billable_work, 
-          maybe_explanation, 
-          per_diem,
-          submission_timestamp,
-          created_at,
-          updated_at
-        ) VALUES (
-          ${data.work_date}, 
-          ${data.foreman_id}::uuid, 
-          ${data.project_id}::uuid,
-          ${data.arrival_time}, 
-          ${data.departure_time}, 
-          ${data.truck_id ? sql`${data.truck_id}::uuid` : null},
-          ${data.trailer_id ? sql`${data.trailer_id}::uuid` : null},
-          ${data.equipment_id ? sql`${data.trailer_id}::uuid` : null},
-          ${data.billable_work}, 
-          ${data.maybe_explanation || null},
-          ${data.per_diem || false}, 
-          CURRENT_TIMESTAMP,
-          CURRENT_TIMESTAMP,
-          CURRENT_TIMESTAMP
-        ) RETURNING id
-      `;
-      
-      const dwrId = dwrResult[0].id;
-      
-      // Insert crew members if provided
-      if (data.laborers && Array.isArray(data.laborers) && data.laborers.length > 0) {
-        for (const laborerId of data.laborers) {
-          try {
-            await sql`
-              INSERT INTO dwr_crew_members (
-                dwr_id, 
-                laborer_id,
-                created_at
-              ) VALUES (
-                ${dwrId}, 
-                ${laborerId}::uuid,
-                CURRENT_TIMESTAMP
-              )
-            `;
-          } catch (error) {
-            console.error(`Error inserting laborer ${laborerId}:`, error);
-          }
-        }
-      }
-      
-      // Insert machines if provided - Handle equipment ID mapping
-      if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
-        for (const machineId of data.machines) {
-          try {
-            // Check if equipment table uses new_id (UUID) or old id (integer)
-            const equipment = await sql`
-              SELECT new_id, id FROM equipment WHERE id = ${parseInt(machineId)}
-            `;
-            
-            if (equipment.length > 0) {
-              const equipmentUuid = equipment[0].new_id || equipment[0].id;
-              
-              await sql`
-                INSERT INTO dwr_machines (
-                  dwr_id, 
-                  machine_id,
-                  created_at
-                ) VALUES (
-                  ${dwrId}, 
-                  ${equipmentUuid}::uuid,
-                  CURRENT_TIMESTAMP
-                )
-              `;
-            }
-          } catch (error) {
-            console.error(`Error inserting machine ${machineId}:`, error);
-          }
-        }
-      }
-      
-      // Insert items if provided
-      if (data.items && Array.isArray(data.items) && data.items.length > 0) {
-        for (let i = 0; i < data.items.length; i++) {
-          const item = data.items[i];
-          try {
-            await sql`
-              INSERT INTO dwr_items (
-                dwr_id, 
-                item_name, 
-                quantity, 
-                unit, 
-                location_description,
-                latitude, 
-                longitude, 
-                duration_hours, 
-                notes, 
-                item_index,
-                bid_item_id, 
-                project_bid_item_id,
-                created_at,
-                updated_at
-              ) VALUES (
-                ${dwrId}, 
-                ${item.item_name}, 
-                ${parseFloat(item.quantity)}, 
-                ${item.unit || 'EA'},
-                ${item.location_description}, 
-                ${item.latitude ? parseFloat(item.latitude) : null}, 
-                ${item.longitude ? parseFloat(item.longitude) : null},
-                ${parseFloat(item.duration_hours)}, 
-                ${item.notes || null}, 
-                ${i},
-                ${item.bid_item_id ? sql`${item.bid_item_id}::uuid` : null}, 
-                ${item.project_bid_item_id ? sql`${item.project_bid_item_id}::uuid` : null},
-                CURRENT_TIMESTAMP,
-                CURRENT_TIMESTAMP
-              )
-            `;
-          } catch (error) {
-            console.error(`Error inserting item ${i}:`, error);
-            console.error('Item data:', item);
-          }
-        }
-      }
-      
-      return {
-        statusCode: 201,
-        headers,
-        body: JSON.stringify({ 
-          success: true, 
-          id: dwrId,
-          message: 'Daily work report submitted successfully' 
-        })
-      };
-      
-    } catch (dbError) {
-      console.error('Database error in DWR submission:', dbError);
-      throw dbError;
-    }
-    
-  } catch (error) {
-    console.error('Error submitting DWR:', error);
-    
-    let errorMessage = 'Failed to submit daily work report';
-    let statusCode = 500;
-    
-    if (error.message.includes('JSON')) {
-      errorMessage = 'Invalid JSON data provided';
-      statusCode = 400;
-    } else if (error.message.includes('foreign key')) {
-      errorMessage = 'Invalid reference data (project, foreman, equipment, etc.)';
-      statusCode = 400;
-    } else if (error.message.includes('not null')) {
-      errorMessage = 'Missing required field in database';
-      statusCode = 400;
-    } else if (error.message.includes('uuid')) {
-      errorMessage = 'Invalid ID format provided';
-      statusCode = 400;
-    }
-    
-    return {
-      statusCode: statusCode,
-      headers,
-      body: JSON.stringify({ 
-        success: false,
-        error: errorMessage,
-        details: error.message 
-      })
-    };
-  }
-}
 
 // PO Data handler - returns vendors and projects for the PO form
 async function handlePOData(event, headers, method) {
