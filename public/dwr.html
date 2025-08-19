@@ -1534,168 +1534,167 @@
             document.getElementById('confirmLocationBtn').disabled = true;
         }
 
-// DWR Submission handler - Fixed version
-async function handleSubmit(event, headers, method) {
-  if (method !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
-  const { userId } = event.auth || {};
-
-  try {
-    const data = JSON.parse(event.body);
-    
-    // Validate required fields
-    const requiredFields = ['work_date', 'foreman_id', 'project_id', 'arrival_time', 'departure_time', 'billable_work'];
-    for (const field of requiredFields) {
-      if (!data[field]) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ 
-            success: false,
-            error: `Missing required field: ${field}` 
-          })
-        };
-      }
-    }
-
-    // Start a transaction to ensure data consistency
-    try {
-      // Insert main DWR record - Fixed destructuring
-      const dwrResult = await sql`
-        INSERT INTO daily_work_reports (
-          work_date, foreman_id, project_id, arrival_time, departure_time,
-          truck_id, trailer_id, billable_work, maybe_explanation, per_diem,
-          submission_timestamp
-        ) VALUES (
-          ${data.work_date}, 
-          ${data.foreman_id}, 
-          ${data.project_id},
-          ${data.arrival_time}, 
-          ${data.departure_time}, 
-          ${data.truck_id || null},
-          ${data.trailer_id || null}, 
-          ${data.billable_work}, 
-          ${data.maybe_explanation || null},
-          ${data.per_diem || false}, 
-          CURRENT_TIMESTAMP
-        ) RETURNING id
-      `;
-      
-      // Get the DWR ID from the result
-      const dwrId = dwrResult[0].id;
-      
-      // Insert crew members if provided
-      if (data.laborers && Array.isArray(data.laborers) && data.laborers.length > 0) {
-        for (const laborerId of data.laborers) {
-          try {
-            await sql`
-              INSERT INTO dwr_crew_members (dwr_id, laborer_id)
-              VALUES (${dwrId}, ${laborerId})
-            `;
-          } catch (error) {
-            console.error(`Error inserting laborer ${laborerId}:`, error);
-            // Continue with other laborers rather than failing the entire request
+        // DWR Submission handler - Fixed version
+        async function handleSubmit(event, headers, method) {
+          if (method !== 'POST') {
+            return {
+              statusCode: 405,
+              headers,
+              body: JSON.stringify({ error: 'Method not allowed' })
+            };
           }
-        }
-      }
-      
-      // Insert machines if provided
-      if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
-        for (const machineId of data.machines) {
+        
+          const { userId } = event.auth || {};
+        
           try {
-            await sql`
-              INSERT INTO dwr_machines (dwr_id, machine_id)
-              VALUES (${dwrId}, ${machineId})
-            `;
+            const data = JSON.parse(event.body);
+            
+            // Validate required fields
+            const requiredFields = ['work_date', 'foreman_id', 'project_id', 'arrival_time', 'departure_time', 'billable_work'];
+            for (const field of requiredFields) {
+              if (!data[field]) {
+                return {
+                  statusCode: 400,
+                  headers,
+                  body: JSON.stringify({ 
+                    success: false,
+                    error: `Missing required field: ${field}` 
+                  })
+                };
+              }
+            }
+        
+            // Start a transaction to ensure data consistency
+            try {
+              // Insert main DWR record - Fixed destructuring
+              const dwrResult = await sql`
+                INSERT INTO daily_work_reports (
+                  work_date, foreman_id, project_id, arrival_time, departure_time,
+                  truck_id, trailer_id, billable_work, maybe_explanation, per_diem,
+                  submission_timestamp
+                ) VALUES (
+                  ${data.work_date}, 
+                  ${data.foreman_id}, 
+                  ${data.project_id},
+                  ${data.arrival_time}, 
+                  ${data.departure_time}, 
+                  ${data.truck_id || null},
+                  ${data.trailer_id || null}, 
+                  ${data.billable_work}, 
+                  ${data.maybe_explanation || null},
+                  ${data.per_diem || false}, 
+                  CURRENT_TIMESTAMP
+                ) RETURNING id
+              `;
+              
+              // Get the DWR ID from the result
+              const dwrId = dwrResult[0].id;
+              
+              // Insert crew members if provided
+              if (data.laborers && Array.isArray(data.laborers) && data.laborers.length > 0) {
+                for (const laborerId of data.laborers) {
+                  try {
+                    await sql`
+                      INSERT INTO dwr_crew_members (dwr_id, laborer_id)
+                      VALUES (${dwrId}, ${laborerId})
+                    `;
+                  } catch (error) {
+                    console.error(`Error inserting laborer ${laborerId}:`, error);
+                    // Continue with other laborers rather than failing the entire request
+                  }
+                }
+              }
+              
+              // Insert machines if provided
+              if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
+                for (const machineId of data.machines) {
+                  try {
+                    await sql`
+                      INSERT INTO dwr_machines (dwr_id, machine_id)
+                      VALUES (${dwrId}, ${machineId})
+                    `;
+                  } catch (error) {
+                    console.error(`Error inserting machine ${machineId}:`, error);
+                    // Continue with other machines rather than failing the entire request
+                  }
+                }
+              }
+              
+              // Insert items if provided
+              if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+                for (let i = 0; i < data.items.length; i++) {
+                  const item = data.items[i];
+                  try {
+                    await sql`
+                      INSERT INTO dwr_items (
+                        dwr_id, item_name, quantity, unit, location_description,
+                        latitude, longitude, duration_hours, notes, item_index,
+                        bid_item_id, project_bid_item_id
+                      ) VALUES (
+                        ${dwrId}, 
+                        ${item.item_name}, 
+                        ${parseFloat(item.quantity)}, 
+                        ${item.unit || 'EA'},
+                        ${item.location_description}, 
+                        ${item.latitude || null}, 
+                        ${item.longitude || null},
+                        ${parseFloat(item.duration_hours)}, 
+                        ${item.notes || null}, 
+                        ${i},
+                        ${item.bid_item_id || null}, 
+                        ${item.project_bid_item_id || null}
+                      )
+                    `;
+                  } catch (error) {
+                    console.error(`Error inserting item ${i}:`, error);
+                    // Continue with other items rather than failing the entire request
+                  }
+                }
+              }
+              
+              return {
+                statusCode: 201,
+                headers,
+                body: JSON.stringify({ 
+                  success: true, 
+                  id: dwrId,
+                  message: 'Daily work report submitted successfully' 
+                })
+              };
+              
+            } catch (dbError) {
+              console.error('Database error in DWR submission:', dbError);
+              throw dbError; // Re-throw to be caught by outer catch
+            }
+            
           } catch (error) {
-            console.error(`Error inserting machine ${machineId}:`, error);
-            // Continue with other machines rather than failing the entire request
+            console.error('Error submitting DWR:', error);
+            
+            // More specific error handling
+            let errorMessage = 'Failed to submit daily work report';
+            let statusCode = 500;
+            
+            if (error.message.includes('JSON')) {
+              errorMessage = 'Invalid JSON data provided';
+              statusCode = 400;
+            } else if (error.message.includes('foreign key')) {
+              errorMessage = 'Invalid reference data (project, foreman, etc.)';
+              statusCode = 400;
+            } else if (error.message.includes('not null')) {
+              errorMessage = 'Missing required field in database';
+              statusCode = 400;
+            }
+            
+            return {
+              statusCode: statusCode,
+              headers,
+              body: JSON.stringify({ 
+                success: false,
+                error: errorMessage,
+                details: error.message 
+              })
+            };
           }
-        }
-      }
-      
-      // Insert items if provided
-      if (data.items && Array.isArray(data.items) && data.items.length > 0) {
-        for (let i = 0; i < data.items.length; i++) {
-          const item = data.items[i];
-          try {
-            await sql`
-              INSERT INTO dwr_items (
-                dwr_id, item_name, quantity, unit, location_description,
-                latitude, longitude, duration_hours, notes, item_index,
-                bid_item_id, project_bid_item_id
-              ) VALUES (
-                ${dwrId}, 
-                ${item.item_name}, 
-                ${parseFloat(item.quantity)}, 
-                ${item.unit || 'EA'},
-                ${item.location_description}, 
-                ${item.latitude || null}, 
-                ${item.longitude || null},
-                ${parseFloat(item.duration_hours)}, 
-                ${item.notes || null}, 
-                ${i},
-                ${item.bid_item_id || null}, 
-                ${item.project_bid_item_id || null}
-              )
-            `;
-          } catch (error) {
-            console.error(`Error inserting item ${i}:`, error);
-            // Continue with other items rather than failing the entire request
-          }
-        }
-      }
-      
-      return {
-        statusCode: 201,
-        headers,
-        body: JSON.stringify({ 
-          success: true, 
-          id: dwrId,
-          message: 'Daily work report submitted successfully' 
-        })
-      };
-      
-    } catch (dbError) {
-      console.error('Database error in DWR submission:', dbError);
-      throw dbError; // Re-throw to be caught by outer catch
-    }
-    
-  } catch (error) {
-    console.error('Error submitting DWR:', error);
-    
-    // More specific error handling
-    let errorMessage = 'Failed to submit daily work report';
-    let statusCode = 500;
-    
-    if (error.message.includes('JSON')) {
-      errorMessage = 'Invalid JSON data provided';
-      statusCode = 400;
-    } else if (error.message.includes('foreign key')) {
-      errorMessage = 'Invalid reference data (project, foreman, etc.)';
-      statusCode = 400;
-    } else if (error.message.includes('not null')) {
-      errorMessage = 'Missing required field in database';
-      statusCode = 400;
-    }
-    
-    return {
-      statusCode: statusCode,
-      headers,
-      body: JSON.stringify({ 
-        success: false,
-        error: errorMessage,
-        details: error.message 
-      })
-    };
-  }
-}
         }
 
         // Load Google Maps API
