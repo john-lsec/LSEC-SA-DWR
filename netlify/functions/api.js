@@ -1060,7 +1060,7 @@ async function handleProjectBidItems(event, headers, method, id) {
   }
 }
 
-    // DWR Submission handler - Fixed for correct schema
+        // Fixed DWR Submission handler - automatically detects and handles both UUID and integer ID formats
     async function handleDWRSubmission(event, headers, method) {
       if (method !== 'POST') {
         return {
@@ -1090,41 +1090,118 @@ async function handleProjectBidItems(event, headers, method, id) {
           }
         }
     
+        // Helper function to detect if we should use UUID or integer format
+        async function detectIdFormat() {
+          try {
+            const schemaCheck = await sql`
+              SELECT column_name, data_type 
+              FROM information_schema.columns 
+              WHERE table_name = 'daily_work_reports' 
+              AND column_name IN ('foreman_id', 'project_id')
+              LIMIT 1
+            `;
+            
+            return schemaCheck.length > 0 && schemaCheck[0].data_type === 'uuid';
+          } catch (error) {
+            console.log('Schema check failed, defaulting to integer format');
+            return false;
+          }
+        }
+    
+        // Helper function to format ID based on detected format
+        function formatId(id, useUuid) {
+          if (!id) return null;
+          
+          if (useUuid) {
+            // For UUID format, ensure it's a valid UUID string
+            if (typeof id === 'string' && id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+              return sql`${id}::uuid`;
+            } else {
+              throw new Error(`Invalid UUID format for ID: ${id}`);
+            }
+          } else {
+            // For integer format
+            const intId = parseInt(id);
+            if (isNaN(intId)) {
+              throw new Error(`Invalid integer format for ID: ${id}`);
+            }
+            return intId;
+          }
+        }
+    
         try {
-          // Insert main DWR record with all required fields matching schema
-          const dwrResult = await sql`
-            INSERT INTO daily_work_reports (
-              work_date, 
-              foreman_id, 
-              project_id, 
-              arrival_time, 
-              departure_time,
-              truck_id, 
-              trailer_id,
-              equipment_id,
-              billable_work, 
-              maybe_explanation, 
-              per_diem,
-              submission_timestamp,
-              created_at,
-              updated_at
-            ) VALUES (
-              ${data.work_date}, 
-              ${data.foreman_id}::uuid, 
-              ${data.project_id}::uuid,
-              ${data.arrival_time}, 
-              ${data.departure_time}, 
-              ${data.truck_id ? sql`${data.truck_id}::uuid` : null},
-              ${data.trailer_id ? sql`${data.trailer_id}::uuid` : null},
-              ${data.equipment_id ? sql`${data.new_id}::uuid` : null},
-              ${data.billable_work}, 
-              ${data.maybe_explanation || null},
-              ${data.per_diem || false}, 
-              CURRENT_TIMESTAMP,
-              CURRENT_TIMESTAMP,
-              CURRENT_TIMESTAMP
-            ) RETURNING id
-          `;
+          // Detect the ID format used by the database
+          const useUuidFormat = await detectIdFormat();
+          console.log('Using UUID format:', useUuidFormat);
+    
+          // Insert main DWR record
+          let dwrResult;
+          
+          if (useUuidFormat) {
+            dwrResult = await sql`
+              INSERT INTO daily_work_reports (
+                work_date, 
+                foreman_id, 
+                project_id, 
+                arrival_time, 
+                departure_time,
+                truck_id, 
+                trailer_id, 
+                billable_work, 
+                maybe_explanation, 
+                per_diem,
+                submission_timestamp,
+                created_at,
+                updated_at
+              ) VALUES (
+                ${data.work_date}, 
+                ${formatId(data.foreman_id, true)}, 
+                ${formatId(data.project_id, true)},
+                ${data.arrival_time}, 
+                ${data.departure_time}, 
+                ${data.truck_id ? formatId(data.truck_id, true) : null},
+                ${data.trailer_id ? formatId(data.trailer_id, true) : null}, 
+                ${data.billable_work}, 
+                ${data.maybe_explanation || null},
+                ${data.per_diem || false}, 
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP
+              ) RETURNING id
+            `;
+          } else {
+            dwrResult = await sql`
+              INSERT INTO daily_work_reports (
+                work_date, 
+                foreman_id, 
+                project_id, 
+                arrival_time, 
+                departure_time,
+                truck_id, 
+                trailer_id, 
+                billable_work, 
+                maybe_explanation, 
+                per_diem,
+                submission_timestamp,
+                created_at,
+                updated_at
+              ) VALUES (
+                ${data.work_date}, 
+                ${formatId(data.foreman_id, false)}, 
+                ${formatId(data.project_id, false)},
+                ${data.arrival_time}, 
+                ${data.departure_time}, 
+                ${data.truck_id ? formatId(data.truck_id, false) : null},
+                ${data.trailer_id ? formatId(data.trailer_id, false) : null}, 
+                ${data.billable_work}, 
+                ${data.maybe_explanation || null},
+                ${data.per_diem || false}, 
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP
+              ) RETURNING id
+            `;
+          }
           
           const dwrId = dwrResult[0].id;
           
@@ -1132,35 +1209,42 @@ async function handleProjectBidItems(event, headers, method, id) {
           if (data.laborers && Array.isArray(data.laborers) && data.laborers.length > 0) {
             for (const laborerId of data.laborers) {
               try {
-                await sql`
-                  INSERT INTO dwr_crew_members (
-                    dwr_id, 
-                    laborer_id,
-                    created_at
-                  ) VALUES (
-                    ${dwrId}, 
-                    ${laborerId}::uuid,
-                    CURRENT_TIMESTAMP
-                  )
-                `;
+                if (useUuidFormat) {
+                  await sql`
+                    INSERT INTO dwr_crew_members (
+                      dwr_id, 
+                      laborer_id,
+                      created_at
+                    ) VALUES (
+                      ${dwrId}, 
+                      ${formatId(laborerId, true)},
+                      CURRENT_TIMESTAMP
+                    )
+                  `;
+                } else {
+                  await sql`
+                    INSERT INTO dwr_crew_members (
+                      dwr_id, 
+                      laborer_id,
+                      created_at
+                    ) VALUES (
+                      ${dwrId}, 
+                      ${formatId(laborerId, false)},
+                      CURRENT_TIMESTAMP
+                    )
+                  `;
+                }
               } catch (error) {
                 console.error(`Error inserting laborer ${laborerId}:`, error);
               }
             }
           }
           
-          // Insert machines if provided - Handle equipment ID mapping
+          // Insert machines if provided
           if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
             for (const machineId of data.machines) {
               try {
-                // Check if equipment table uses new_id (UUID) or old id (integer)
-                const equipment = await sql`
-                  SELECT new_id, id FROM equipment WHERE id = ${parseInt(machineId)}
-                `;
-                
-                if (equipment.length > 0) {
-                  const equipmentUuid = equipment[0].new_id || equipment[0].id;
-                  
+                if (useUuidFormat) {
                   await sql`
                     INSERT INTO dwr_machines (
                       dwr_id, 
@@ -1168,7 +1252,19 @@ async function handleProjectBidItems(event, headers, method, id) {
                       created_at
                     ) VALUES (
                       ${dwrId}, 
-                      ${equipmentUuid}::uuid,
+                      ${formatId(machineId, true)},
+                      CURRENT_TIMESTAMP
+                    )
+                  `;
+                } else {
+                  await sql`
+                    INSERT INTO dwr_machines (
+                      dwr_id, 
+                      machine_id,
+                      created_at
+                    ) VALUES (
+                      ${dwrId}, 
+                      ${formatId(machineId, false)},
                       CURRENT_TIMESTAMP
                     )
                   `;
@@ -1184,39 +1280,75 @@ async function handleProjectBidItems(event, headers, method, id) {
             for (let i = 0; i < data.items.length; i++) {
               const item = data.items[i];
               try {
-                await sql`
-                  INSERT INTO dwr_items (
-                    dwr_id, 
-                    item_name, 
-                    quantity, 
-                    unit, 
-                    location_description,
-                    latitude, 
-                    longitude, 
-                    duration_hours, 
-                    notes, 
-                    item_index,
-                    bid_item_id, 
-                    project_bid_item_id,
-                    created_at,
-                    updated_at
-                  ) VALUES (
-                    ${dwrId}, 
-                    ${item.item_name}, 
-                    ${parseFloat(item.quantity)}, 
-                    ${item.unit || 'EA'},
-                    ${item.location_description}, 
-                    ${item.latitude ? parseFloat(item.latitude) : null}, 
-                    ${item.longitude ? parseFloat(item.longitude) : null},
-                    ${parseFloat(item.duration_hours)}, 
-                    ${item.notes || null}, 
-                    ${i},
-                    ${item.bid_item_id ? sql`${item.bid_item_id}::uuid` : null}, 
-                    ${item.project_bid_item_id ? sql`${item.project_bid_item_id}::uuid` : null},
-                    CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP
-                  )
-                `;
+                if (useUuidFormat) {
+                  await sql`
+                    INSERT INTO dwr_items (
+                      dwr_id, 
+                      item_name, 
+                      quantity, 
+                      unit, 
+                      location_description,
+                      latitude, 
+                      longitude, 
+                      duration_hours, 
+                      notes, 
+                      item_index,
+                      bid_item_id, 
+                      project_bid_item_id,
+                      created_at,
+                      updated_at
+                    ) VALUES (
+                      ${dwrId}, 
+                      ${item.item_name}, 
+                      ${parseFloat(item.quantity)}, 
+                      ${item.unit || 'EA'},
+                      ${item.location_description}, 
+                      ${item.latitude ? parseFloat(item.latitude) : null}, 
+                      ${item.longitude ? parseFloat(item.longitude) : null},
+                      ${parseFloat(item.duration_hours)}, 
+                      ${item.notes || null}, 
+                      ${i},
+                      ${item.bid_item_id ? formatId(item.bid_item_id, true) : null}, 
+                      ${item.project_bid_item_id ? formatId(item.project_bid_item_id, true) : null},
+                      CURRENT_TIMESTAMP,
+                      CURRENT_TIMESTAMP
+                    )
+                  `;
+                } else {
+                  await sql`
+                    INSERT INTO dwr_items (
+                      dwr_id, 
+                      item_name, 
+                      quantity, 
+                      unit, 
+                      location_description,
+                      latitude, 
+                      longitude, 
+                      duration_hours, 
+                      notes, 
+                      item_index,
+                      bid_item_id, 
+                      project_bid_item_id,
+                      created_at,
+                      updated_at
+                    ) VALUES (
+                      ${dwrId}, 
+                      ${item.item_name}, 
+                      ${parseFloat(item.quantity)}, 
+                      ${item.unit || 'EA'},
+                      ${item.location_description}, 
+                      ${item.latitude ? parseFloat(item.latitude) : null}, 
+                      ${item.longitude ? parseFloat(item.longitude) : null},
+                      ${parseFloat(item.duration_hours)}, 
+                      ${item.notes || null}, 
+                      ${i},
+                      ${item.bid_item_id ? formatId(item.bid_item_id, false) : null}, 
+                      ${item.project_bid_item_id ? formatId(item.project_bid_item_id, false) : null},
+                      CURRENT_TIMESTAMP,
+                      CURRENT_TIMESTAMP
+                    )
+                  `;
+                }
               } catch (error) {
                 console.error(`Error inserting item ${i}:`, error);
                 console.error('Item data:', item);
@@ -1254,8 +1386,11 @@ async function handleProjectBidItems(event, headers, method, id) {
         } else if (error.message.includes('not null')) {
           errorMessage = 'Missing required field in database';
           statusCode = 400;
-        } else if (error.message.includes('uuid')) {
-          errorMessage = 'Invalid ID format provided';
+        } else if (error.message.includes('Invalid UUID format') || error.message.includes('Invalid integer format')) {
+          errorMessage = error.message;
+          statusCode = 400;
+        } else if (error.message.includes('uuid') || error.message.includes('invalid input syntax')) {
+          errorMessage = 'ID format mismatch with database schema';
           statusCode = 400;
         }
         
