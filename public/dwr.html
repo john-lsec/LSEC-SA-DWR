@@ -1534,161 +1534,168 @@
             document.getElementById('confirmLocationBtn').disabled = true;
         }
 
-        // Form submission using AuthHelper
-        async function handleSubmit(event) {
-            event.preventDefault();
-            
-            const submitBtn = document.getElementById('submitBtn');
-            const submitLoader = document.getElementById('submitLoader');
-            
-            try {
-                submitBtn.disabled = true;
-                submitLoader.classList.remove('hidden');
-                
-                // Collect form data
-                const formData = collectFormData();
-                
-                // Validate form data
-                if (!validateFormData(formData)) {
-                    return;
-                }
-                
-                // Submit to database using AuthHelper
-                const result = await AuthHelper.apiCall('submit-dwr', {
-                    method: 'POST',
-                    body: JSON.stringify(formData)
-                });
-                
-                if (result.success) {
-                    showMessage('Daily Work Report submitted successfully!', 'success');
-                    resetForm();
-                } else {
-                    throw new Error(result.error || 'Unknown error occurred');
-                }
-                
-            } catch (error) {
-                console.error('Error submitting form:', error);
-                showMessage('Error submitting form: ' + error.message, 'error');
-            } finally {
-                submitBtn.disabled = false;
-                submitLoader.classList.add('hidden');
-            }
+// DWR Submission handler - Fixed version
+async function handleSubmit(event, headers, method) {
+  if (method !== 'POST') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  const { userId } = event.auth || {};
+
+  try {
+    const data = JSON.parse(event.body);
+    
+    // Validate required fields
+    const requiredFields = ['work_date', 'foreman_id', 'project_id', 'arrival_time', 'departure_time', 'billable_work'];
+    for (const field of requiredFields) {
+      if (!data[field]) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ 
+            success: false,
+            error: `Missing required field: ${field}` 
+          })
+        };
+      }
+    }
+
+    // Start a transaction to ensure data consistency
+    try {
+      // Insert main DWR record - Fixed destructuring
+      const dwrResult = await sql`
+        INSERT INTO daily_work_reports (
+          work_date, foreman_id, project_id, arrival_time, departure_time,
+          truck_id, trailer_id, billable_work, maybe_explanation, per_diem,
+          submission_timestamp
+        ) VALUES (
+          ${data.work_date}, 
+          ${data.foreman_id}, 
+          ${data.project_id},
+          ${data.arrival_time}, 
+          ${data.departure_time}, 
+          ${data.truck_id || null},
+          ${data.trailer_id || null}, 
+          ${data.billable_work}, 
+          ${data.maybe_explanation || null},
+          ${data.per_diem || false}, 
+          CURRENT_TIMESTAMP
+        ) RETURNING id
+      `;
+      
+      // Get the DWR ID from the result
+      const dwrId = dwrResult[0].id;
+      
+      // Insert crew members if provided
+      if (data.laborers && Array.isArray(data.laborers) && data.laborers.length > 0) {
+        for (const laborerId of data.laborers) {
+          try {
+            await sql`
+              INSERT INTO dwr_crew_members (dwr_id, laborer_id)
+              VALUES (${dwrId}, ${laborerId})
+            `;
+          } catch (error) {
+            console.error(`Error inserting laborer ${laborerId}:`, error);
+            // Continue with other laborers rather than failing the entire request
+          }
         }
-
-        function collectFormData() {
-            const billableWork = document.getElementById('billableWork').value;
-            
-            const formData = {
-                work_date: document.getElementById('workDate').value,
-                foreman_id: document.getElementById('foreman').value,
-                project_id: document.getElementById('project').value,
-                arrival_time: document.getElementById('arrivalTime').value,
-                departure_time: document.getElementById('departureTime').value,
-                truck_id: document.getElementById('truck').value || null,
-                trailer_id: document.getElementById('trailer').value || null,
-                billable_work: billableWork,
-                maybe_explanation: billableWork === 'Maybe' ? document.getElementById('maybeExplanation').value : null,
-                per_diem: document.getElementById('perDiem').value === 'true',
-                laborers: Array.from(selectedLaborers).map(l => l.id),
-                machines: Array.from(selectedMachines).map(m => m.id),
-                items: []
-            };
-            
-            // Collect items if billable work
-            if (billableWork === 'Yes' || billableWork === 'Maybe') {
-                const itemSections = document.querySelectorAll('.item-section');
-                itemSections.forEach((section, index) => {
-                    const itemIndex = section.dataset.itemIndex;
-                    const itemSelect = document.getElementById(`item_${itemIndex}`);
-                    
-                    if (itemSelect.value) {
-                        const option = itemSelect.options[itemSelect.selectedIndex];
-                        const locationValue = document.getElementById(`location_${itemIndex}`).value;
-                        
-                        // Parse coordinates if they exist
-                        let latitude = null, longitude = null;
-                        if (locationValue.includes(',')) {
-                            const coords = locationValue.split(',');
-                            if (coords.length === 2) {
-                                const lat = parseFloat(coords[0].trim());
-                                const lng = parseFloat(coords[1].trim());
-                                if (!isNaN(lat) && !isNaN(lng)) {
-                                    latitude = lat;
-                                    longitude = lng;
-                                }
-                            }
-                        }
-                        
-                        const itemData = {
-                            item_name: itemSelect.value,
-                            quantity: parseFloat(document.getElementById(`quantity_${itemIndex}`).value),
-                            unit: option.dataset.unit || 'units',
-                            location_description: locationValue,
-                            latitude: latitude,
-                            longitude: longitude,
-                            duration_hours: parseFloat(document.getElementById(`duration_${itemIndex}`).value),
-                            notes: document.getElementById(`notes_${itemIndex}`).value || null,
-                            bid_item_id: option.dataset.bidItemId,
-                            project_bid_item_id: option.dataset.projectBidItemId
-                        };
-
-                        formData.items.push(itemData);
-                    }
-                });
-            }
-            
-            return formData;
+      }
+      
+      // Insert machines if provided
+      if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
+        for (const machineId of data.machines) {
+          try {
+            await sql`
+              INSERT INTO dwr_machines (dwr_id, machine_id)
+              VALUES (${dwrId}, ${machineId})
+            `;
+          } catch (error) {
+            console.error(`Error inserting machine ${machineId}:`, error);
+            // Continue with other machines rather than failing the entire request
+          }
         }
-
-        function validateFormData(formData) {
-            const required = ['work_date', 'foreman_id', 'project_id', 'arrival_time', 'departure_time', 'billable_work'];
-            
-            for (const field of required) {
-                if (!formData[field]) {
-                    showMessage(`Please fill in all required fields.`, 'error');
-                    return false;
-                }
-            }
-            
-            if (formData.billable_work === 'Maybe' && !formData.maybe_explanation) {
-                showMessage('Please provide an explanation for "Maybe" billable work.', 'error');
-                return false;
-            }
-            
-            if ((formData.billable_work === 'Yes' || formData.billable_work === 'Maybe') && formData.items.length === 0) {
-                showMessage('Please add at least one work item.', 'error');
-                return false;
-            }
-            
-            return true;
+      }
+      
+      // Insert items if provided
+      if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+        for (let i = 0; i < data.items.length; i++) {
+          const item = data.items[i];
+          try {
+            await sql`
+              INSERT INTO dwr_items (
+                dwr_id, item_name, quantity, unit, location_description,
+                latitude, longitude, duration_hours, notes, item_index,
+                bid_item_id, project_bid_item_id
+              ) VALUES (
+                ${dwrId}, 
+                ${item.item_name}, 
+                ${parseFloat(item.quantity)}, 
+                ${item.unit || 'EA'},
+                ${item.location_description}, 
+                ${item.latitude || null}, 
+                ${item.longitude || null},
+                ${parseFloat(item.duration_hours)}, 
+                ${item.notes || null}, 
+                ${i},
+                ${item.bid_item_id || null}, 
+                ${item.project_bid_item_id || null}
+              )
+            `;
+          } catch (error) {
+            console.error(`Error inserting item ${i}:`, error);
+            // Continue with other items rather than failing the entire request
+          }
         }
-
-        function resetForm() {
-            document.getElementById('dwrForm').reset();
-            document.getElementById('itemsSection').classList.add('hidden');
-            document.getElementById('itemsContainer').innerHTML = '';
-            currentItemCount = 0;
-            selectedLaborers.clear();
-            selectedMachines.clear();
-            updateSelectedDisplay('selectedLaborers', selectedLaborers, 'laborer');
-            updateSelectedDisplay('selectedMachines', selectedMachines, 'machine');
-            
-            // Uncheck all checkboxes
-            document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
-        }
-
-        function showMessage(message, type) {
-            const resultDiv = document.getElementById('resultMessage');
-            resultDiv.className = `alert alert-${type}`;
-            resultDiv.textContent = message;
-            
-            // Auto-hide success messages
-            if (type === 'success') {
-                setTimeout(() => {
-                    resultDiv.innerHTML = '';
-                    resultDiv.className = '';
-                }, 5000);
-            }
+      }
+      
+      return {
+        statusCode: 201,
+        headers,
+        body: JSON.stringify({ 
+          success: true, 
+          id: dwrId,
+          message: 'Daily work report submitted successfully' 
+        })
+      };
+      
+    } catch (dbError) {
+      console.error('Database error in DWR submission:', dbError);
+      throw dbError; // Re-throw to be caught by outer catch
+    }
+    
+  } catch (error) {
+    console.error('Error submitting DWR:', error);
+    
+    // More specific error handling
+    let errorMessage = 'Failed to submit daily work report';
+    let statusCode = 500;
+    
+    if (error.message.includes('JSON')) {
+      errorMessage = 'Invalid JSON data provided';
+      statusCode = 400;
+    } else if (error.message.includes('foreign key')) {
+      errorMessage = 'Invalid reference data (project, foreman, etc.)';
+      statusCode = 400;
+    } else if (error.message.includes('not null')) {
+      errorMessage = 'Missing required field in database';
+      statusCode = 400;
+    }
+    
+    return {
+      statusCode: statusCode,
+      headers,
+      body: JSON.stringify({ 
+        success: false,
+        error: errorMessage,
+        details: error.message 
+      })
+    };
+  }
+}
         }
 
         // Load Google Maps API
