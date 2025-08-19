@@ -1,7 +1,7 @@
 // netlify/functions/api.js - Complete version with DWR and User Management functionality
 const { neon } = require('@neondatabase/serverless');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt'); // Add this for password hashing
+const bcrypt = require('bcryptjs'); // Add this for password hashing
 
 const sql = neon(process.env.DATABASE_URL);
 const JWT_SECRET = process.env.JWT_SECRET || '416cf56a29ba481816ab028346c8dcdc169b2241187b10e9b274192da564523234ad0aec4f6dd567e1896c6e52c10f7e8494d6d15938afab7ef11db09630fd8fa8005';
