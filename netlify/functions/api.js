@@ -1060,351 +1060,260 @@ async function handleProjectBidItems(event, headers, method, id) {
   }
 }
 
-        // Fixed DWR Submission handler - automatically detects and handles both UUID and integer ID formats
-    async function handleDWRSubmission(event, headers, method) {
-      if (method !== 'POST') {
-        return {
-          statusCode: 405,
-          headers,
-          body: JSON.stringify({ error: 'Method not allowed' })
-        };
-      }
-    
-      const { userId } = event.auth || {};
-    
-      try {
-        const data = JSON.parse(event.body);
-        
-        // Validate required fields
-        const requiredFields = ['work_date', 'foreman_id', 'project_id', 'arrival_time', 'departure_time', 'billable_work'];
-        for (const field of requiredFields) {
-          if (!data[field]) {
-            return {
-              statusCode: 400,
-              headers,
-              body: JSON.stringify({ 
-                success: false,
-                error: `Missing required field: ${field}` 
-              })
-            };
-          }
-        }
-    
-        // Helper function to detect if we should use UUID or integer format
-        async function detectIdFormat() {
-          try {
-            const schemaCheck = await sql`
-              SELECT column_name, data_type 
-              FROM information_schema.columns 
-              WHERE table_name = 'daily_work_reports' 
-              AND column_name IN ('foreman_id', 'project_id')
-              LIMIT 1
-            `;
-            
-            return schemaCheck.length > 0 && schemaCheck[0].data_type === 'uuid';
-          } catch (error) {
-            console.log('Schema check failed, defaulting to integer format');
-            return false;
-          }
-        }
-    
-        // Helper function to format ID based on detected format
-        function formatId(id, useUuid) {
-          if (!id) return null;
-          
-          if (useUuid) {
-            // For UUID format, ensure it's a valid UUID string
-            if (typeof id === 'string' && id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-              return sql`${id}::uuid`;
-            } else {
-              throw new Error(`Invalid UUID format for ID: ${id}`);
-            }
-          } else {
-            // For integer format
-            const intId = parseInt(id);
-            if (isNaN(intId)) {
-              throw new Error(`Invalid integer format for ID: ${id}`);
-            }
-            return intId;
-          }
-        }
-    
-        try {
-          // Detect the ID format used by the database
-          const useUuidFormat = await detectIdFormat();
-          console.log('Using UUID format:', useUuidFormat);
-    
-          // Insert main DWR record
-          let dwrResult;
-          
-          if (useUuidFormat) {
-            dwrResult = await sql`
-              INSERT INTO daily_work_reports (
-                work_date, 
-                foreman_id, 
-                project_id, 
-                arrival_time, 
-                departure_time,
-                truck_id, 
-                trailer_id, 
-                billable_work, 
-                maybe_explanation, 
-                per_diem,
-                submission_timestamp,
-                created_at,
-                updated_at
-              ) VALUES (
-                ${data.work_date}, 
-                ${formatId(data.foreman_id, true)}, 
-                ${formatId(data.project_id, true)},
-                ${data.arrival_time}, 
-                ${data.departure_time}, 
-                ${data.truck_id ? formatId(data.truck_id, true) : null},
-                ${data.trailer_id ? formatId(data.trailer_id, true) : null}, 
-                ${data.billable_work}, 
-                ${data.maybe_explanation || null},
-                ${data.per_diem || false}, 
-                CURRENT_TIMESTAMP,
-                CURRENT_TIMESTAMP,
-                CURRENT_TIMESTAMP
-              ) RETURNING id
-            `;
-          } else {
-            dwrResult = await sql`
-              INSERT INTO daily_work_reports (
-                work_date, 
-                foreman_id, 
-                project_id, 
-                arrival_time, 
-                departure_time,
-                truck_id, 
-                trailer_id, 
-                billable_work, 
-                maybe_explanation, 
-                per_diem,
-                submission_timestamp,
-                created_at,
-                updated_at
-              ) VALUES (
-                ${data.work_date}, 
-                ${formatId(data.foreman_id, false)}, 
-                ${formatId(data.project_id, false)},
-                ${data.arrival_time}, 
-                ${data.departure_time}, 
-                ${data.truck_id ? formatId(data.truck_id, false) : null},
-                ${data.trailer_id ? formatId(data.trailer_id, false) : null}, 
-                ${data.billable_work}, 
-                ${data.maybe_explanation || null},
-                ${data.per_diem || false}, 
-                CURRENT_TIMESTAMP,
-                CURRENT_TIMESTAMP,
-                CURRENT_TIMESTAMP
-              ) RETURNING id
-            `;
-          }
-          
-          const dwrId = dwrResult[0].id;
-          
-          // Insert crew members if provided
-          if (data.laborers && Array.isArray(data.laborers) && data.laborers.length > 0) {
-            for (const laborerId of data.laborers) {
-              try {
-                if (useUuidFormat) {
-                  await sql`
-                    INSERT INTO dwr_crew_members (
-                      dwr_id, 
-                      laborer_id,
-                      created_at
-                    ) VALUES (
-                      ${dwrId}, 
-                      ${formatId(laborerId, true)},
-                      CURRENT_TIMESTAMP
-                    )
-                  `;
-                } else {
-                  await sql`
-                    INSERT INTO dwr_crew_members (
-                      dwr_id, 
-                      laborer_id,
-                      created_at
-                    ) VALUES (
-                      ${dwrId}, 
-                      ${formatId(laborerId, false)},
-                      CURRENT_TIMESTAMP
-                    )
-                  `;
-                }
-              } catch (error) {
-                console.error(`Error inserting laborer ${laborerId}:`, error);
-              }
-            }
-          }
-          
-          // Insert machines if provided
-          if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
-            for (const machineId of data.machines) {
-              try {
-                if (useUuidFormat) {
-                  await sql`
-                    INSERT INTO dwr_machines (
-                      dwr_id, 
-                      machine_id,
-                      created_at
-                    ) VALUES (
-                      ${dwrId}, 
-                      ${formatId(machineId, true)},
-                      CURRENT_TIMESTAMP
-                    )
-                  `;
-                } else {
-                  await sql`
-                    INSERT INTO dwr_machines (
-                      dwr_id, 
-                      machine_id,
-                      created_at
-                    ) VALUES (
-                      ${dwrId}, 
-                      ${formatId(machineId, false)},
-                      CURRENT_TIMESTAMP
-                    )
-                  `;
-                }
-              } catch (error) {
-                console.error(`Error inserting machine ${machineId}:`, error);
-              }
-            }
-          }
-          
-          // Insert items if provided
-          if (data.items && Array.isArray(data.items) && data.items.length > 0) {
-            for (let i = 0; i < data.items.length; i++) {
-              const item = data.items[i];
-              try {
-                if (useUuidFormat) {
-                  await sql`
-                    INSERT INTO dwr_items (
-                      dwr_id, 
-                      item_name, 
-                      quantity, 
-                      unit, 
-                      location_description,
-                      latitude, 
-                      longitude, 
-                      duration_hours, 
-                      notes, 
-                      item_index,
-                      bid_item_id, 
-                      project_bid_item_id,
-                      created_at,
-                      updated_at
-                    ) VALUES (
-                      ${dwrId}, 
-                      ${item.item_name}, 
-                      ${parseFloat(item.quantity)}, 
-                      ${item.unit || 'EA'},
-                      ${item.location_description}, 
-                      ${item.latitude ? parseFloat(item.latitude) : null}, 
-                      ${item.longitude ? parseFloat(item.longitude) : null},
-                      ${parseFloat(item.duration_hours)}, 
-                      ${item.notes || null}, 
-                      ${i},
-                      ${item.bid_item_id ? formatId(item.bid_item_id, true) : null}, 
-                      ${item.project_bid_item_id ? formatId(item.project_bid_item_id, true) : null},
-                      CURRENT_TIMESTAMP,
-                      CURRENT_TIMESTAMP
-                    )
-                  `;
-                } else {
-                  await sql`
-                    INSERT INTO dwr_items (
-                      dwr_id, 
-                      item_name, 
-                      quantity, 
-                      unit, 
-                      location_description,
-                      latitude, 
-                      longitude, 
-                      duration_hours, 
-                      notes, 
-                      item_index,
-                      bid_item_id, 
-                      project_bid_item_id,
-                      created_at,
-                      updated_at
-                    ) VALUES (
-                      ${dwrId}, 
-                      ${item.item_name}, 
-                      ${parseFloat(item.quantity)}, 
-                      ${item.unit || 'EA'},
-                      ${item.location_description}, 
-                      ${item.latitude ? parseFloat(item.latitude) : null}, 
-                      ${item.longitude ? parseFloat(item.longitude) : null},
-                      ${parseFloat(item.duration_hours)}, 
-                      ${item.notes || null}, 
-                      ${i},
-                      ${item.bid_item_id ? formatId(item.bid_item_id, false) : null}, 
-                      ${item.project_bid_item_id ? formatId(item.project_bid_item_id, false) : null},
-                      CURRENT_TIMESTAMP,
-                      CURRENT_TIMESTAMP
-                    )
-                  `;
-                }
-              } catch (error) {
-                console.error(`Error inserting item ${i}:`, error);
-                console.error('Item data:', item);
-              }
-            }
-          }
-          
+          // Robust DWR Submission handler with better error handling and debugging
+  async function handleDWRSubmission(event, headers, method) {
+    if (method !== 'POST') {
+      return {
+        statusCode: 405,
+        headers,
+        body: JSON.stringify({ error: 'Method not allowed' })
+      };
+    }
+  
+    const { userId } = event.auth || {};
+  
+    try {
+      const data = JSON.parse(event.body);
+      console.log('Received DWR data:', JSON.stringify(data, null, 2));
+      
+      // Validate required fields
+      const requiredFields = ['work_date', 'foreman_id', 'project_id', 'arrival_time', 'departure_time', 'billable_work'];
+      for (const field of requiredFields) {
+        if (!data[field]) {
           return {
-            statusCode: 201,
+            statusCode: 400,
             headers,
             body: JSON.stringify({ 
-              success: true, 
-              id: dwrId,
-              message: 'Daily work report submitted successfully' 
+              success: false,
+              error: `Missing required field: ${field}` 
             })
           };
-          
-        } catch (dbError) {
-          console.error('Database error in DWR submission:', dbError);
-          throw dbError;
+        }
+      }
+  
+      // Helper function to safely handle IDs - tries multiple approaches
+      function safeFormatId(id, fieldName) {
+        if (!id) return null;
+        
+        console.log(`Processing ${fieldName}: ${id} (type: ${typeof id})`);
+        
+        // Check if it's already a UUID format
+        if (typeof id === 'string' && id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+          console.log(`${fieldName} is UUID format, using as-is`);
+          return id; // Return as string, let PostgreSQL handle the conversion
         }
         
-      } catch (error) {
-        console.error('Error submitting DWR:', error);
-        
-        let errorMessage = 'Failed to submit daily work report';
-        let statusCode = 500;
-        
-        if (error.message.includes('JSON')) {
-          errorMessage = 'Invalid JSON data provided';
-          statusCode = 400;
-        } else if (error.message.includes('foreign key')) {
-          errorMessage = 'Invalid reference data (project, foreman, equipment, etc.)';
-          statusCode = 400;
-        } else if (error.message.includes('not null')) {
-          errorMessage = 'Missing required field in database';
-          statusCode = 400;
-        } else if (error.message.includes('Invalid UUID format') || error.message.includes('Invalid integer format')) {
-          errorMessage = error.message;
-          statusCode = 400;
-        } else if (error.message.includes('uuid') || error.message.includes('invalid input syntax')) {
-          errorMessage = 'ID format mismatch with database schema';
-          statusCode = 400;
+        // Check if it's a valid integer
+        const intValue = parseInt(id);
+        if (!isNaN(intValue) && intValue.toString() === id.toString()) {
+          console.log(`${fieldName} is integer format: ${intValue}`);
+          return intValue;
         }
         
+        // If we can't determine the format, return as-is and let the database decide
+        console.log(`${fieldName} format unclear, returning as-is: ${id}`);
+        return id;
+      }
+  
+      try {
+        console.log('Attempting to insert DWR record...');
+        
+        // Try the insertion with minimal formatting - let PostgreSQL handle type conversion
+        const dwrResult = await sql`
+          INSERT INTO daily_work_reports (
+            work_date, 
+            foreman_id, 
+            project_id, 
+            arrival_time, 
+            departure_time,
+            truck_id, 
+            trailer_id, 
+            billable_work, 
+            maybe_explanation, 
+            per_diem,
+            submission_timestamp,
+            created_at,
+            updated_at
+          ) VALUES (
+            ${data.work_date}, 
+            ${safeFormatId(data.foreman_id, 'foreman_id')}, 
+            ${safeFormatId(data.project_id, 'project_id')},
+            ${data.arrival_time}, 
+            ${data.departure_time}, 
+            ${safeFormatId(data.truck_id, 'truck_id')},
+            ${safeFormatId(data.trailer_id, 'trailer_id')}, 
+            ${data.billable_work}, 
+            ${data.maybe_explanation || null},
+            ${data.per_diem || false}, 
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+          ) RETURNING id
+        `;
+        
+        const dwrId = dwrResult[0].id;
+        console.log(`DWR record created with ID: ${dwrId}`);
+        
+        // Insert crew members if provided
+        if (data.laborers && Array.isArray(data.laborers) && data.laborers.length > 0) {
+          console.log(`Inserting ${data.laborers.length} crew members...`);
+          for (const laborerId of data.laborers) {
+            try {
+              await sql`
+                INSERT INTO dwr_crew_members (
+                  dwr_id, 
+                  laborer_id,
+                  created_at
+                ) VALUES (
+                  ${dwrId}, 
+                  ${safeFormatId(laborerId, 'laborer_id')},
+                  CURRENT_TIMESTAMP
+                )
+              `;
+              console.log(`Inserted crew member: ${laborerId}`);
+            } catch (error) {
+              console.error(`Failed to insert laborer ${laborerId}:`, error.message);
+              // Continue with other laborers
+            }
+          }
+        }
+        
+        // Insert machines if provided
+        if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
+          console.log(`Inserting ${data.machines.length} machines...`);
+          for (const machineId of data.machines) {
+            try {
+              await sql`
+                INSERT INTO dwr_machines (
+                  dwr_id, 
+                  machine_id,
+                  created_at
+                ) VALUES (
+                  ${dwrId}, 
+                  ${safeFormatId(machineId, 'machine_id')},
+                  CURRENT_TIMESTAMP
+                )
+              `;
+              console.log(`Inserted machine: ${machineId}`);
+            } catch (error) {
+              console.error(`Failed to insert machine ${machineId}:`, error.message);
+              // Continue with other machines
+            }
+          }
+        }
+        
+        // Insert items if provided
+        if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+          console.log(`Inserting ${data.items.length} items...`);
+          for (let i = 0; i < data.items.length; i++) {
+            const item = data.items[i];
+            try {
+              await sql`
+                INSERT INTO dwr_items (
+                  dwr_id, 
+                  item_name, 
+                  quantity, 
+                  unit, 
+                  location_description,
+                  latitude, 
+                  longitude, 
+                  duration_hours, 
+                  notes, 
+                  item_index,
+                  bid_item_id, 
+                  project_bid_item_id,
+                  created_at,
+                  updated_at
+                ) VALUES (
+                  ${dwrId}, 
+                  ${item.item_name}, 
+                  ${parseFloat(item.quantity)}, 
+                  ${item.unit || 'EA'},
+                  ${item.location_description}, 
+                  ${item.latitude ? parseFloat(item.latitude) : null}, 
+                  ${item.longitude ? parseFloat(item.longitude) : null},
+                  ${parseFloat(item.duration_hours)}, 
+                  ${item.notes || null}, 
+                  ${i},
+                  ${safeFormatId(item.bid_item_id, 'bid_item_id')}, 
+                  ${safeFormatId(item.project_bid_item_id, 'project_bid_item_id')},
+                  CURRENT_TIMESTAMP,
+                  CURRENT_TIMESTAMP
+                )
+              `;
+              console.log(`Inserted item ${i + 1}: ${item.item_name}`);
+            } catch (error) {
+              console.error(`Failed to insert item ${i}:`, error.message);
+              console.error('Item data:', item);
+              // Continue with other items
+            }
+          }
+        }
+        
+        console.log('DWR submission completed successfully');
         return {
-          statusCode: statusCode,
+          statusCode: 201,
           headers,
           body: JSON.stringify({ 
-            success: false,
-            error: errorMessage,
-            details: error.message 
+            success: true, 
+            id: dwrId,
+            message: 'Daily work report submitted successfully' 
           })
         };
+        
+      } catch (dbError) {
+        console.error('Database error in DWR submission:', dbError);
+        
+        // Provide more specific error information
+        let errorDetails = dbError.message;
+        if (dbError.code) {
+          errorDetails += ` (Code: ${dbError.code})`;
+        }
+        if (dbError.detail) {
+          errorDetails += ` - ${dbError.detail}`;
+        }
+        
+        throw new Error(`Database error: ${errorDetails}`);
       }
+      
+    } catch (error) {
+      console.error('Error submitting DWR:', error);
+      
+      let errorMessage = 'Failed to submit daily work report';
+      let statusCode = 500;
+      
+      if (error.message.includes('JSON')) {
+        errorMessage = 'Invalid JSON data provided';
+        statusCode = 400;
+      } else if (error.message.includes('foreign key')) {
+        errorMessage = 'Invalid reference data - one or more IDs don\'t exist in the database';
+        statusCode = 400;
+      } else if (error.message.includes('not null')) {
+        errorMessage = 'Missing required field in database';
+        statusCode = 400;
+      } else if (error.message.includes('invalid input syntax')) {
+        errorMessage = 'Invalid data format provided';
+        statusCode = 400;
+      } else if (error.message.includes('Database error:')) {
+        errorMessage = error.message;
+        statusCode = 400;
+      }
+      
+      return {
+        statusCode: statusCode,
+        headers,
+        body: JSON.stringify({ 
+          success: false,
+          error: errorMessage,
+          details: error.message,
+          debugInfo: {
+            originalError: error.message,
+            timestamp: new Date().toISOString()
+          }
+        })
+      };
     }
+  }
 
 // PO Data handler - returns vendors and projects for the PO form
 async function handlePOData(event, headers, method) {
