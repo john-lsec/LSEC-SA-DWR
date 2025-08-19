@@ -209,7 +209,7 @@ exports.handler = async (event, context) => {
   }
 };
 
-// Foremen handler
+// Foremen handler - already correct
 async function handleForemen(event, headers, method) {
   if (method !== 'GET') {
     return {
@@ -221,7 +221,7 @@ async function handleForemen(event, headers, method) {
 
   try {
     const foremen = await sql`
-      SELECT id, name, email, phone 
+      SELECT id::text as id, name, email, phone 
       FROM foremen 
       WHERE is_active = true 
       ORDER BY name
@@ -242,7 +242,7 @@ async function handleForemen(event, headers, method) {
   }
 }
 
-// Laborers handler
+// Laborers handler - already correct
 async function handleLaborers(event, headers, method) {
   if (method !== 'GET') {
     return {
@@ -254,7 +254,7 @@ async function handleLaborers(event, headers, method) {
 
   try {
     const laborers = await sql`
-      SELECT id, name, employee_id, email, phone 
+      SELECT id::text as id, name, employee_id, email, phone 
       FROM laborers 
       WHERE is_active = true 
       ORDER BY name
@@ -275,7 +275,7 @@ async function handleLaborers(event, headers, method) {
   }
 }
 
-// Corrected Projects handler for fixed schema
+// Fixed Projects handler with ID casting
 async function handleProjects(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -285,7 +285,8 @@ async function handleProjects(event, headers, method, id) {
         if (id) {
           // Get specific project by UUID
           const projects = await sql`
-            SELECT * FROM projects WHERE id = ${id}
+            SELECT id::text as id, name, project_code, active, created_at, updated_at 
+            FROM projects WHERE id = ${id}
           `;
           return {
             statusCode: 200,
@@ -295,7 +296,8 @@ async function handleProjects(event, headers, method, id) {
         } else {
           // Get all active projects
           const projects = await sql`
-            SELECT * FROM projects 
+            SELECT id::text as id, name, project_code, active, created_at, updated_at 
+            FROM projects 
             WHERE active = true
             ORDER BY name
           `;
@@ -344,7 +346,7 @@ async function handleProjects(event, headers, method, id) {
             CURRENT_TIMESTAMP,
             CURRENT_TIMESTAMP
           )
-          RETURNING *
+          RETURNING id::text as id, name, project_code, active, created_at, updated_at
         `;
 
         return {
@@ -383,7 +385,8 @@ async function handleProjects(event, headers, method, id) {
         
         // Check if project exists
         const existing = await sql`
-          SELECT * FROM projects WHERE id = ${id}
+          SELECT id::text as id, name, project_code, active, created_at, updated_at 
+          FROM projects WHERE id = ${id}
         `;
         
         if (existing.length === 0) {
@@ -402,7 +405,7 @@ async function handleProjects(event, headers, method, id) {
             active = ${updateData.active !== undefined ? updateData.active : existing[0].active},
             updated_at = CURRENT_TIMESTAMP
           WHERE id = ${id}
-          RETURNING *
+          RETURNING id::text as id, name, project_code, active, created_at, updated_at
         `;
 
         return {
@@ -428,7 +431,7 @@ async function handleProjects(event, headers, method, id) {
   }
 }
 
-// Equipment handler
+// Fixed Equipment handler with ID casting
 async function handleEquipment(event, headers, method) {
   if (method !== 'GET') {
     return {
@@ -455,14 +458,16 @@ async function handleEquipment(event, headers, method) {
     if (hasTypeColumn.length > 0 && type) {
       // Use type column for exact matching
       equipment = await sql`
-        SELECT id, name, type FROM equipment 
+        SELECT id::text as id, name, type 
+        FROM equipment 
         WHERE type = ${type} AND active = true 
         ORDER BY name
       `;
     } else if (type) {
       // Fallback: filter by name pattern if type was requested but column doesn't exist
       equipment = await sql`
-        SELECT id, name FROM equipment 
+        SELECT id::text as id, name 
+        FROM equipment 
         WHERE active = true 
         ORDER BY name
       `;
@@ -474,7 +479,8 @@ async function handleEquipment(event, headers, method) {
     } else {
       // No type filter requested
       equipment = await sql`
-        SELECT id, name FROM equipment 
+        SELECT id::text as id, name 
+        FROM equipment 
         WHERE active = true 
         ORDER BY name
       `;
