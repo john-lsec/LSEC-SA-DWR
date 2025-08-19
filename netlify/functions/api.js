@@ -223,7 +223,7 @@ async function handleUsers(event, headers, method, id, action) {
 
   // Handle user status toggle action
   if (action === 'toggle-status' && method === 'POST') {
-    if (!requireRole(role, ['Admin', 'Manager'])) {
+    if (!requireRole(role, ['admin', 'manager'])) {
       return {
         statusCode: 403,
         headers,
@@ -284,7 +284,7 @@ async function handleUsers(event, headers, method, id, action) {
   // Regular CRUD operations
   switch (method) {
     case 'GET':
-      if (!requireRole(role, ['Admin', 'Manager'])) {
+      if (!requireRole(role, ['admin', 'manager'])) {
         return {
           statusCode: 403,
           headers,
@@ -328,7 +328,7 @@ async function handleUsers(event, headers, method, id, action) {
       }
 
     case 'POST':
-      if (!requireRole(role, ['Admin', 'Manager'])) {
+      if (!requireRole(role, ['admin', 'manager'])) {
         return {
           statusCode: 403,
           headers,
@@ -573,7 +573,7 @@ async function handleUsers(event, headers, method, id, action) {
       }
 
     case 'DELETE':
-      if (!requireRole(role, ['Admin'])) {
+      if (!requireRole(role, ['admin'])) {
         return {
           statusCode: 403,
           headers,
