@@ -1556,7 +1556,6 @@
                 departure_time: document.getElementById('departureTime').value,
                 truck_id: validateId(document.getElementById('truck').value, 'truck') || null,
                 trailer_id: validateId(document.getElementById('trailer').value, 'trailer') || null,
-                equipment_id: validateId(document.getElementById('machine').value, 'machine') || null,
                 billable_work: billableWork,
                 maybe_explanation: billableWork === 'Maybe' ? document.getElementById('maybeExplanation').value : null,
                 per_diem: document.getElementById('perDiem').value === 'true',
