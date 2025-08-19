@@ -2181,38 +2181,3 @@ async function handleUsers(event, headers, method, id, action) {
       };
   }
 }
-
-case 'roles':
-  return await handleRoles(event, headers, method);
-
-async function handleRoles(event, headers, method) {
-  if (method !== 'GET') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
-  try {
-    const roles = await sql`
-      SELECT name, display_name, description 
-      FROM roles 
-      WHERE is_active = true 
-      ORDER BY name
-    `;
-    
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(roles)
-    };
-  } catch (error) {
-    console.error('Error fetching roles:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to fetch roles' })
-    };
-  }
-}
