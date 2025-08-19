@@ -1186,8 +1186,8 @@ async function handleDWRSubmission(event, headers, method) {
           ${projectId}::uuid,
           ${data.arrival_time}, 
           ${data.departure_time}, 
-          ${truckId ? sql`${truckId}::uuid` : null},
-          ${trailerId ? sql`${trailerId}::uuid` : null}, 
+          ${truckId}::uuid,
+          ${trailerId}::uuid, 
           ${data.billable_work}, 
           ${data.maybe_explanation || null},
           ${data.per_diem || false}, 
@@ -1290,8 +1290,8 @@ async function handleDWRSubmission(event, headers, method) {
                 ${parseFloat(item.duration_hours)}, 
                 ${item.notes || null}, 
                 ${i},
-                ${validBidItemId ? sql`${validBidItemId}::uuid` : null}, 
-                ${validProjectBidItemId ? sql`${validProjectBidItemId}::uuid` : null},
+                ${validBidItemId}::uuid, 
+                ${validProjectBidItemId}::uuid,
                 CURRENT_TIMESTAMP,
                 CURRENT_TIMESTAMP
               )
