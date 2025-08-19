@@ -1060,7 +1060,7 @@ async function handleProjectBidItems(event, headers, method, id) {
   }
 }
 
-          // Robust DWR Submission handler with better error handling and debugging
+            // Simple DWR Submission handler - works with your current database as-is
   async function handleDWRSubmission(event, headers, method) {
     if (method !== 'POST') {
       return {
@@ -1074,7 +1074,6 @@ async function handleProjectBidItems(event, headers, method, id) {
   
     try {
       const data = JSON.parse(event.body);
-      console.log('Received DWR data:', JSON.stringify(data, null, 2));
       
       // Validate required fields
       const requiredFields = ['work_date', 'foreman_id', 'project_id', 'arrival_time', 'departure_time', 'billable_work'];
@@ -1091,34 +1090,8 @@ async function handleProjectBidItems(event, headers, method, id) {
         }
       }
   
-      // Helper function to safely handle IDs - tries multiple approaches
-      function safeFormatId(id, fieldName) {
-        if (!id) return null;
-        
-        console.log(`Processing ${fieldName}: ${id} (type: ${typeof id})`);
-        
-        // Check if it's already a UUID format
-        if (typeof id === 'string' && id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-          console.log(`${fieldName} is UUID format, using as-is`);
-          return id; // Return as string, let PostgreSQL handle the conversion
-        }
-        
-        // Check if it's a valid integer
-        const intValue = parseInt(id);
-        if (!isNaN(intValue) && intValue.toString() === id.toString()) {
-          console.log(`${fieldName} is integer format: ${intValue}`);
-          return intValue;
-        }
-        
-        // If we can't determine the format, return as-is and let the database decide
-        console.log(`${fieldName} format unclear, returning as-is: ${id}`);
-        return id;
-      }
-  
       try {
-        console.log('Attempting to insert DWR record...');
-        
-        // Try the insertion with minimal formatting - let PostgreSQL handle type conversion
+        // Insert main DWR record - let PostgreSQL handle type conversion automatically
         const dwrResult = await sql`
           INSERT INTO daily_work_reports (
             work_date, 
@@ -1136,12 +1109,12 @@ async function handleProjectBidItems(event, headers, method, id) {
             updated_at
           ) VALUES (
             ${data.work_date}, 
-            ${safeFormatId(data.foreman_id, 'foreman_id')}, 
-            ${safeFormatId(data.project_id, 'project_id')},
+            ${data.foreman_id}, 
+            ${data.project_id},
             ${data.arrival_time}, 
             ${data.departure_time}, 
-            ${safeFormatId(data.truck_id, 'truck_id')},
-            ${safeFormatId(data.trailer_id, 'trailer_id')}, 
+            ${data.truck_id || null},
+            ${data.trailer_id || null}, 
             ${data.billable_work}, 
             ${data.maybe_explanation || null},
             ${data.per_diem || false}, 
@@ -1152,59 +1125,57 @@ async function handleProjectBidItems(event, headers, method, id) {
         `;
         
         const dwrId = dwrResult[0].id;
-        console.log(`DWR record created with ID: ${dwrId}`);
         
         // Insert crew members if provided
         if (data.laborers && Array.isArray(data.laborers) && data.laborers.length > 0) {
-          console.log(`Inserting ${data.laborers.length} crew members...`);
           for (const laborerId of data.laborers) {
-            try {
-              await sql`
-                INSERT INTO dwr_crew_members (
-                  dwr_id, 
-                  laborer_id,
-                  created_at
-                ) VALUES (
-                  ${dwrId}, 
-                  ${safeFormatId(laborerId, 'laborer_id')},
-                  CURRENT_TIMESTAMP
-                )
-              `;
-              console.log(`Inserted crew member: ${laborerId}`);
-            } catch (error) {
-              console.error(`Failed to insert laborer ${laborerId}:`, error.message);
-              // Continue with other laborers
+            if (laborerId) { // Only insert if not null/empty
+              try {
+                await sql`
+                  INSERT INTO dwr_crew_members (
+                    dwr_id, 
+                    laborer_id,
+                    created_at
+                  ) VALUES (
+                    ${dwrId}, 
+                    ${laborerId},
+                    CURRENT_TIMESTAMP
+                  )
+                `;
+              } catch (error) {
+                console.error(`Error inserting laborer ${laborerId}:`, error);
+                // Continue with other laborers
+              }
             }
           }
         }
         
         // Insert machines if provided
         if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
-          console.log(`Inserting ${data.machines.length} machines...`);
           for (const machineId of data.machines) {
-            try {
-              await sql`
-                INSERT INTO dwr_machines (
-                  dwr_id, 
-                  machine_id,
-                  created_at
-                ) VALUES (
-                  ${dwrId}, 
-                  ${safeFormatId(machineId, 'machine_id')},
-                  CURRENT_TIMESTAMP
-                )
-              `;
-              console.log(`Inserted machine: ${machineId}`);
-            } catch (error) {
-              console.error(`Failed to insert machine ${machineId}:`, error.message);
-              // Continue with other machines
+            if (machineId) { // Only insert if not null/empty
+              try {
+                await sql`
+                  INSERT INTO dwr_machines (
+                    dwr_id, 
+                    machine_id,
+                    created_at
+                  ) VALUES (
+                    ${dwrId}, 
+                    ${machineId},
+                    CURRENT_TIMESTAMP
+                  )
+                `;
+              } catch (error) {
+                console.error(`Error inserting machine ${machineId}:`, error);
+                // Continue with other machines
+              }
             }
           }
         }
         
         // Insert items if provided
         if (data.items && Array.isArray(data.items) && data.items.length > 0) {
-          console.log(`Inserting ${data.items.length} items...`);
           for (let i = 0; i < data.items.length; i++) {
             const item = data.items[i];
             try {
@@ -1235,22 +1206,19 @@ async function handleProjectBidItems(event, headers, method, id) {
                   ${parseFloat(item.duration_hours)}, 
                   ${item.notes || null}, 
                   ${i},
-                  ${safeFormatId(item.bid_item_id, 'bid_item_id')}, 
-                  ${safeFormatId(item.project_bid_item_id, 'project_bid_item_id')},
+                  ${item.bid_item_id || null}, 
+                  ${item.project_bid_item_id || null},
                   CURRENT_TIMESTAMP,
                   CURRENT_TIMESTAMP
                 )
               `;
-              console.log(`Inserted item ${i + 1}: ${item.item_name}`);
             } catch (error) {
-              console.error(`Failed to insert item ${i}:`, error.message);
-              console.error('Item data:', item);
+              console.error(`Error inserting item ${i}:`, error);
               // Continue with other items
             }
           }
         }
         
-        console.log('DWR submission completed successfully');
         return {
           statusCode: 201,
           headers,
@@ -1263,17 +1231,7 @@ async function handleProjectBidItems(event, headers, method, id) {
         
       } catch (dbError) {
         console.error('Database error in DWR submission:', dbError);
-        
-        // Provide more specific error information
-        let errorDetails = dbError.message;
-        if (dbError.code) {
-          errorDetails += ` (Code: ${dbError.code})`;
-        }
-        if (dbError.detail) {
-          errorDetails += ` - ${dbError.detail}`;
-        }
-        
-        throw new Error(`Database error: ${errorDetails}`);
+        throw dbError;
       }
       
     } catch (error) {
@@ -1286,16 +1244,10 @@ async function handleProjectBidItems(event, headers, method, id) {
         errorMessage = 'Invalid JSON data provided';
         statusCode = 400;
       } else if (error.message.includes('foreign key')) {
-        errorMessage = 'Invalid reference data - one or more IDs don\'t exist in the database';
+        errorMessage = 'Invalid reference data (project, foreman, equipment, etc.)';
         statusCode = 400;
       } else if (error.message.includes('not null')) {
         errorMessage = 'Missing required field in database';
-        statusCode = 400;
-      } else if (error.message.includes('invalid input syntax')) {
-        errorMessage = 'Invalid data format provided';
-        statusCode = 400;
-      } else if (error.message.includes('Database error:')) {
-        errorMessage = error.message;
         statusCode = 400;
       }
       
@@ -1305,50 +1257,11 @@ async function handleProjectBidItems(event, headers, method, id) {
         body: JSON.stringify({ 
           success: false,
           error: errorMessage,
-          details: error.message,
-          debugInfo: {
-            originalError: error.message,
-            timestamp: new Date().toISOString()
-          }
+          details: error.message 
         })
       };
     }
   }
-
-// PO Data handler - returns vendors and projects for the PO form
-async function handlePOData(event, headers, method) {
-  if (method !== 'GET') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
-  try {
-    // Fetch vendors and projects
-    const [vendors, projects] = await Promise.all([
-      sql`SELECT name FROM vendors WHERE active = true ORDER BY name`,
-      sql`SELECT name FROM projects WHERE active = true ORDER BY name`
-    ]);
-    
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        vendors: vendors.map(v => v.name),
-        projects: projects.map(p => p.name)
-      })
-    };
-  } catch (error) {
-    console.error('Error fetching PO data:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to fetch data' })
-    };
-  }
-}
 
 // PO Submit handler - handles PO request submission
 async function handlePOSubmit(event, headers, method) {
