@@ -1761,6 +1761,7 @@ async function handleAuthorizedUsers(event, headers, method, id) {
 // Enhanced Users handler with full CRUD operations
 async function handleUsers(event, headers, method, id, action) {
   const { role, userId } = event.auth || {};
+   console.log('User auth:', { role, userId });
 
   // Handle user status toggle action
   if (action === 'toggle-status' && method === 'POST') {
