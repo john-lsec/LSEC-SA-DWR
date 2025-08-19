@@ -1502,6 +1502,9 @@
                 // Collect form data
                 const formData = collectFormData();
                 
+                // Debug: Log the form data being sent
+                console.log('Form data being submitted:', formData);
+                
                 // Validate form data
                 if (!validateFormData(formData)) {
                     return;
@@ -1513,6 +1516,8 @@
                     body: JSON.stringify(formData)
                 });
                 
+                console.log('API response:', result);
+                
                 if (result.success) {
                     showMessage('Daily Work Report submitted successfully!', 'success');
                     resetForm();
@@ -1522,6 +1527,7 @@
                 
             } catch (error) {
                 console.error('Error submitting form:', error);
+                console.error('Full error object:', error);
                 showMessage('Error submitting form: ' + error.message, 'error');
             } finally {
                 submitBtn.disabled = false;
@@ -1532,20 +1538,30 @@
         function collectFormData() {
             const billableWork = document.getElementById('billableWork').value;
             
+            // Helper function to ensure ID is valid
+            function validateId(id, fieldName) {
+                if (!id || id === '') {
+                    console.warn(`Empty ID for ${fieldName}`);
+                    return null;
+                }
+                // Return the ID as-is, let the API handle the format conversion
+                return id;
+            }
+            
             const formData = {
                 work_date: document.getElementById('workDate').value,
-                foreman_id: document.getElementById('foreman').value,
-                project_id: document.getElementById('project').value,
+                foreman_id: validateId(document.getElementById('foreman').value, 'foreman'),
+                project_id: validateId(document.getElementById('project').value, 'project'),
                 arrival_time: document.getElementById('arrivalTime').value,
                 departure_time: document.getElementById('departureTime').value,
-                truck_id: document.getElementById('truck').value || null,
-                trailer_id: document.getElementById('trailer').value || null,
-                equipment_id: document.getElementById('equipment').value || null,
+                truck_id: validateId(document.getElementById('truck').value, 'truck') || null,
+                trailer_id: validateId(document.getElementById('trailer').value, 'trailer') || null,
+                equipment_id: validateId(document.getElementById('machine').value, 'machine') || null,
                 billable_work: billableWork,
                 maybe_explanation: billableWork === 'Maybe' ? document.getElementById('maybeExplanation').value : null,
                 per_diem: document.getElementById('perDiem').value === 'true',
-                laborers: Array.from(selectedLaborers).map(l => l.id),
-                machines: Array.from(selectedMachines).map(m => m.id),
+                laborers: Array.from(selectedLaborers).map(l => l.id).filter(id => id),
+                machines: Array.from(selectedMachines).map(m => m.id).filter(id => id),
                 items: []
             };
             
@@ -1583,8 +1599,8 @@
                             longitude: longitude,
                             duration_hours: parseFloat(document.getElementById(`duration_${itemIndex}`).value),
                             notes: document.getElementById(`notes_${itemIndex}`).value || null,
-                            bid_item_id: option.dataset.bidItemId,
-                            project_bid_item_id: option.dataset.projectBidItemId
+                            bid_item_id: validateId(option.dataset.bidItemId, 'bid_item'),
+                            project_bid_item_id: validateId(option.dataset.projectBidItemId, 'project_bid_item')
                         };
 
                         formData.items.push(itemData);
@@ -1650,7 +1666,7 @@
         function loadGoogleMaps() {
             if (GOOGLE_MAPS_API_KEY && GOOGLE_MAPS_API_KEY !== 'YOUR_GOOGLE_MAPS_API_KEY') {
                 const script = document.createElement('script');
-                script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initGoogleMaps`;
+                script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initGoogleMaps&loading=async`;
                 script.async = true;
                 script.defer = true;
                 document.head.appendChild(script);
@@ -1661,8 +1677,12 @@
             console.log('Google Maps API loaded');
         };
 
-        // Load maps when page loads
-        loadGoogleMaps();
+        // Load maps when page loads - only after DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadGoogleMaps);
+        } else {
+            loadGoogleMaps();
+        }
     </script>
 </body>
 </html>
