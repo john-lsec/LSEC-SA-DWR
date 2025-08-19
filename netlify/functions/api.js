@@ -1,4 +1,4 @@
-// netlify/functions/api.js - Complete version with DWR functionality
+// netlify/functions/api.js - Complete version with DWR functionality and User Management
 const { neon } = require('@neondatabase/serverless');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
@@ -63,6 +63,19 @@ function requireRole(userRole, requiredRoles) {
   return requiredRoles.includes(userRole);
 }
 
+// User activity logging
+async function logUserActivity(userId, action, details = null) {
+  try {
+    await sql`
+      INSERT INTO audit_log (user_id, action, table_name, new_values, created_at)
+      VALUES (${userId}, ${action}, 'users', ${details ? JSON.stringify(details) : null}, CURRENT_TIMESTAMP)
+    `;
+  } catch (error) {
+    console.error('Failed to log user activity:', error);
+    // Don't throw - activity logging shouldn't break the main operation
+  }
+}
+
 exports.handler = async (event, context) => {
   // CORS headers
   const headers = {
@@ -77,24 +90,40 @@ exports.handler = async (event, context) => {
     return { statusCode: 200, headers, body: '' };
   }
 
-  // Better path parsing
+  // Enhanced path parsing to handle nested actions like users/123/toggle-status
   let resource = '';
   let id = null;
-  
-  // Parse the path - handle different patterns
+  let action = null;
+
+  // Parse the path - handle different patterns including nested actions
   const pathParts = event.path.split('/');
   const apiIndex = pathParts.indexOf('api');
-  
+
   if (apiIndex !== -1 && pathParts.length > apiIndex + 1) {
     resource = pathParts[apiIndex + 1];
     if (pathParts.length > apiIndex + 2) {
-      id = pathParts[apiIndex + 2];
+      // Could be an ID or an action
+      const secondPart = pathParts[apiIndex + 2];
+      if (pathParts.length > apiIndex + 3) {
+        // Pattern: /api/resource/id/action
+        id = secondPart;
+        action = pathParts[apiIndex + 3];
+      } else {
+        // Pattern: /api/resource/id_or_action
+        // Try to determine if it's an ID (UUID) or action (string)
+        if (secondPart.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) || 
+            !isNaN(parseInt(secondPart))) {
+          id = secondPart;
+        } else {
+          action = secondPart;
+        }
+      }
     }
   }
   
   const method = event.httpMethod;
   
-  console.log('API Request:', { path: event.path, resource, id, method });
+  console.log('API Request:', { path: event.path, resource, id, method, action });
 
   // Special handling for test endpoint
   if (resource === 'test') {
@@ -177,8 +206,19 @@ exports.handler = async (event, context) => {
       case 'authorized-users':
         return await handleAuthorizedUsers(event, headers, method, id);
       
+      // Enhanced users endpoint with action support
       case 'users':
-        return await handleUsers(event, headers, method, id);
+        return await handleUsers(event, headers, method, id, action);
+      
+      // New endpoints for user management
+      case 'check-username':
+        return await handleUsernameCheck(event, headers, method);
+      
+      case 'check-email':
+        return await handleEmailCheck(event, headers, method);
+      
+      case 'user-profile':
+        return await handleUserProfile(event, headers, method);
       
       default:
         return {
@@ -191,7 +231,8 @@ exports.handler = async (event, context) => {
               'foremen', 'laborers', 'projects', 'equipment',
               'bid-items', 'project-bid-items', 'submit-dwr',
               'po-data', 'po-submit', 'po-requests', 'vendors', 
-              'authorized-users', 'users'
+              'authorized-users', 'users', 'check-username', 
+              'check-email', 'user-profile'
             ]
           })
         };
@@ -209,297 +250,297 @@ exports.handler = async (event, context) => {
   }
 };
 
-  // Foremen handler - already correct
-  async function handleForemen(event, headers, method) {
-    if (method !== 'GET') {
-      return {
-        statusCode: 405,
-        headers,
-        body: JSON.stringify({ error: 'Method not allowed' })
-      };
-    }
-  
-    try {
-      const foremen = await sql`
-        SELECT id::text as id, name, email, phone 
-        FROM foremen 
-        WHERE is_active = true 
-        ORDER BY name
-      `;
-      
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify(foremen)
-      };
-    } catch (error) {
-      console.error('Error fetching foremen:', error);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Failed to fetch foremen' })
-      };
-    }
+// Foremen handler - already correct
+async function handleForemen(event, headers, method) {
+  if (method !== 'GET') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
   }
-  
-  // Laborers handler - already correct
-  async function handleLaborers(event, headers, method) {
-    if (method !== 'GET') {
-      return {
-        statusCode: 405,
-        headers,
-        body: JSON.stringify({ error: 'Method not allowed' })
-      };
-    }
-  
-    try {
-      const laborers = await sql`
-        SELECT id::text as id, name, employee_id, email, phone 
-        FROM laborers 
-        WHERE is_active = true 
-        ORDER BY name
-      `;
-      
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify(laborers)
-      };
-    } catch (error) {
-      console.error('Error fetching laborers:', error);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Failed to fetch laborers' })
-      };
-    }
+
+  try {
+    const foremen = await sql`
+      SELECT id::text as id, name, email, phone 
+      FROM foremen 
+      WHERE is_active = true 
+      ORDER BY name
+    `;
+    
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(foremen)
+    };
+  } catch (error) {
+    console.error('Error fetching foremen:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Failed to fetch foremen' })
+    };
   }
-  
-  // Fixed Projects handler with ID casting
-  async function handleProjects(event, headers, method, id) {
-    const { role, userId } = event.auth || {};
-  
-    switch (method) {
-      case 'GET':
-        try {
-          if (id) {
-            // Get specific project by UUID
-            const projects = await sql`
-              SELECT id::text as id, name, project_code, active, created_at, updated_at 
-              FROM projects WHERE id = ${id}
-            `;
-            return {
-              statusCode: 200,
-              headers,
-              body: JSON.stringify(projects[0] || null)
-            };
-          } else {
-            // Get all active projects
-            const projects = await sql`
-              SELECT id::text as id, name, project_code, active, created_at, updated_at 
-              FROM projects 
-              WHERE active = true
-              ORDER BY name
-            `;
-            return {
-              statusCode: 200,
-              headers,
-              body: JSON.stringify(projects)
-            };
-          }
-        } catch (error) {
-          console.error('Error fetching projects:', error);
-          return {
-            statusCode: 500,
-            headers,
-            body: JSON.stringify({ error: 'Failed to fetch projects' })
-          };
-        }
-  
-      case 'POST':
-        if (!requireRole(role, ['admin', 'manager', 'editor'])) {
-          return {
-            statusCode: 403,
-            headers,
-            body: JSON.stringify({ error: 'Insufficient permissions' })
-          };
-        }
-  
-        try {
-          const projectData = JSON.parse(event.body);
-          
-          // Validate required fields
-          if (!projectData.name) {
-            return {
-              statusCode: 400,
-              headers,
-              body: JSON.stringify({ error: 'Project name is required' })
-            };
-          }
-          
-          const newProject = await sql`
-            INSERT INTO projects (name, project_code, active, created_at, updated_at)
-            VALUES (
-              ${projectData.name}, 
-              ${projectData.project_code || null}, 
-              ${projectData.active !== false},
-              CURRENT_TIMESTAMP,
-              CURRENT_TIMESTAMP
-            )
-            RETURNING id::text as id, name, project_code, active, created_at, updated_at
-          `;
-  
-          return {
-            statusCode: 201,
-            headers,
-            body: JSON.stringify(newProject[0])
-          };
-        } catch (error) {
-          console.error('Error creating project:', error);
-          return {
-            statusCode: 500,
-            headers,
-            body: JSON.stringify({ error: 'Failed to create project: ' + error.message })
-          };
-        }
-  
-      case 'PUT':
-        if (!requireRole(role, ['admin', 'manager', 'editor'])) {
-          return {
-            statusCode: 403,
-            headers,
-            body: JSON.stringify({ error: 'Insufficient permissions' })
-          };
-        }
-  
-        if (!id) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'ID required for update' })
-          };
-        }
-  
-        try {
-          const updateData = JSON.parse(event.body);
-          
-          // Check if project exists
-          const existing = await sql`
+}
+
+// Laborers handler - already correct
+async function handleLaborers(event, headers, method) {
+  if (method !== 'GET') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  try {
+    const laborers = await sql`
+      SELECT id::text as id, name, employee_id, email, phone 
+      FROM laborers 
+      WHERE is_active = true 
+      ORDER BY name
+    `;
+    
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(laborers)
+    };
+  } catch (error) {
+    console.error('Error fetching laborers:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Failed to fetch laborers' })
+    };
+  }
+}
+
+// Fixed Projects handler with ID casting
+async function handleProjects(event, headers, method, id) {
+  const { role, userId } = event.auth || {};
+
+  switch (method) {
+    case 'GET':
+      try {
+        if (id) {
+          // Get specific project by UUID
+          const projects = await sql`
             SELECT id::text as id, name, project_code, active, created_at, updated_at 
             FROM projects WHERE id = ${id}
           `;
-          
-          if (existing.length === 0) {
-            return {
-              statusCode: 404,
-              headers,
-              body: JSON.stringify({ error: 'Project not found' })
-            };
-          }
-          
-          const updated = await sql`
-            UPDATE projects
-            SET 
-              name = ${updateData.name || existing[0].name},
-              project_code = ${updateData.project_code !== undefined ? updateData.project_code : existing[0].project_code},
-              active = ${updateData.active !== undefined ? updateData.active : existing[0].active},
-              updated_at = CURRENT_TIMESTAMP
-            WHERE id = ${id}
-            RETURNING id::text as id, name, project_code, active, created_at, updated_at
-          `;
-  
           return {
             statusCode: 200,
             headers,
-            body: JSON.stringify(updated[0])
+            body: JSON.stringify(projects[0] || null)
           };
-        } catch (error) {
-          console.error('Error updating project:', error);
+        } else {
+          // Get all active projects
+          const projects = await sql`
+            SELECT id::text as id, name, project_code, active, created_at, updated_at 
+            FROM projects 
+            WHERE active = true
+            ORDER BY name
+          `;
           return {
-            statusCode: 500,
+            statusCode: 200,
             headers,
-            body: JSON.stringify({ error: 'Failed to update project: ' + error.message })
+            body: JSON.stringify(projects)
           };
         }
-  
-      default:
+      } catch (error) {
+        console.error('Error fetching projects:', error);
         return {
-          statusCode: 405,
+          statusCode: 500,
           headers,
-          body: JSON.stringify({ error: 'Method not allowed' })
+          body: JSON.stringify({ error: 'Failed to fetch projects' })
         };
-    }
-  }
-  
-  // Fixed Equipment handler with ID casting
-  async function handleEquipment(event, headers, method) {
-    if (method !== 'GET') {
+      }
+
+    case 'POST':
+      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions' })
+        };
+      }
+
+      try {
+        const projectData = JSON.parse(event.body);
+        
+        // Validate required fields
+        if (!projectData.name) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'Project name is required' })
+          };
+        }
+        
+        const newProject = await sql`
+          INSERT INTO projects (name, project_code, active, created_at, updated_at)
+          VALUES (
+            ${projectData.name}, 
+            ${projectData.project_code || null}, 
+            ${projectData.active !== false},
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+          )
+          RETURNING id::text as id, name, project_code, active, created_at, updated_at
+        `;
+
+        return {
+          statusCode: 201,
+          headers,
+          body: JSON.stringify(newProject[0])
+        };
+      } catch (error) {
+        console.error('Error creating project:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to create project: ' + error.message })
+        };
+      }
+
+    case 'PUT':
+      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions' })
+        };
+      }
+
+      if (!id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'ID required for update' })
+        };
+      }
+
+      try {
+        const updateData = JSON.parse(event.body);
+        
+        // Check if project exists
+        const existing = await sql`
+          SELECT id::text as id, name, project_code, active, created_at, updated_at 
+          FROM projects WHERE id = ${id}
+        `;
+        
+        if (existing.length === 0) {
+          return {
+            statusCode: 404,
+            headers,
+            body: JSON.stringify({ error: 'Project not found' })
+          };
+        }
+        
+        const updated = await sql`
+          UPDATE projects
+          SET 
+            name = ${updateData.name || existing[0].name},
+            project_code = ${updateData.project_code !== undefined ? updateData.project_code : existing[0].project_code},
+            active = ${updateData.active !== undefined ? updateData.active : existing[0].active},
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${id}
+          RETURNING id::text as id, name, project_code, active, created_at, updated_at
+        `;
+
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(updated[0])
+        };
+      } catch (error) {
+        console.error('Error updating project:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to update project: ' + error.message })
+        };
+      }
+
+    default:
       return {
         statusCode: 405,
         headers,
         body: JSON.stringify({ error: 'Method not allowed' })
       };
-    }
-  
-    try {
-      const params = event.queryStringParameters || {};
-      const type = params.type;
-      
-      let equipment;
-      
-      // Check if type column exists and use it for filtering
-      const hasTypeColumn = await sql`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = 'equipment' 
-        AND column_name = 'type'
+  }
+}
+
+// Fixed Equipment handler with ID casting
+async function handleEquipment(event, headers, method) {
+  if (method !== 'GET') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  try {
+    const params = event.queryStringParameters || {};
+    const type = params.type;
+    
+    let equipment;
+    
+    // Check if type column exists and use it for filtering
+    const hasTypeColumn = await sql`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'equipment' 
+      AND column_name = 'type'
+    `;
+    
+    if (hasTypeColumn.length > 0 && type) {
+      // Use type column for exact matching
+      equipment = await sql`
+        SELECT id::text as id, name, type 
+        FROM equipment 
+        WHERE type = ${type} AND active = true 
+        ORDER BY name
+      `;
+    } else if (type) {
+      // Fallback: filter by name pattern if type was requested but column doesn't exist
+      equipment = await sql`
+        SELECT id::text as id, name 
+        FROM equipment 
+        WHERE active = true 
+        ORDER BY name
       `;
       
-      if (hasTypeColumn.length > 0 && type) {
-        // Use type column for exact matching
-        equipment = await sql`
-          SELECT id::text as id, name, type 
-          FROM equipment 
-          WHERE type = ${type} AND active = true 
-          ORDER BY name
-        `;
-      } else if (type) {
-        // Fallback: filter by name pattern if type was requested but column doesn't exist
-        equipment = await sql`
-          SELECT id::text as id, name 
-          FROM equipment 
-          WHERE active = true 
-          ORDER BY name
-        `;
-        
-        // Filter by name pattern
-        equipment = equipment.filter(e => 
-          e.name.toUpperCase().includes(type.toUpperCase())
-        );
-      } else {
-        // No type filter requested
-        equipment = await sql`
-          SELECT id::text as id, name 
-          FROM equipment 
-          WHERE active = true 
-          ORDER BY name
-        `;
-      }
-      
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify(equipment)
-      };
-    } catch (error) {
-      console.error('Error fetching equipment:', error);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Failed to fetch equipment' })
-      };
+      // Filter by name pattern
+      equipment = equipment.filter(e => 
+        e.name.toUpperCase().includes(type.toUpperCase())
+      );
+    } else {
+      // No type filter requested
+      equipment = await sql`
+        SELECT id::text as id, name 
+        FROM equipment 
+        WHERE active = true 
+        ORDER BY name
+      `;
     }
+    
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(equipment)
+    };
+  } catch (error) {
+    console.error('Error fetching equipment:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Failed to fetch equipment' })
+    };
   }
+}
 
 // Bid Items handler (Master)
 async function handleBidItems(event, headers, method, id) {
@@ -1066,254 +1107,254 @@ async function handleProjectBidItems(event, headers, method, id) {
   }
 }
 
-      // DWR Submission handler for all-UUID database schema
-  async function handleDWRSubmission(event, headers, method) {
-    if (method !== 'POST') {
-      return {
-        statusCode: 405,
-        headers,
-        body: JSON.stringify({ error: 'Method not allowed' })
-      };
+// DWR Submission handler for all-UUID database schema
+async function handleDWRSubmission(event, headers, method) {
+  if (method !== 'POST') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  const { userId } = event.auth || {};
+
+  try {
+    const data = JSON.parse(event.body);
+    console.log('Received DWR data:', JSON.stringify(data, null, 2));
+    
+    // Validate required fields
+    const requiredFields = ['work_date', 'foreman_id', 'project_id', 'arrival_time', 'departure_time', 'billable_work'];
+    for (const field of requiredFields) {
+      if (!data[field]) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ 
+            success: false,
+            error: `Missing required field: ${field}` 
+          })
+        };
+      }
     }
-  
-    const { userId } = event.auth || {};
-  
-    try {
-      const data = JSON.parse(event.body);
-      console.log('Received DWR data:', JSON.stringify(data, null, 2));
+
+    // Helper function to validate and format UUID
+    function validateUuid(id, fieldName) {
+      if (!id) return null;
       
-      // Validate required fields
-      const requiredFields = ['work_date', 'foreman_id', 'project_id', 'arrival_time', 'departure_time', 'billable_work'];
-      for (const field of requiredFields) {
-        if (!data[field]) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ 
-              success: false,
-              error: `Missing required field: ${field}` 
-            })
-          };
-        }
+      // If it's already a valid UUID, return it
+      if (typeof id === 'string' && id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        return id;
       }
-  
-      // Helper function to validate and format UUID
-      function validateUuid(id, fieldName) {
-        if (!id) return null;
-        
-        // If it's already a valid UUID, return it
-        if (typeof id === 'string' && id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-          return id;
-        }
-        
-        // If it's an integer, this is wrong - we need to look up the actual UUID
-        if (parseInt(id).toString() === id.toString()) {
-          throw new Error(`${fieldName} should be a UUID but received integer: ${id}. Check your API endpoints.`);
-        }
-        
-        throw new Error(`Invalid UUID format for ${fieldName}: ${id}`);
+      
+      // If it's an integer, this is wrong - we need to look up the actual UUID
+      if (parseInt(id).toString() === id.toString()) {
+        throw new Error(`${fieldName} should be a UUID but received integer: ${id}. Check your API endpoints.`);
       }
-  
-      try {
-        // Validate all UUIDs before attempting insertion
-        const foremanId = validateUuid(data.foreman_id, 'foreman_id');
-        const projectId = validateUuid(data.project_id, 'project_id');
-        const truckId = validateUuid(data.truck_id, 'truck_id');
-        const trailerId = validateUuid(data.trailer_id, 'trailer_id');
-        
-        console.log('Validated UUIDs:', { foremanId, projectId, truckId, trailerId });
-        
-        // Insert main DWR record
-        const dwrResult = await sql`
-          INSERT INTO daily_work_reports (
-            work_date, 
-            foreman_id, 
-            project_id, 
-            arrival_time, 
-            departure_time,
-            truck_id, 
-            trailer_id, 
-            billable_work, 
-            maybe_explanation, 
-            per_diem,
-            submission_timestamp,
-            created_at,
-            updated_at
-          ) VALUES (
-            ${data.work_date}, 
-            ${foremanId}::uuid, 
-            ${projectId}::uuid,
-            ${data.arrival_time}, 
-            ${data.departure_time}, 
-            ${truckId ? sql`${truckId}::uuid` : null},
-            ${trailerId ? sql`${trailerId}::uuid` : null}, 
-            ${data.billable_work}, 
-            ${data.maybe_explanation || null},
-            ${data.per_diem || false}, 
-            CURRENT_TIMESTAMP,
-            CURRENT_TIMESTAMP,
-            CURRENT_TIMESTAMP
-          ) RETURNING id
-        `;
-        
-        const dwrId = dwrResult[0].id;
-        console.log(`DWR record created with ID: ${dwrId}`);
-        
-        // Insert crew members if provided
-        if (data.laborers && Array.isArray(data.laborers) && data.laborers.length > 0) {
-          console.log(`Processing ${data.laborers.length} crew members...`);
-          for (const laborerId of data.laborers) {
-            if (laborerId) {
-              try {
-                const validLaborerId = validateUuid(laborerId, 'laborer_id');
-                await sql`
-                  INSERT INTO dwr_crew_members (
-                    dwr_id, 
-                    laborer_id,
-                    created_at
-                  ) VALUES (
-                    ${dwrId}, 
-                    ${validLaborerId}::uuid,
-                    CURRENT_TIMESTAMP
-                  )
-                `;
-                console.log(`Inserted crew member: ${validLaborerId}`);
-              } catch (error) {
-                console.error(`Failed to insert laborer ${laborerId}:`, error.message);
-                // Don't fail entire submission for one bad ID
-              }
-            }
-          }
-        }
-        
-        // Insert machines if provided
-        if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
-          console.log(`Processing ${data.machines.length} machines...`);
-          for (const machineId of data.machines) {
-            if (machineId) {
-              try {
-                const validMachineId = validateUuid(machineId, 'machine_id');
-                await sql`
-                  INSERT INTO dwr_machines (
-                    dwr_id, 
-                    machine_id,
-                    created_at
-                  ) VALUES (
-                    ${dwrId}, 
-                    ${validMachineId}::uuid,
-                    CURRENT_TIMESTAMP
-                  )
-                `;
-                console.log(`Inserted machine: ${validMachineId}`);
-              } catch (error) {
-                console.error(`Failed to insert machine ${machineId}:`, error.message);
-                // Don't fail entire submission for one bad ID
-              }
-            }
-          }
-        }
-        
-        // Insert items if provided
-        if (data.items && Array.isArray(data.items) && data.items.length > 0) {
-          console.log(`Processing ${data.items.length} items...`);
-          for (let i = 0; i < data.items.length; i++) {
-            const item = data.items[i];
+      
+      throw new Error(`Invalid UUID format for ${fieldName}: ${id}`);
+    }
+
+    try {
+      // Validate all UUIDs before attempting insertion
+      const foremanId = validateUuid(data.foreman_id, 'foreman_id');
+      const projectId = validateUuid(data.project_id, 'project_id');
+      const truckId = validateUuid(data.truck_id, 'truck_id');
+      const trailerId = validateUuid(data.trailer_id, 'trailer_id');
+      
+      console.log('Validated UUIDs:', { foremanId, projectId, truckId, trailerId });
+      
+      // Insert main DWR record
+      const dwrResult = await sql`
+        INSERT INTO daily_work_reports (
+          work_date, 
+          foreman_id, 
+          project_id, 
+          arrival_time, 
+          departure_time,
+          truck_id, 
+          trailer_id, 
+          billable_work, 
+          maybe_explanation, 
+          per_diem,
+          submission_timestamp,
+          created_at,
+          updated_at
+        ) VALUES (
+          ${data.work_date}, 
+          ${foremanId}::uuid, 
+          ${projectId}::uuid,
+          ${data.arrival_time}, 
+          ${data.departure_time}, 
+          ${truckId ? sql`${truckId}::uuid` : null},
+          ${trailerId ? sql`${trailerId}::uuid` : null}, 
+          ${data.billable_work}, 
+          ${data.maybe_explanation || null},
+          ${data.per_diem || false}, 
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP
+        ) RETURNING id
+      `;
+      
+      const dwrId = dwrResult[0].id;
+      console.log(`DWR record created with ID: ${dwrId}`);
+      
+      // Insert crew members if provided
+      if (data.laborers && Array.isArray(data.laborers) && data.laborers.length > 0) {
+        console.log(`Processing ${data.laborers.length} crew members...`);
+        for (const laborerId of data.laborers) {
+          if (laborerId) {
             try {
-              const validBidItemId = validateUuid(item.bid_item_id, 'bid_item_id');
-              const validProjectBidItemId = validateUuid(item.project_bid_item_id, 'project_bid_item_id');
-              
+              const validLaborerId = validateUuid(laborerId, 'laborer_id');
               await sql`
-                INSERT INTO dwr_items (
+                INSERT INTO dwr_crew_members (
                   dwr_id, 
-                  item_name, 
-                  quantity, 
-                  unit, 
-                  location_description,
-                  latitude, 
-                  longitude, 
-                  duration_hours, 
-                  notes, 
-                  item_index,
-                  bid_item_id, 
-                  project_bid_item_id,
-                  created_at,
-                  updated_at
+                  laborer_id,
+                  created_at
                 ) VALUES (
                   ${dwrId}, 
-                  ${item.item_name}, 
-                  ${parseFloat(item.quantity)}, 
-                  ${item.unit || 'EA'},
-                  ${item.location_description}, 
-                  ${item.latitude ? parseFloat(item.latitude) : null}, 
-                  ${item.longitude ? parseFloat(item.longitude) : null},
-                  ${parseFloat(item.duration_hours)}, 
-                  ${item.notes || null}, 
-                  ${i},
-                  ${validBidItemId ? sql`${validBidItemId}::uuid` : null}, 
-                  ${validProjectBidItemId ? sql`${validProjectBidItemId}::uuid` : null},
-                  CURRENT_TIMESTAMP,
+                  ${validLaborerId}::uuid,
                   CURRENT_TIMESTAMP
                 )
               `;
-              console.log(`Inserted item ${i + 1}: ${item.item_name}`);
+              console.log(`Inserted crew member: ${validLaborerId}`);
             } catch (error) {
-              console.error(`Failed to insert item ${i}:`, error.message);
-              console.error('Item data:', item);
-              // Don't fail entire submission for one bad item
+              console.error(`Failed to insert laborer ${laborerId}:`, error.message);
+              // Don't fail entire submission for one bad ID
             }
           }
         }
-        
-        return {
-          statusCode: 201,
-          headers,
-          body: JSON.stringify({ 
-            success: true, 
-            id: dwrId,
-            message: 'Daily work report submitted successfully' 
-          })
-        };
-        
-      } catch (dbError) {
-        console.error('Database error in DWR submission:', dbError);
-        throw dbError;
       }
       
-    } catch (error) {
-      console.error('Error submitting DWR:', error);
+      // Insert machines if provided
+      if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
+        console.log(`Processing ${data.machines.length} machines...`);
+        for (const machineId of data.machines) {
+          if (machineId) {
+            try {
+              const validMachineId = validateUuid(machineId, 'machine_id');
+              await sql`
+                INSERT INTO dwr_machines (
+                  dwr_id, 
+                  machine_id,
+                  created_at
+                ) VALUES (
+                  ${dwrId}, 
+                  ${validMachineId}::uuid,
+                  CURRENT_TIMESTAMP
+                )
+              `;
+              console.log(`Inserted machine: ${validMachineId}`);
+            } catch (error) {
+              console.error(`Failed to insert machine ${machineId}:`, error.message);
+              // Don't fail entire submission for one bad ID
+            }
+          }
+        }
+      }
       
-      let errorMessage = 'Failed to submit daily work report';
-      let statusCode = 500;
-      
-      if (error.message.includes('JSON')) {
-        errorMessage = 'Invalid JSON data provided';
-        statusCode = 400;
-      } else if (error.message.includes('should be a UUID but received integer')) {
-        errorMessage = error.message + ' Your API endpoints need to return UUIDs, not integers.';
-        statusCode = 400;
-      } else if (error.message.includes('Invalid UUID format')) {
-        errorMessage = error.message;
-        statusCode = 400;
-      } else if (error.message.includes('foreign key')) {
-        errorMessage = 'Invalid reference data - one or more UUIDs don\'t exist in the database';
-        statusCode = 400;
-      } else if (error.message.includes('not null')) {
-        errorMessage = 'Missing required field in database';
-        statusCode = 400;
+      // Insert items if provided
+      if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+        console.log(`Processing ${data.items.length} items...`);
+        for (let i = 0; i < data.items.length; i++) {
+          const item = data.items[i];
+          try {
+            const validBidItemId = validateUuid(item.bid_item_id, 'bid_item_id');
+            const validProjectBidItemId = validateUuid(item.project_bid_item_id, 'project_bid_item_id');
+            
+            await sql`
+              INSERT INTO dwr_items (
+                dwr_id, 
+                item_name, 
+                quantity, 
+                unit, 
+                location_description,
+                latitude, 
+                longitude, 
+                duration_hours, 
+                notes, 
+                item_index,
+                bid_item_id, 
+                project_bid_item_id,
+                created_at,
+                updated_at
+              ) VALUES (
+                ${dwrId}, 
+                ${item.item_name}, 
+                ${parseFloat(item.quantity)}, 
+                ${item.unit || 'EA'},
+                ${item.location_description}, 
+                ${item.latitude ? parseFloat(item.latitude) : null}, 
+                ${item.longitude ? parseFloat(item.longitude) : null},
+                ${parseFloat(item.duration_hours)}, 
+                ${item.notes || null}, 
+                ${i},
+                ${validBidItemId ? sql`${validBidItemId}::uuid` : null}, 
+                ${validProjectBidItemId ? sql`${validProjectBidItemId}::uuid` : null},
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP
+              )
+            `;
+            console.log(`Inserted item ${i + 1}: ${item.item_name}`);
+          } catch (error) {
+            console.error(`Failed to insert item ${i}:`, error.message);
+            console.error('Item data:', item);
+            // Don't fail entire submission for one bad item
+          }
+        }
       }
       
       return {
-        statusCode: statusCode,
+        statusCode: 201,
         headers,
         body: JSON.stringify({ 
-          success: false,
-          error: errorMessage,
-          details: error.message,
-          helpText: 'Make sure all your API endpoints (foremen, projects, equipment, laborers) return UUID format IDs, not integers.'
+          success: true, 
+          id: dwrId,
+          message: 'Daily work report submitted successfully' 
         })
       };
+      
+    } catch (dbError) {
+      console.error('Database error in DWR submission:', dbError);
+      throw dbError;
     }
+    
+  } catch (error) {
+    console.error('Error submitting DWR:', error);
+    
+    let errorMessage = 'Failed to submit daily work report';
+    let statusCode = 500;
+    
+    if (error.message.includes('JSON')) {
+      errorMessage = 'Invalid JSON data provided';
+      statusCode = 400;
+    } else if (error.message.includes('should be a UUID but received integer')) {
+      errorMessage = error.message + ' Your API endpoints need to return UUIDs, not integers.';
+      statusCode = 400;
+    } else if (error.message.includes('Invalid UUID format')) {
+      errorMessage = error.message;
+      statusCode = 400;
+    } else if (error.message.includes('foreign key')) {
+      errorMessage = 'Invalid reference data - one or more UUIDs don\'t exist in the database';
+      statusCode = 400;
+    } else if (error.message.includes('not null')) {
+      errorMessage = 'Missing required field in database';
+      statusCode = 400;
+    }
+    
+    return {
+      statusCode: statusCode,
+      headers,
+      body: JSON.stringify({ 
+        success: false,
+        error: errorMessage,
+        details: error.message,
+        helpText: 'Make sure all your API endpoints (foremen, projects, equipment, laborers) return UUID format IDs, not integers.'
+      })
+    };
   }
+}
 
 // PO Data handler - returns vendors and projects for the PO form
 async function handlePOData(event, headers, method) {
@@ -1758,12 +1799,163 @@ async function handleAuthorizedUsers(event, headers, method, id) {
   }
 }
 
-// Enhanced Users handler with full CRUD operations
+// Username availability checker
+async function handleUsernameCheck(event, headers, method) {
+  if (method !== 'POST') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  try {
+    const { username } = JSON.parse(event.body);
+    
+    if (!username) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Username is required' })
+      };
+    }
+
+    // Check if username exists
+    const existingUser = await sql`
+      SELECT id FROM users WHERE username = ${username}
+    `;
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        available: existingUser.length === 0,
+        message: existingUser.length === 0 ? 'Username is available' : 'Username is already taken'
+      })
+    };
+
+  } catch (error) {
+    console.error('Error checking username:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Failed to check username availability' })
+    };
+  }
+}
+
+// Email availability checker
+async function handleEmailCheck(event, headers, method) {
+  if (method !== 'POST') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  try {
+    const { email } = JSON.parse(event.body);
+    
+    if (!email) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Email is required' })
+      };
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          available: false,
+          message: 'Invalid email format' 
+        })
+      };
+    }
+
+    // Check if email exists
+    const existingUser = await sql`
+      SELECT id FROM users WHERE email = ${email}
+    `;
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        available: existingUser.length === 0,
+        message: existingUser.length === 0 ? 'Email is available' : 'Email is already registered'
+      })
+    };
+
+  } catch (error) {
+    console.error('Error checking email:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Failed to check email availability' })
+    };
+  }
+}
+
+// User profile endpoint
+async function handleUserProfile(event, headers, method) {
+  const { userId, role, email } = event.auth || {};
+
+  if (method !== 'GET') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  try {
+    // Get current user's profile
+    const userProfile = await sql`
+      SELECT id::text as id, username, email, first_name, last_name, role, 
+             is_active, last_login, created_at, updated_at
+      FROM users 
+      WHERE id = ${userId}
+    `;
+
+    if (userProfile.length === 0) {
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({ error: 'User profile not found' })
+      };
+    }
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        success: true,
+        user: userProfile[0]
+      })
+    };
+
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Failed to fetch user profile' })
+    };
+  }
+}
+
+// Enhanced Users handler with action support and full CRUD operations
 async function handleUsers(event, headers, method, id, action) {
   const { role, userId } = event.auth || {};
-  console.log('User auth:', { role, userId });
+  console.log('User auth:', { role, userId, action });
 
-  // Handle user status toggle action
+  // Handle specific actions
   if (action === 'toggle-status' && method === 'POST') {
     if (!requireRole(role, ['admin', 'project_manager', 'superintendent'])) {
       return {
@@ -1784,7 +1976,7 @@ async function handleUsers(event, headers, method, id, action) {
     try {
       // Get current user status
       const currentUser = await sql`
-        SELECT is_active FROM users WHERE id = ${id}
+        SELECT is_active, username FROM users WHERE id = ${id}
       `;
 
       if (currentUser.length === 0) {
@@ -1804,12 +1996,20 @@ async function handleUsers(event, headers, method, id, action) {
         WHERE id = ${id}
       `;
 
+      // Log the activity
+      await logUserActivity(userId, `USER_${newStatus ? 'ENABLED' : 'DISABLED'}`, {
+        target_user_id: id,
+        target_username: currentUser[0].username,
+        new_status: newStatus
+      });
+
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({ 
           success: true,
-          message: `User ${newStatus ? 'enabled' : 'disabled'} successfully`
+          message: `User ${newStatus ? 'enabled' : 'disabled'} successfully`,
+          new_status: newStatus
         })
       };
 
@@ -1819,6 +2019,73 @@ async function handleUsers(event, headers, method, id, action) {
         statusCode: 500,
         headers,
         body: JSON.stringify({ error: 'Failed to update user status' })
+      };
+    }
+  }
+
+  // Handle password reset action
+  if (action === 'reset-password' && method === 'POST') {
+    if (!requireRole(role, ['admin', 'project_manager'])) {
+      return {
+        statusCode: 403,
+        headers,
+        body: JSON.stringify({ error: 'Insufficient permissions' })
+      };
+    }
+
+    if (!id) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'User ID required' })
+      };
+    }
+
+    try {
+      const { new_password } = JSON.parse(event.body);
+      
+      if (!new_password || new_password.length < 8) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Password must be at least 8 characters long' })
+        };
+      }
+
+      // Hash the new password
+      const saltRounds = 12;
+      const passwordHash = await bcrypt.hash(new_password, saltRounds);
+
+      // Update password and reset failed attempts
+      await sql`
+        UPDATE users 
+        SET password_hash = ${passwordHash}, 
+            failed_login_attempts = 0,
+            locked_until = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${id}
+      `;
+
+      // Log the activity
+      await logUserActivity(userId, 'PASSWORD_RESET', {
+        target_user_id: id
+      });
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ 
+          success: true,
+          message: 'Password reset successfully'
+        })
+      };
+
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Failed to reset password' })
       };
     }
   }
@@ -1968,6 +2235,13 @@ async function handleUsers(event, headers, method, id, action) {
           RETURNING id::text as id, username, email, first_name, last_name, role, is_active, created_at
         `;
 
+        // Log the activity
+        await logUserActivity(userId, 'USER_CREATED', {
+          new_user_id: newUser[0].id,
+          new_username: newUser[0].username,
+          new_role: newUser[0].role
+        });
+
         return {
           statusCode: 201,
           headers,
@@ -1998,7 +2272,7 @@ async function handleUsers(event, headers, method, id, action) {
       }
 
     case 'PUT':
-      if (!requireRole(role, ['Admin', 'Manager'])) {
+      if (!requireRole(role, ['admin', 'project_manager'])) {
         return {
           statusCode: 403,
           headers,
@@ -2091,6 +2365,12 @@ async function handleUsers(event, headers, method, id, action) {
           RETURNING id::text as id, username, email, first_name, last_name, role, is_active, updated_at
         `;
 
+        // Log the activity
+        await logUserActivity(userId, 'USER_UPDATED', {
+          target_user_id: id,
+          changes: updateData
+        });
+
         return {
           statusCode: 200,
           headers,
@@ -2134,7 +2414,7 @@ async function handleUsers(event, headers, method, id, action) {
       try {
         // Check if user exists
         const existingUser = await sql`
-          SELECT id FROM users WHERE id = ${id}
+          SELECT id, username FROM users WHERE id = ${id}
         `;
 
         if (existingUser.length === 0) {
@@ -2151,6 +2431,12 @@ async function handleUsers(event, headers, method, id, action) {
           SET is_active = false, updated_at = CURRENT_TIMESTAMP
           WHERE id = ${id}
         `;
+
+        // Log the activity
+        await logUserActivity(userId, 'USER_DELETED', {
+          target_user_id: id,
+          target_username: existingUser[0].username
+        });
 
         return {
           statusCode: 200,
