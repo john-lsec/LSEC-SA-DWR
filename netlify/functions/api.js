@@ -428,7 +428,7 @@ async function handleProjects(event, headers, method, id) {
   }
 }
 
-// Equipment handler - Return integer IDs for frontend compatibility
+// Equipment handler
 async function handleEquipment(event, headers, method) {
   if (method !== 'GET') {
     return {
@@ -444,46 +444,46 @@ async function handleEquipment(event, headers, method) {
     
     let equipment;
     
-    if (type) {
-      // Filter by type if specified
+    // Check if type column exists and use it for filtering
+    const hasTypeColumn = await sql`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'equipment' 
+      AND column_name = 'type'
+    `;
+    
+    if (hasTypeColumn.length > 0 && type) {
+      // Use type column for exact matching
       equipment = await sql`
-        SELECT 
-          id as uuid_id,
-          name, 
-          type,
-          active,
-          ROW_NUMBER() OVER (ORDER BY name) as integer_id
-        FROM equipment 
+        SELECT id, name, type FROM equipment 
         WHERE type = ${type} AND active = true 
         ORDER BY name
       `;
-    } else {
-      // No type filter
+    } else if (type) {
+      // Fallback: filter by name pattern if type was requested but column doesn't exist
       equipment = await sql`
-        SELECT 
-          id as uuid_id,
-          name, 
-          type,
-          active,
-          ROW_NUMBER() OVER (ORDER BY name) as integer_id
-        FROM equipment 
+        SELECT id, name FROM equipment 
+        WHERE active = true 
+        ORDER BY name
+      `;
+      
+      // Filter by name pattern
+      equipment = equipment.filter(e => 
+        e.name.toUpperCase().includes(type.toUpperCase())
+      );
+    } else {
+      // No type filter requested
+      equipment = await sql`
+        SELECT id, name FROM equipment 
         WHERE active = true 
         ORDER BY name
       `;
     }
     
-    // Transform data to return integer IDs for frontend compatibility
-    const transformedEquipment = equipment.map(item => ({
-      id: item.integer_id, // Frontend gets integer ID
-      name: item.name,
-      type: item.type || null,
-      uuid_id: item.uuid_id // Keep UUID for internal reference if needed
-    }));
-    
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify(transformedEquipment)
+      body: JSON.stringify(equipment)
     };
   } catch (error) {
     console.error('Error fetching equipment:', error);
@@ -1059,7 +1059,8 @@ async function handleProjectBidItems(event, headers, method, id) {
       };
   }
 }
-// DWR Submission handler - Corrected for actual database schema
+
+// DWR Submission handler - Enhanced for better error handling
 async function handleDWRSubmission(event, headers, method) {
   if (method !== 'POST') {
     return {
@@ -1089,173 +1090,22 @@ async function handleDWRSubmission(event, headers, method) {
       }
     }
 
-    // Validate billable_work values
-    const validBillableWork = ['Yes', 'No', 'Maybe'];
-    if (!validBillableWork.includes(data.billable_work)) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ 
-          success: false,
-          error: 'Invalid billable_work value. Must be Yes, No, or Maybe' 
-        })
-      };
-    }
-
-    // Validate foreman exists
-    const foremanCheck = await sql`
-      SELECT id FROM foremen WHERE id = ${data.foreman_id} AND is_active = true
-    `;
-    if (foremanCheck.length === 0) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ 
-          success: false,
-          error: 'Invalid or inactive foreman_id' 
-        })
-      };
-    }
-
-    // Validate project exists
-    const projectCheck = await sql`
-      SELECT id FROM projects WHERE id = ${data.project_id} AND active = true
-    `;
-    if (projectCheck.length === 0) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ 
-          success: false,
-          error: 'Invalid or inactive project_id' 
-        })
-      };
-    }
-
-    // Handle equipment IDs - Frontend sends integers, database now uses UUIDs
-    // Simple approach: Find equipment by position/order
-    let truckId = null;
-    let trailerId = null;
-
-    if (data.truck_id) {
-      const intId = parseInt(data.truck_id);
-      // Get equipment by selecting the Nth truck (ordered by name)
-      const truckCheck = await sql`
-        SELECT id, name 
-        FROM equipment 
-        WHERE active = true 
-        AND (type = 'CREW TRUCK' OR type ILIKE '%truck%' OR name ILIKE '%truck%')
-        ORDER BY name
-        LIMIT 1 OFFSET ${Math.max(0, intId - 1)}
-      `;
-      
-      if (truckCheck.length === 0) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ 
-            success: false,
-            error: `No truck found at position ${intId}. Available trucks: ${intId}` 
-          })
-        };
-      }
-      truckId = truckCheck[0].id;
-    }
-
-    if (data.trailer_id) {
-      const intId = parseInt(data.trailer_id);
-      const trailerCheck = await sql`
-        SELECT id, name 
-        FROM equipment 
-        WHERE active = true 
-        AND (type = 'TRAILER' OR name ILIKE '%trailer%')
-        ORDER BY name
-        LIMIT 1 OFFSET ${Math.max(0, intId - 1)}
-      `;
-      
-      if (trailerCheck.length === 0) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ 
-            success: false,
-            error: `No trailer found at position ${intId}` 
-          })
-        };
-      }
-      trailerId = trailerCheck[0].id;
-    }
-
-    // Validate laborers if provided
-    if (data.laborers && Array.isArray(data.laborers) && data.laborers.length > 0) {
-      for (const laborerId of data.laborers) {
-        const laborerCheck = await sql`
-          SELECT id FROM laborers WHERE id = ${laborerId} AND is_active = true
-        `;
-        if (laborerCheck.length === 0) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ 
-              success: false,
-              error: `Invalid or inactive laborer_id: ${laborerId}` 
-            })
-          };
-        }
-      }
-    }
-
-    // Validate machines if provided - Handle integer to UUID conversion
-    if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
-      for (const machineId of data.machines) {
-        const intId = parseInt(machineId);
-        const machineCheck = await sql`
-          SELECT id, name 
-          FROM equipment 
-          WHERE active = true 
-          AND (type = 'MACHINE' OR name ILIKE '%machine%')
-          ORDER BY name
-          LIMIT 1 OFFSET ${Math.max(0, intId - 1)}
-        `;
-        
-        if (machineCheck.length === 0) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ 
-              success: false,
-              error: `No machine found at position ${intId}` 
-            })
-          };
-        }
-      }
-    }
-
-    // Begin transaction
-    const dwrId = crypto.randomUUID();
+    // Convert string IDs to appropriate types
+    const projectId = parseInt(data.project_id);
+    const foremanId = data.foreman_id; // UUID
+    const truckId = data.truck_id ? parseInt(data.truck_id) : null;
+    const trailerId = data.trailer_id ? parseInt(data.trailer_id) : null;
 
     // Insert main DWR record
-    await sql`
+    const [dwr] = await sql`
       INSERT INTO daily_work_reports (
-        id,
-        work_date, 
-        foreman_id, 
-        project_id, 
-        arrival_time, 
-        departure_time,
-        truck_id, 
-        trailer_id, 
-        billable_work, 
-        maybe_explanation, 
-        per_diem,
-        submission_timestamp,
-        created_at,
-        updated_at
+        work_date, foreman_id, project_id, arrival_time, departure_time,
+        truck_id, trailer_id, billable_work, maybe_explanation, per_diem,
+        submission_timestamp
       ) VALUES (
-        ${dwrId},
         ${data.work_date}, 
-        ${data.foreman_id}, 
-        ${data.project_id},
+        ${foremanId}, 
+        ${projectId},
         ${data.arrival_time}, 
         ${data.departure_time}, 
         ${truckId},
@@ -1263,107 +1113,42 @@ async function handleDWRSubmission(event, headers, method) {
         ${data.billable_work}, 
         ${data.maybe_explanation || null},
         ${data.per_diem || false}, 
-        CURRENT_TIMESTAMP,
-        CURRENT_TIMESTAMP,
         CURRENT_TIMESTAMP
-      )
+      ) RETURNING id
     `;
     
     // Insert crew members if provided
     if (data.laborers && Array.isArray(data.laborers) && data.laborers.length > 0) {
       for (const laborerId of data.laborers) {
-        const crewMemberId = crypto.randomUUID();
         await sql`
-          INSERT INTO dwr_crew_members (id, dwr_id, laborer_id, created_at)
-          VALUES (${crewMemberId}, ${dwrId}, ${laborerId}, CURRENT_TIMESTAMP)
+          INSERT INTO dwr_crew_members (dwr_id, laborer_id)
+          VALUES (${dwr.id}, ${laborerId})
         `;
       }
     }
     
-    // Insert machines if provided - Convert integer IDs to UUIDs
+    // Insert machines if provided
     if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
       for (const machineId of data.machines) {
-        const dwrMachineId = crypto.randomUUID();
-        const intId = parseInt(machineId);
-        
-        // Get the UUID for this machine position
-        const machineCheck = await sql`
-          SELECT id, name 
-          FROM equipment 
-          WHERE active = true 
-          AND (type = 'MACHINE' OR name ILIKE '%machine%')
-          ORDER BY name
-          LIMIT 1 OFFSET ${Math.max(0, intId - 1)}
+        const machineIdInt = parseInt(machineId);
+        await sql`
+          INSERT INTO dwr_machines (dwr_id, machine_id)
+          VALUES (${dwr.id}, ${machineIdInt})
         `;
-        
-        if (machineCheck.length > 0) {
-          await sql`
-            INSERT INTO dwr_machines (id, dwr_id, machine_id, created_at)
-            VALUES (${dwrMachineId}, ${dwrId}, ${machineCheck[0].id}, CURRENT_TIMESTAMP)
-          `;
-        }
       }
     }
     
     // Insert items if provided
     if (data.items && Array.isArray(data.items) && data.items.length > 0) {
-      for (let i = 0; i < data.items.length; i++) {
-        const item = data.items[i];
-        const itemId = crypto.randomUUID();
-        
-        // Validate bid_item_id and project_bid_item_id if provided
-        if (item.bid_item_id) {
-          const bidItemCheck = await sql`
-            SELECT id FROM bid_items WHERE id = ${item.bid_item_id} AND is_active = true
-          `;
-          if (bidItemCheck.length === 0) {
-            return {
-              statusCode: 400,
-              headers,
-              body: JSON.stringify({ 
-                success: false,
-                error: `Invalid bid_item_id in item ${i + 1}: ${item.bid_item_id}` 
-              })
-            };
-          }
-        }
-
-        if (item.project_bid_item_id) {
-          const projectBidItemCheck = await sql`
-            SELECT id FROM project_bid_items WHERE id = ${item.project_bid_item_id} AND is_active = true
-          `;
-          if (projectBidItemCheck.length === 0) {
-            return {
-              statusCode: 400,
-              headers,
-              body: JSON.stringify({ 
-                success: false,
-                error: `Invalid project_bid_item_id in item ${i + 1}: ${item.project_bid_item_id}` 
-              })
-            };
-          }
-        }
-
+      let itemIndex = 0;
+      for (const item of data.items) {
         await sql`
           INSERT INTO dwr_items (
-            id,
-            dwr_id, 
-            item_name, 
-            quantity, 
-            unit, 
-            location_description,
-            latitude, 
-            longitude, 
-            duration_hours, 
-            notes, 
-            item_index,
-            bid_item_id, 
-            project_bid_item_id,
-            created_at,
-            updated_at
+            dwr_id, item_name, quantity, unit, location_description,
+            latitude, longitude, duration_hours, notes, item_index,
+            bid_item_id, project_bid_item_id
           ) VALUES (
-            ${itemId},
-            ${dwrId}, 
+            ${dwr.id}, 
             ${item.item_name}, 
             ${item.quantity}, 
             ${item.unit || 'EA'},
@@ -1372,11 +1157,9 @@ async function handleDWRSubmission(event, headers, method) {
             ${item.longitude || null},
             ${item.duration_hours}, 
             ${item.notes || null}, 
-            ${i},
+            ${itemIndex++},
             ${item.bid_item_id || null}, 
-            ${item.project_bid_item_id || null},
-            CURRENT_TIMESTAMP,
-            CURRENT_TIMESTAMP
+            ${item.project_bid_item_id || null}
           )
         `;
       }
@@ -1387,45 +1170,19 @@ async function handleDWRSubmission(event, headers, method) {
       headers,
       body: JSON.stringify({ 
         success: true, 
-        id: dwrId,
+        id: dwr.id,
         message: 'Daily work report submitted successfully' 
       })
     };
   } catch (error) {
     console.error('Error submitting DWR:', error);
-    
-    // Handle specific database errors
-    if (error.message.includes('foreign key constraint')) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ 
-          success: false,
-          error: 'Invalid reference to related data',
-          details: error.message 
-        })
-      };
-    }
-    
-    if (error.message.includes('duplicate key')) {
-      return {
-        statusCode: 409,
-        headers,
-        body: JSON.stringify({ 
-          success: false,
-          error: 'Duplicate record detected',
-          details: error.message 
-        })
-      };
-    }
-    
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
         success: false,
         error: 'Failed to submit daily work report',
-        details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        details: error.message 
       })
     };
   }
@@ -1927,42 +1684,5 @@ async function handleUsers(event, headers, method, id) {
         headers,
         body: JSON.stringify({ error: 'Method not allowed' })
       };
-  }
-}
-
-// In your switch statement, add this case:
-case 'config':
-  return await handleConfig(event, headers, method);
-
-// And add this function at the end of your api.js file:
-
-// Configuration handler - serves client-safe configuration
-async function handleConfig(event, headers, method) {
-  if (method !== 'GET') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
-  try {
-    // Only return non-sensitive config that's safe for client-side use
-    const config = {
-      googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || null,
-    };
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(config)
-    };
-  } catch (error) {
-    console.error('Error fetching config:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to fetch configuration' })
-    };
   }
 }
