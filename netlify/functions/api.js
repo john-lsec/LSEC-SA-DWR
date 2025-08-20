@@ -554,7 +554,7 @@ async function handleLocationValidation(event, headers, method) {
   }
 }
 
-// Foremen handler - already correct
+// Foremen handler - now includes hourly_rate
 async function handleForemen(event, headers, method) {
   if (method !== 'GET') {
     return {
@@ -566,7 +566,7 @@ async function handleForemen(event, headers, method) {
 
   try {
     const foremen = await sql`
-      SELECT id::text as id, name, email, phone 
+      SELECT id::text as id, name, email, phone, hourly_rate
       FROM foremen 
       WHERE is_active = true 
       ORDER BY name
@@ -587,7 +587,7 @@ async function handleForemen(event, headers, method) {
   }
 }
 
-// Laborers handler - already correct
+// Laborers handler - now includes hourly_rate
 async function handleLaborers(event, headers, method) {
   if (method !== 'GET') {
     return {
@@ -599,7 +599,7 @@ async function handleLaborers(event, headers, method) {
 
   try {
     const laborers = await sql`
-      SELECT id::text as id, name, employee_id, email, phone 
+      SELECT id::text as id, name, employee_id, email, phone, hourly_rate
       FROM laborers 
       WHERE is_active = true 
       ORDER BY name
@@ -776,7 +776,7 @@ async function handleProjects(event, headers, method, id) {
   }
 }
 
-// Fixed Equipment handler with ID casting
+// Equipment handler - now includes hourly_rate
 async function handleEquipment(event, headers, method) {
   if (method !== 'GET') {
     return {
@@ -803,7 +803,7 @@ async function handleEquipment(event, headers, method) {
     if (hasTypeColumn.length > 0 && type) {
       // Use type column for exact matching
       equipment = await sql`
-        SELECT id::text as id, name, type 
+        SELECT id::text as id, name, type, hourly_rate
         FROM equipment 
         WHERE type = ${type} AND active = true 
         ORDER BY name
@@ -811,7 +811,7 @@ async function handleEquipment(event, headers, method) {
     } else if (type) {
       // Fallback: filter by name pattern if type was requested but column doesn't exist
       equipment = await sql`
-        SELECT id::text as id, name 
+        SELECT id::text as id, name, hourly_rate
         FROM equipment 
         WHERE active = true 
         ORDER BY name
@@ -824,7 +824,7 @@ async function handleEquipment(event, headers, method) {
     } else {
       // No type filter requested
       equipment = await sql`
-        SELECT id::text as id, name 
+        SELECT id::text as id, name, hourly_rate
         FROM equipment 
         WHERE active = true 
         ORDER BY name
