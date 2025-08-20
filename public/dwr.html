@@ -365,29 +365,62 @@
         .location-container {
             display: flex;
             gap: 10px;
+            align-items: flex-start;
         }
         
         .location-container input {
             flex: 1;
         }
         
-        .map-btn {
+        .location-buttons {
+            display: flex;
+            gap: 8px;
+            flex-direction: column;
+        }
+        
+        .map-btn, .location-btn {
             background: linear-gradient(135deg, #28a745 0%, #20924c 100%);
             color: white;
             border: none;
-            padding: 12px 20px;
+            padding: 10px 16px;
             border-radius: 8px;
             cursor: pointer;
             font-weight: 600;
             white-space: nowrap;
             transition: all 0.3s ease;
             box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+            font-size: 14px;
         }
         
-        .map-btn:hover {
-            background: linear-gradient(135deg, #218838 0%, #1e7e34 100%);
+        .location-btn {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+        }
+        
+        .map-btn:hover, .location-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+        }
+        
+        .location-btn:hover {
+            background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+        }
+        
+        /* Location info display */
+        .location-info {
+            background: #242424;
+            border: 1px solid #404040;
+            border-radius: 6px;
+            padding: 10px;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #aaa;
+            display: none;
+        }
+        
+        .location-info.show {
+            display: block;
         }
         
         /* Buttons */
@@ -628,6 +661,11 @@
                 flex-direction: column;
             }
             
+            .location-buttons {
+                flex-direction: row;
+                justify-content: flex-start;
+            }
+            
             .selected-items {
                 min-height: 60px;
             }
@@ -853,15 +891,21 @@
     <script src="auth-helper.js"></script>
     
     <script>
-        // Configuration
-        const GOOGLE_MAPS_API_KEY = 'AIzaSyBQq_tXLv0APu8LFfjLogSh4cIqo49yJVg';
-
         // Global variables
         let currentItemCount = 0;
         let projectBidItems = [];
         let selectedLaborers = new Set();
         let selectedMachines = new Set();
         let map, selectedMarker, selectedLatLng, currentLocationInputId;
+        let geocoder, placesService;
+        let isGoogleMapsLoaded = false;
+
+        // Google Maps API configuration - will be loaded from environment
+        const GOOGLE_MAPS_CONFIG = {
+            libraries: ['places', 'geometry'],
+            language: 'en',
+            region: 'US'
+        };
 
         // Initialize page on DOM load
         document.addEventListener('DOMContentLoaded', async function() {
@@ -889,9 +933,86 @@
         }
         
         // Initialize the application
-        function initializeApp() {
-            loadMasterData();
-            setupEventListeners();
+        async function initializeApp() {
+            try {
+                await loadMasterData();
+                setupEventListeners();
+                await initializeGoogleMaps();
+            } catch (error) {
+                console.error('Error initializing app:', error);
+                showMessage('Error initializing application. Please refresh the page.', 'error');
+            }
+        }
+
+        // Initialize Google Maps with async loading
+        async function initializeGoogleMaps() {
+            try {
+                // Check if we can get the API key from the server
+                const apiKeyResponse = await AuthHelper.apiCall('google-maps-config');
+                
+                if (apiKeyResponse && apiKeyResponse.apiKey) {
+                    await loadGoogleMapsAPI(apiKeyResponse.apiKey);
+                    console.log('Google Maps API loaded successfully');
+                } else {
+                    console.warn('Google Maps API key not available - map features will be disabled');
+                    disableMapFeatures();
+                }
+            } catch (error) {
+                console.error('Failed to initialize Google Maps:', error);
+                disableMapFeatures();
+            }
+        }
+
+        // Load Google Maps API dynamically
+        function loadGoogleMapsAPI(apiKey) {
+            return new Promise((resolve, reject) => {
+                if (window.google && window.google.maps) {
+                    isGoogleMapsLoaded = true;
+                    initializeMapServices();
+                    resolve();
+                    return;
+                }
+
+                window.initGoogleMaps = function() {
+                    isGoogleMapsLoaded = true;
+                    initializeMapServices();
+                    resolve();
+                };
+
+                const script = document.createElement('script');
+                script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=${GOOGLE_MAPS_CONFIG.libraries.join(',')}&callback=initGoogleMaps&language=${GOOGLE_MAPS_CONFIG.language}&region=${GOOGLE_MAPS_CONFIG.region}`;
+                script.async = true;
+                script.defer = true;
+                script.onerror = () => reject(new Error('Failed to load Google Maps API'));
+                document.head.appendChild(script);
+            });
+        }
+
+        // Initialize map services after API is loaded
+        function initializeMapServices() {
+            if (!window.google || !window.google.maps) return;
+            
+            geocoder = new google.maps.Geocoder();
+            
+            // Create a dummy div for places service
+            const dummyMap = new google.maps.Map(document.createElement('div'));
+            placesService = new google.maps.places.PlacesService(dummyMap);
+        }
+
+        // Disable map features if API is not available
+        function disableMapFeatures() {
+            // Hide all map buttons
+            document.querySelectorAll('.map-btn, .location-btn').forEach(btn => {
+                btn.style.display = 'none';
+            });
+            
+            // Add note to location fields
+            document.querySelectorAll('.location-container').forEach(container => {
+                const note = document.createElement('div');
+                note.className = 'location-info show';
+                note.textContent = 'Map features unavailable - enter location manually';
+                container.appendChild(note);
+            });
         }
 
         // Load all master data
@@ -1201,11 +1322,17 @@
                 <div class="form-group">
                     <label for="location_${currentItemCount}">At what location was this item performed?</label>
                     <div class="location-container">
-                        <input type="text" id="location_${currentItemCount}" required placeholder="Enter location or use map">
-                        <button type="button" class="map-btn" onclick="openMapModal(${currentItemCount})">
-                            📍 Map
-                        </button>
+                        <input type="text" id="location_${currentItemCount}" required placeholder="Enter location, address, or coordinates">
+                        <div class="location-buttons">
+                            <button type="button" class="map-btn" onclick="openMapModal(${currentItemCount})">
+                                📍 Map
+                            </button>
+                            <button type="button" class="location-btn" onclick="getCurrentLocation(${currentItemCount})">
+                                📱 GPS
+                            </button>
+                        </div>
                     </div>
+                    <div id="locationInfo_${currentItemCount}" class="location-info"></div>
                 </div>
                 
                 <div class="form-group">
@@ -1294,6 +1421,11 @@
             
             document.getElementById(`quantity_${currentItemCount}`).addEventListener('input', function() {
                 updateLineTotals(currentItemCount);
+            });
+
+            // Add geocoding event listener for location input
+            document.getElementById(`location_${currentItemCount}`).addEventListener('blur', function() {
+                geocodeLocation(currentItemCount);
             });
         }
 
@@ -1401,14 +1533,159 @@
             }
         }
 
+        // Async geocoding for location validation
+        async function geocodeLocation(itemIndex) {
+            if (!isGoogleMapsLoaded || !geocoder) return;
+            
+            const locationInput = document.getElementById(`location_${itemIndex}`);
+            const locationInfo = document.getElementById(`locationInfo_${itemIndex}`);
+            const address = locationInput.value.trim();
+            
+            if (!address || address.includes(',') && address.split(',').length === 2) {
+                // Skip if empty or already coordinates
+                return;
+            }
+            
+            try {
+                const results = await geocodeAddress(address);
+                
+                if (results && results.length > 0) {
+                    const result = results[0];
+                    const coords = result.geometry.location;
+                    
+                    // Update location info
+                    locationInfo.innerHTML = `
+                        <strong>Address:</strong> ${result.formatted_address}<br>
+                        <strong>Coordinates:</strong> ${coords.lat().toFixed(6)}, ${coords.lng().toFixed(6)}
+                    `;
+                    locationInfo.classList.add('show');
+                    
+                    // Optionally update the input with formatted address
+                    // locationInput.value = result.formatted_address;
+                } else {
+                    locationInfo.innerHTML = '<span style="color: #f87171;">Location not found</span>';
+                    locationInfo.classList.add('show');
+                }
+            } catch (error) {
+                console.error('Geocoding error:', error);
+                locationInfo.innerHTML = '<span style="color: #f87171;">Unable to verify location</span>';
+                locationInfo.classList.add('show');
+            }
+        }
+
+        // Async geocoding wrapper
+        function geocodeAddress(address) {
+            return new Promise((resolve, reject) => {
+                geocoder.geocode({ address: address }, (results, status) => {
+                    if (status === 'OK') {
+                        resolve(results);
+                    } else {
+                        reject(new Error(`Geocoding failed: ${status}`));
+                    }
+                });
+            });
+        }
+
+        // Async reverse geocoding
+        function reverseGeocode(lat, lng) {
+            return new Promise((resolve, reject) => {
+                const latLng = new google.maps.LatLng(lat, lng);
+                geocoder.geocode({ location: latLng }, (results, status) => {
+                    if (status === 'OK') {
+                        resolve(results);
+                    } else {
+                        reject(new Error(`Reverse geocoding failed: ${status}`));
+                    }
+                });
+            });
+        }
+
+        // Get user's current location using GPS
+        async function getCurrentLocation(itemIndex) {
+            const locationInput = document.getElementById(`location_${itemIndex}`);
+            const locationInfo = document.getElementById(`locationInfo_${itemIndex}`);
+            
+            if (!navigator.geolocation) {
+                alert('Geolocation is not supported by this browser.');
+                return;
+            }
+            
+            try {
+                locationInfo.innerHTML = 'Getting GPS location...';
+                locationInfo.classList.add('show');
+                
+                const position = await getCurrentPosition();
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                
+                // Set coordinates in input
+                locationInput.value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                
+                // Try to get address if geocoding is available
+                if (isGoogleMapsLoaded && geocoder) {
+                    try {
+                        const results = await reverseGeocode(lat, lng);
+                        if (results && results.length > 0) {
+                            locationInfo.innerHTML = `
+                                <strong>GPS Location:</strong> ${results[0].formatted_address}<br>
+                                <strong>Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>
+                                <strong>Accuracy:</strong> ±${Math.round(position.coords.accuracy)}m
+                            `;
+                        } else {
+                            locationInfo.innerHTML = `
+                                <strong>GPS Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>
+                                <strong>Accuracy:</strong> ±${Math.round(position.coords.accuracy)}m
+                            `;
+                        }
+                    } catch (geocodeError) {
+                        locationInfo.innerHTML = `
+                            <strong>GPS Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>
+                            <strong>Accuracy:</strong> ±${Math.round(position.coords.accuracy)}m
+                        `;
+                    }
+                } else {
+                    locationInfo.innerHTML = `
+                        <strong>GPS Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>
+                        <strong>Accuracy:</strong> ±${Math.round(position.coords.accuracy)}m
+                    `;
+                }
+                
+            } catch (error) {
+                console.error('GPS error:', error);
+                locationInfo.innerHTML = `<span style="color: #f87171;">GPS error: ${error.message}</span>`;
+            }
+        }
+
+        // Promise wrapper for getCurrentPosition
+        function getCurrentPosition(options = {}) {
+            return new Promise((resolve, reject) => {
+                const defaultOptions = {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 60000
+                };
+                
+                navigator.geolocation.getCurrentPosition(
+                    resolve,
+                    reject,
+                    { ...defaultOptions, ...options }
+                );
+            });
+        }
+
         // Map functionality
-        function openMapModal(itemIndex) {
+        async function openMapModal(itemIndex) {
+            if (!isGoogleMapsLoaded) {
+                alert('Map features are not available. Please enter location manually.');
+                return;
+            }
+            
             currentLocationInputId = `location_${itemIndex}`;
             document.getElementById('mapModal').classList.add('show');
             
             // Initialize map if not already done
             if (!map) {
-                initializeMap();
+                await initializeMap();
             }
             
             resetMapSelection();
@@ -1418,14 +1695,21 @@
             document.getElementById('mapModal').classList.remove('show');
         }
 
-        function initializeMap() {
+        async function initializeMap() {
             // Default to center of USA
             const defaultLocation = { lat: 39.8283, lng: -98.5795 };
             
             map = new google.maps.Map(document.getElementById('map'), {
                 zoom: 10,
                 center: defaultLocation,
-                mapTypeId: google.maps.MapTypeId.HYBRID
+                mapTypeId: google.maps.MapTypeId.HYBRID,
+                gestureHandling: 'cooperative',
+                zoomControl: true,
+                mapTypeControl: true,
+                scaleControl: true,
+                streetViewControl: true,
+                rotateControl: false,
+                fullscreenControl: true
             });
             
             map.addListener('click', function(event) {
@@ -1433,15 +1717,32 @@
             });
             
             // Try to get user's location
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(function(position) {
-                    const userLocation = {
-                        lat: position.coords.latitude,
-                        lng: position.coords.longitude
-                    };
-                    map.setCenter(userLocation);
-                    map.setZoom(15);
+            try {
+                const position = await getCurrentPosition();
+                const userLocation = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                };
+                map.setCenter(userLocation);
+                map.setZoom(15);
+                
+                // Add user location marker
+                new google.maps.Marker({
+                    position: userLocation,
+                    map: map,
+                    title: 'Your Location',
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 8,
+                        fillColor: '#4285F4',
+                        fillOpacity: 1,
+                        strokeColor: '#ffffff',
+                        strokeWeight: 2
+                    }
                 });
+            } catch (error) {
+                console.log('Could not get user location:', error);
+                // Keep default location
             }
         }
 
@@ -1457,7 +1758,8 @@
             selectedMarker = new google.maps.Marker({
                 position: latLng,
                 map: map,
-                title: 'Selected Location'
+                title: 'Selected Location',
+                animation: google.maps.Animation.DROP
             });
             
             // Show coordinates
@@ -1645,6 +1947,11 @@
             
             // Uncheck all checkboxes
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+            
+            // Hide all location info displays
+            document.querySelectorAll('.location-info').forEach(info => {
+                info.classList.remove('show');
+            });
         }
 
         function showMessage(message, type) {
@@ -1659,28 +1966,6 @@
                     resultDiv.className = '';
                 }, 5000);
             }
-        }
-
-        // Load Google Maps API
-        function loadGoogleMaps() {
-            if (GOOGLE_MAPS_API_KEY && GOOGLE_MAPS_API_KEY !== 'YOUR_GOOGLE_MAPS_API_KEY') {
-                const script = document.createElement('script');
-                script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initGoogleMaps&loading=async`;
-                script.async = true;
-                script.defer = true;
-                document.head.appendChild(script);
-            }
-        }
-
-        window.initGoogleMaps = function() {
-            console.log('Google Maps API loaded');
-        };
-
-        // Load maps when page loads - only after DOM is ready
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', loadGoogleMaps);
-        } else {
-            loadGoogleMaps();
         }
     </script>
 </body>
