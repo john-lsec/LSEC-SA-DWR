@@ -1,9 +1,12 @@
-// netlify/functions/api.js - Complete version with DWR functionality and User Management
+// netlify/functions/api.js - Complete version with DWR functionality, User Management, and Google Maps Integration
 const { neon } = require('@neondatabase/serverless');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const sql = neon(process.env.DATABASE_URL);
 const JWT_SECRET = process.env.JWT_SECRET || '416cf56a29ba481816ab028346c8dcdc169b2241187b10e9b274192da564523234ad0aec4f6dd567e1896c6e52c10f7e8494d6d15938afab7ef11db09630fd8fa8005';
+
+// Google Maps API configuration
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
 // Helper function to verify JWT token
 function verifyJWT(token) {
@@ -76,6 +79,123 @@ async function logUserActivity(userId, action, details = null) {
   }
 }
 
+// Google Maps API functions
+async function geocodeAddress(address) {
+  if (!GOOGLE_MAPS_API_KEY) {
+    throw new Error('Google Maps API key not configured');
+  }
+
+  const baseUrl = 'https://maps.googleapis.com/maps/api/geocode/json';
+  const params = new URLSearchParams({
+    address: address,
+    key: GOOGLE_MAPS_API_KEY
+  });
+
+  try {
+    const response = await fetch(`${baseUrl}?${params}`);
+    const data = await response.json();
+
+    if (data.status === 'OK' && data.results && data.results.length > 0) {
+      return {
+        success: true,
+        results: data.results.map(result => ({
+          formatted_address: result.formatted_address,
+          lat: result.geometry.location.lat,
+          lng: result.geometry.location.lng,
+          place_id: result.place_id,
+          types: result.types
+        }))
+      };
+    } else {
+      return {
+        success: false,
+        error: data.status || 'No results found',
+        message: 'Could not geocode the provided address'
+      };
+    }
+  } catch (error) {
+    console.error('Geocoding API error:', error);
+    return {
+      success: false,
+      error: 'API_ERROR',
+      message: 'Failed to contact geocoding service'
+    };
+  }
+}
+
+async function reverseGeocode(lat, lng) {
+  if (!GOOGLE_MAPS_API_KEY) {
+    throw new Error('Google Maps API key not configured');
+  }
+
+  const baseUrl = 'https://maps.googleapis.com/maps/api/geocode/json';
+  const params = new URLSearchParams({
+    latlng: `${lat},${lng}`,
+    key: GOOGLE_MAPS_API_KEY
+  });
+
+  try {
+    const response = await fetch(`${baseUrl}?${params}`);
+    const data = await response.json();
+
+    if (data.status === 'OK' && data.results && data.results.length > 0) {
+      return {
+        success: true,
+        results: data.results.map(result => ({
+          formatted_address: result.formatted_address,
+          lat: result.geometry.location.lat,
+          lng: result.geometry.location.lng,
+          place_id: result.place_id,
+          types: result.types
+        }))
+      };
+    } else {
+      return {
+        success: false,
+        error: data.status || 'No results found',
+        message: 'Could not reverse geocode the provided coordinates'
+      };
+    }
+  } catch (error) {
+    console.error('Reverse geocoding API error:', error);
+    return {
+      success: false,
+      error: 'API_ERROR',
+      message: 'Failed to contact reverse geocoding service'
+    };
+  }
+}
+
+async function validateLocation(address) {
+  if (!address || typeof address !== 'string') {
+    return {
+      success: false,
+      error: 'INVALID_INPUT',
+      message: 'Address is required and must be a string'
+    };
+  }
+
+  // Check if it's already coordinates
+  const coordPattern = /^-?\d+\.?\d*,-?\d+\.?\d*$/;
+  if (coordPattern.test(address.trim())) {
+    const [lat, lng] = address.trim().split(',').map(coord => parseFloat(coord.trim()));
+    
+    if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      // Valid coordinates, try to reverse geocode
+      return await reverseGeocode(lat, lng);
+    } else {
+      return {
+        success: false,
+        error: 'INVALID_COORDINATES',
+        message: 'Invalid coordinate format or values out of range'
+      };
+    }
+  }
+
+  // Try to geocode the address
+  return await geocodeAddress(address);
+}
+
 exports.handler = async (event, context) => {
   // CORS headers
   const headers = {
@@ -135,7 +255,8 @@ exports.handler = async (event, context) => {
         timestamp: new Date().toISOString(),
         method: method,
         path: event.path,
-        resource: resource
+        resource: resource,
+        googleMapsEnabled: !!GOOGLE_MAPS_API_KEY
       })
     };
   }
@@ -220,6 +341,19 @@ exports.handler = async (event, context) => {
       case 'user-profile':
         return await handleUserProfile(event, headers, method);
       
+      // Google Maps related endpoints
+      case 'google-maps-config':
+        return await handleGoogleMapsConfig(event, headers, method);
+      
+      case 'geocode':
+        return await handleGeocode(event, headers, method);
+      
+      case 'reverse-geocode':
+        return await handleReverseGeocode(event, headers, method);
+      
+      case 'validate-location':
+        return await handleLocationValidation(event, headers, method);
+      
       default:
         return {
           statusCode: 404,
@@ -232,7 +366,8 @@ exports.handler = async (event, context) => {
               'bid-items', 'project-bid-items', 'submit-dwr',
               'po-data', 'po-submit', 'po-requests', 'vendors', 
               'authorized-users', 'users', 'check-username', 
-              'check-email', 'user-profile'
+              'check-email', 'user-profile', 'google-maps-config',
+              'geocode', 'reverse-geocode', 'validate-location'
             ]
           })
         };
@@ -249,6 +384,175 @@ exports.handler = async (event, context) => {
     };
   }
 };
+
+// Google Maps Configuration handler
+async function handleGoogleMapsConfig(event, headers, method) {
+  if (method !== 'GET') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  try {
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        apiKey: GOOGLE_MAPS_API_KEY || null,
+        enabled: !!GOOGLE_MAPS_API_KEY,
+        libraries: ['places', 'geometry'],
+        language: 'en',
+        region: 'US'
+      })
+    };
+  } catch (error) {
+    console.error('Error getting Google Maps config:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Failed to get Google Maps configuration' })
+    };
+  }
+}
+
+// Geocoding handler
+async function handleGeocode(event, headers, method) {
+  if (method !== 'POST') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  try {
+    const { address } = JSON.parse(event.body);
+    
+    if (!address) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Address is required' })
+      };
+    }
+
+    const result = await geocodeAddress(address);
+    
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(result)
+    };
+
+  } catch (error) {
+    console.error('Error in geocoding:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ 
+        success: false,
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to process geocoding request'
+      })
+    };
+  }
+}
+
+// Reverse geocoding handler
+async function handleReverseGeocode(event, headers, method) {
+  if (method !== 'POST') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  try {
+    const { lat, lng } = JSON.parse(event.body);
+    
+    if (lat === undefined || lng === undefined) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Latitude and longitude are required' })
+      };
+    }
+
+    if (!isFinite(lat) || !isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid latitude or longitude values' })
+      };
+    }
+
+    const result = await reverseGeocode(lat, lng);
+    
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(result)
+    };
+
+  } catch (error) {
+    console.error('Error in reverse geocoding:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ 
+        success: false,
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to process reverse geocoding request'
+      })
+    };
+  }
+}
+
+// Location validation handler
+async function handleLocationValidation(event, headers, method) {
+  if (method !== 'POST') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  try {
+    const { location } = JSON.parse(event.body);
+    
+    if (!location) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Location is required' })
+      };
+    }
+
+    const result = await validateLocation(location);
+    
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(result)
+    };
+
+  } catch (error) {
+    console.error('Error in location validation:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ 
+        success: false,
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to process location validation request'
+      })
+    };
+  }
+}
 
 // Foremen handler - already correct
 async function handleForemen(event, headers, method) {
