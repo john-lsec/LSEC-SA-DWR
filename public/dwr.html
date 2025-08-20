@@ -361,6 +361,105 @@
             color: #60a5fa;
         }
         
+        /* Daily totals styles */
+        .daily-totals-container {
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid #404040;
+        }
+        
+        .totals-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .totals-section {
+            background: #242424;
+            border-radius: 6px;
+            padding: 15px;
+            border: 1px solid #404040;
+        }
+        
+        .totals-section h4 {
+            color: #4a9eff;
+            margin: 0 0 15px 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-bottom: 1px solid #404040;
+            padding-bottom: 8px;
+        }
+        
+        .total-value.neutral {
+            color: #c0c0c0;
+        }
+        
+        .profit-summary {
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+            border: 2px solid #4a9eff;
+            box-shadow: 0 4px 12px rgba(74, 158, 255, 0.2);
+        }
+        
+        .profit-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-size: 1.1rem;
+        }
+        
+        .profit-row.final {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-top: 10px;
+        }
+        
+        .profit-label {
+            color: #c0c0c0;
+            font-weight: 500;
+        }
+        
+        .profit-value {
+            font-weight: 600;
+            min-width: 100px;
+            text-align: right;
+        }
+        
+        .profit-value.revenue {
+            color: #4ade80;
+        }
+        
+        .profit-value.cost {
+            color: #f87171;
+        }
+        
+        .profit-divider {
+            height: 2px;
+            background: linear-gradient(90deg, #4a9eff 0%, #357abd 100%);
+            margin: 15px 0;
+            border-radius: 1px;
+        }
+        
+        #netProfit {
+            color: #4ade80;
+        }
+        
+        #netProfit.negative {
+            color: #f87171;
+        }
+        
+        #profitMargin {
+            color: #60a5fa;
+        }
+        
+        #profitMargin.negative {
+            color: #f87171;
+        }
+        
         /* Location input with map button */
         .location-container {
             display: flex;
@@ -838,6 +937,94 @@
                 </button>
             </div>
 
+            <!-- Daily Totals Section (Hidden initially) -->
+            <div id="dailyTotalsSection" class="section hidden">
+                <div class="section-header">
+                    <span class="section-number">3</span>
+                    Daily Totals & Profitability
+                </div>
+                
+                <div class="daily-totals-container">
+                    <div class="totals-grid">
+                        <div class="totals-section">
+                            <h4>Revenue</h4>
+                            <div class="total-row">
+                                <span class="total-label">Total Project Revenue:</span>
+                                <span class="total-value revenue" id="dailyRevenue">$0.00</span>
+                            </div>
+                        </div>
+                        
+                        <div class="totals-section">
+                            <h4>Material Costs</h4>
+                            <div class="total-row">
+                                <span class="total-label">Total Material Cost:</span>
+                                <span class="total-value cost" id="dailyMaterialCost">$0.00</span>
+                            </div>
+                        </div>
+                        
+                        <div class="totals-section">
+                            <h4>Labor Costs</h4>
+                            <div class="total-row">
+                                <span class="total-label">Hours on Site:</span>
+                                <span class="total-value neutral" id="hoursOnSite">0.00 hrs</span>
+                            </div>
+                            <div class="total-row">
+                                <span class="total-label">Foreman Cost:</span>
+                                <span class="total-value cost" id="foremanCost">$0.00</span>
+                            </div>
+                            <div class="total-row">
+                                <span class="total-label">Crew Labor Cost:</span>
+                                <span class="total-value cost" id="laborCost">$0.00</span>
+                            </div>
+                            <div class="total-row">
+                                <span class="total-label">Total Labor Cost:</span>
+                                <span class="total-value cost" id="totalLaborCost">$0.00</span>
+                            </div>
+                        </div>
+                        
+                        <div class="totals-section">
+                            <h4>Equipment Costs</h4>
+                            <div class="total-row">
+                                <span class="total-label">Truck Cost:</span>
+                                <span class="total-value cost" id="truckCost">$0.00</span>
+                            </div>
+                            <div class="total-row">
+                                <span class="total-label">Trailer Cost:</span>
+                                <span class="total-value cost" id="trailerCost">$0.00</span>
+                            </div>
+                            <div class="total-row">
+                                <span class="total-label">Machine Cost:</span>
+                                <span class="total-value cost" id="machineCost">$0.00</span>
+                            </div>
+                            <div class="total-row">
+                                <span class="total-label">Total Equipment Cost:</span>
+                                <span class="total-value cost" id="totalEquipmentCost">$0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="profit-summary">
+                        <div class="profit-row">
+                            <span class="profit-label">Total Project Revenue:</span>
+                            <span class="profit-value revenue" id="summaryRevenue">$0.00</span>
+                        </div>
+                        <div class="profit-row">
+                            <span class="profit-label">Total Costs:</span>
+                            <span class="profit-value cost" id="totalCosts">$0.00</span>
+                        </div>
+                        <div class="profit-divider"></div>
+                        <div class="profit-row final">
+                            <span class="profit-label">Net Daily Profit:</span>
+                            <span class="profit-value" id="netProfit">$0.00</span>
+                        </div>
+                        <div class="profit-row">
+                            <span class="profit-label">Profit Margin:</span>
+                            <span class="profit-value" id="profitMargin">0.00%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Submit Section -->
             <div class="form-group">
                 <button type="submit" id="submitBtn" class="btn btn-success btn-block">
@@ -899,6 +1086,11 @@
         let map, selectedMarker, selectedLatLng, currentLocationInputId;
         let geocoder, placesService;
         let isGoogleMapsLoaded = false;
+
+        // Hourly rates storage
+        let foremanRates = new Map();
+        let laborerRates = new Map();
+        let equipmentRates = new Map();
 
         // Google Maps API configuration - will be loaded from environment
         const GOOGLE_MAPS_CONFIG = {
@@ -1045,6 +1237,9 @@
                     option.value = foreman.id;
                     option.textContent = foreman.name;
                     select.appendChild(option);
+                    
+                    // Store hourly rate
+                    foremanRates.set(foreman.id, parseFloat(foreman.hourly_rate || 0));
                 });
             } catch (error) {
                 console.error('Error loading foremen:', error);
@@ -1066,6 +1261,9 @@
                 laborers.forEach(laborer => {
                     const item = createMultiSelectItem(laborer.id, laborer.name, 'laborer');
                     container.appendChild(item);
+                    
+                    // Store hourly rate
+                    laborerRates.set(laborer.id, parseFloat(laborer.hourly_rate || 0));
                 });
             } catch (error) {
                 console.error('Error loading laborers:', error);
@@ -1124,6 +1322,9 @@
                     option.value = item.id;
                     option.textContent = item.name;
                     select.appendChild(option);
+                    
+                    // Store hourly rate
+                    equipmentRates.set(item.id, parseFloat(item.hourly_rate || 0));
                 });
             } catch (error) {
                 console.error(`Error loading ${type}:`, error);
@@ -1143,6 +1344,9 @@
                 machines.forEach(machine => {
                     const item = createMultiSelectItem(machine.id, machine.name, 'machine');
                     container.appendChild(item);
+                    
+                    // Store hourly rate
+                    equipmentRates.set(machine.id, parseFloat(machine.hourly_rate || 0));
                 });
             } catch (error) {
                 console.error('Error loading machines:', error);
@@ -1199,6 +1403,9 @@
             });
             
             updateSelectedDisplay(displayId, container, type);
+            
+            // Recalculate daily totals when crew changes
+            calculateDailyTotals();
         }
 
         function updateSelectedDisplay(displayId, selectedSet, type) {
@@ -1237,24 +1444,36 @@
             document.getElementById('billableWork').addEventListener('change', handleBillableWorkChange);
             document.getElementById('addItemBtn').addEventListener('click', addItemSection);
             document.getElementById('dwrForm').addEventListener('submit', handleSubmit);
+            
+            // Add listeners for daily totals calculation
+            document.getElementById('foreman').addEventListener('change', calculateDailyTotals);
+            document.getElementById('arrivalTime').addEventListener('change', calculateDailyTotals);
+            document.getElementById('departureTime').addEventListener('change', calculateDailyTotals);
+            document.getElementById('truck').addEventListener('change', calculateDailyTotals);
+            document.getElementById('trailer').addEventListener('change', calculateDailyTotals);
         }
 
         // Handle billable work selection
         function handleBillableWorkChange() {
             const value = document.getElementById('billableWork').value;
             const itemsSection = document.getElementById('itemsSection');
+            const dailyTotalsSection = document.getElementById('dailyTotalsSection');
             
             if (value === 'Yes') {
                 itemsSection.classList.remove('hidden');
+                dailyTotalsSection.classList.remove('hidden');
                 if (document.querySelectorAll('.item-section').length === 0) {
                     addItemSection();
                 }
+                calculateDailyTotals();
             } else if (value === 'Maybe') {
                 document.getElementById('maybeModal').classList.add('show');
             } else if (value === 'No') {
                 itemsSection.classList.add('hidden');
+                dailyTotalsSection.classList.add('hidden');
             } else {
                 itemsSection.classList.add('hidden');
+                dailyTotalsSection.classList.add('hidden');
             }
         }
 
@@ -1270,10 +1489,14 @@
             }
             
             closeMaybeModal();
-            document.getElementById('itemsSection').classList.remove('hidden');
+            const itemsSection = document.getElementById('itemsSection');
+            const dailyTotalsSection = document.getElementById('dailyTotalsSection');
+            itemsSection.classList.remove('hidden');
+            dailyTotalsSection.classList.remove('hidden');
             if (document.querySelectorAll('.item-section').length === 0) {
                 addItemSection();
             }
+            calculateDailyTotals();
         }
 
         // Add item section
@@ -1396,12 +1619,8 @@
                         <span class="total-value revenue" id="lineRevenue_${currentItemCount}">$0.00</span>
                     </div>
                     <div class="total-row">
-                        <span class="total-label">Line Cost:</span>
+                        <span class="total-label">Line Material Cost:</span>
                         <span class="total-value cost" id="lineCost_${currentItemCount}">$0.00</span>
-                    </div>
-                    <div class="total-row">
-                        <span class="total-label">Line Profit:</span>
-                        <span class="total-value profit" id="lineProfit_${currentItemCount}">$0.00</span>
                     </div>
                 </div>
                 
@@ -1525,15 +1744,129 @@
                 
                 const revenue = quantity * rate;
                 const totalCost = quantity * cost;
-                const profit = revenue - totalCost;
                 
-                document.getElementById(`lineRevenue_${index}`).textContent = `$${revenue.toFixed(2)}`;
-                document.getElementById(`lineCost_${index}`).textContent = `$${totalCost.toFixed(2)}`;
-                document.getElementById(`lineProfit_${index}`).textContent = `$${profit.toFixed(2)}`;
+                document.getElementById(`lineRevenue_${index}`).textContent = `${revenue.toFixed(2)}`;
+                document.getElementById(`lineCost_${index}`).textContent = `${totalCost.toFixed(2)}`;
+                
+                // Recalculate daily totals when line items change
+                calculateDailyTotals();
             }
         }
 
-        // Async geocoding for location validation
+        // Calculate total hours on site
+        function calculateHoursOnSite() {
+            const arrivalTime = document.getElementById('arrivalTime').value;
+            const departureTime = document.getElementById('departureTime').value;
+            
+            if (!arrivalTime || !departureTime) return 0;
+            
+            const arrival = new Date(`2000-01-01T${arrivalTime}`);
+            const departure = new Date(`2000-01-01T${departureTime}`);
+            
+            // Handle overnight work (departure next day)
+            if (departure < arrival) {
+                departure.setDate(departure.getDate() + 1);
+            }
+            
+            const diffMs = departure - arrival;
+            const diffHours = diffMs / (1000 * 60 * 60);
+            
+            return Math.max(0, diffHours);
+        }
+
+        // Calculate daily totals and profitability
+        function calculateDailyTotals() {
+            const hoursOnSite = calculateHoursOnSite();
+            
+            // Update hours display
+            document.getElementById('hoursOnSite').textContent = `${hoursOnSite.toFixed(2)} hrs`;
+            
+            // Calculate revenue and material costs from items
+            let totalRevenue = 0;
+            let totalMaterialCost = 0;
+            
+            document.querySelectorAll('.item-section').forEach(section => {
+                const index = section.dataset.itemIndex;
+                const select = document.getElementById(`item_${index}`);
+                const quantityInput = document.getElementById(`quantity_${index}`);
+                
+                if (select.selectedIndex > 0 && quantityInput.value) {
+                    const option = select.options[select.selectedIndex];
+                    const quantity = parseFloat(quantityInput.value) || 0;
+                    const rate = parseFloat(option.dataset.rate || 0);
+                    const cost = parseFloat(option.dataset.cost || 0);
+                    
+                    totalRevenue += quantity * rate;
+                    totalMaterialCost += quantity * cost;
+                }
+            });
+            
+            // Calculate labor costs
+            const foremanId = document.getElementById('foreman').value;
+            const foremanRate = foremanRates.get(foremanId) || 0;
+            const foremanCost = foremanRate * hoursOnSite;
+            
+            let laborCost = 0;
+            selectedLaborers.forEach(laborer => {
+                const rate = laborerRates.get(laborer.id) || 0;
+                laborCost += rate * hoursOnSite;
+            });
+            
+            const totalLaborCost = foremanCost + laborCost;
+            
+            // Calculate equipment costs
+            const truckId = document.getElementById('truck').value;
+            const trailerId = document.getElementById('trailer').value;
+            
+            const truckRate = equipmentRates.get(truckId) || 0;
+            const trailerRate = equipmentRates.get(trailerId) || 0;
+            const truckCost = truckRate * hoursOnSite;
+            const trailerCost = trailerRate * hoursOnSite;
+            
+            let machineCost = 0;
+            selectedMachines.forEach(machine => {
+                const rate = equipmentRates.get(machine.id) || 0;
+                machineCost += rate * hoursOnSite;
+            });
+            
+            const totalEquipmentCost = truckCost + trailerCost + machineCost;
+            
+            // Calculate totals
+            const totalCosts = totalMaterialCost + totalLaborCost + totalEquipmentCost;
+            const netProfit = totalRevenue - totalCosts;
+            const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+            
+            // Update display
+            document.getElementById('dailyRevenue').textContent = `${totalRevenue.toFixed(2)}`;
+            document.getElementById('dailyMaterialCost').textContent = `${totalMaterialCost.toFixed(2)}`;
+            
+            document.getElementById('foremanCost').textContent = `${foremanCost.toFixed(2)}`;
+            document.getElementById('laborCost').textContent = `${laborCost.toFixed(2)}`;
+            document.getElementById('totalLaborCost').textContent = `${totalLaborCost.toFixed(2)}`;
+            
+            document.getElementById('truckCost').textContent = `${truckCost.toFixed(2)}`;
+            document.getElementById('trailerCost').textContent = `${trailerCost.toFixed(2)}`;
+            document.getElementById('machineCost').textContent = `${machineCost.toFixed(2)}`;
+            document.getElementById('totalEquipmentCost').textContent = `${totalEquipmentCost.toFixed(2)}`;
+            
+            document.getElementById('summaryRevenue').textContent = `${totalRevenue.toFixed(2)}`;
+            document.getElementById('totalCosts').textContent = `${totalCosts.toFixed(2)}`;
+            
+            const netProfitElement = document.getElementById('netProfit');
+            const profitMarginElement = document.getElementById('profitMargin');
+            
+            netProfitElement.textContent = `${netProfit.toFixed(2)}`;
+            profitMarginElement.textContent = `${profitMargin.toFixed(2)}%`;
+            
+            // Update styling based on profit/loss
+            if (netProfit < 0) {
+                netProfitElement.classList.add('negative');
+                profitMarginElement.classList.add('negative');
+            } else {
+                netProfitElement.classList.remove('negative');
+                profitMarginElement.classList.remove('negative');
+            }
+        }
         async function geocodeLocation(itemIndex) {
             if (!isGoogleMapsLoaded || !geocoder) return;
             
@@ -1938,12 +2271,34 @@
         function resetForm() {
             document.getElementById('dwrForm').reset();
             document.getElementById('itemsSection').classList.add('hidden');
+            document.getElementById('dailyTotalsSection').classList.add('hidden');
             document.getElementById('itemsContainer').innerHTML = '';
             currentItemCount = 0;
             selectedLaborers.clear();
             selectedMachines.clear();
             updateSelectedDisplay('selectedLaborers', selectedLaborers, 'laborer');
             updateSelectedDisplay('selectedMachines', selectedMachines, 'machine');
+            
+            // Reset daily totals display
+            const zeroDisplay = '$0.00';
+            document.getElementById('hoursOnSite').textContent = '0.00 hrs';
+            document.getElementById('dailyRevenue').textContent = zeroDisplay;
+            document.getElementById('dailyMaterialCost').textContent = zeroDisplay;
+            document.getElementById('foremanCost').textContent = zeroDisplay;
+            document.getElementById('laborCost').textContent = zeroDisplay;
+            document.getElementById('totalLaborCost').textContent = zeroDisplay;
+            document.getElementById('truckCost').textContent = zeroDisplay;
+            document.getElementById('trailerCost').textContent = zeroDisplay;
+            document.getElementById('machineCost').textContent = zeroDisplay;
+            document.getElementById('totalEquipmentCost').textContent = zeroDisplay;
+            document.getElementById('summaryRevenue').textContent = zeroDisplay;
+            document.getElementById('totalCosts').textContent = zeroDisplay;
+            document.getElementById('netProfit').textContent = zeroDisplay;
+            document.getElementById('profitMargin').textContent = '0.00%';
+            
+            // Remove negative styling
+            document.getElementById('netProfit').classList.remove('negative');
+            document.getElementById('profitMargin').classList.remove('negative');
             
             // Uncheck all checkboxes
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
