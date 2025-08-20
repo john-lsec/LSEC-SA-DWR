@@ -1138,9 +1138,13 @@
         // Initialize the application
         async function initializeApp() {
             try {
+                console.log('Initializing application...');
                 await loadMasterData();
+                console.log('Master data loaded, setting up event listeners...');
                 setupEventListeners();
+                console.log('Event listeners set up, initializing Google Maps...');
                 await initializeGoogleMaps();
+                console.log('Application initialization complete');
             } catch (error) {
                 console.error('Error initializing app:', error);
                 showMessage('Error initializing application. Please refresh the page.', 'error');
@@ -1463,27 +1467,28 @@
 
         // Update selected items display
         function updateSelectedItems(type) {
-            const container = type === 'laborer' ? selectedLaborers : selectedMachines;
-            const displayId = type === 'laborer' ? 'selectedLaborers' : 'selectedMachines';
-            
-            container.clear();
-            
-            document.querySelectorAll(`input[id^="${type}_"]:checked`).forEach(checkbox => {
-                const label = document.querySelector(`label[for="${checkbox.id}"]`);
-                if (label) {
-                    container.add({
-                        id: checkbox.value,
-                        name: label.textContent
-                    });
-                }
-            });
-            
-            updateSelectedDisplay(displayId, container, type);
-            
-            // Only recalculate daily totals if the daily totals section exists
-            const dailyTotalsSection = document.getElementById('dailyTotalsSection');
-            if (dailyTotalsSection && !dailyTotalsSection.classList.contains('hidden')) {
-                calculateDailyTotals();
+            try {
+                const container = type === 'laborer' ? selectedLaborers : selectedMachines;
+                const displayId = type === 'laborer' ? 'selectedLaborers' : 'selectedMachines';
+                
+                container.clear();
+                
+                document.querySelectorAll(`input[id^="${type}_"]:checked`).forEach(checkbox => {
+                    const label = document.querySelector(`label[for="${checkbox.id}"]`);
+                    if (label && checkbox.value) {
+                        container.add({
+                            id: checkbox.value,
+                            name: label.textContent
+                        });
+                    }
+                });
+                
+                updateSelectedDisplay(displayId, container, type);
+                
+                // Only recalculate daily totals if the daily totals section exists and is visible
+                safeCalculateDailyTotals();
+            } catch (error) {
+                console.error('Error updating selected items:', error);
             }
         }
 
@@ -1536,9 +1541,30 @@
 
         // Safe wrapper for calculateDailyTotals
         function safeCalculateDailyTotals() {
-            const dailyTotalsSection = document.getElementById('dailyTotalsSection');
-            if (dailyTotalsSection && !dailyTotalsSection.classList.contains('hidden')) {
+            try {
+                const dailyTotalsSection = document.getElementById('dailyTotalsSection');
+                if (!dailyTotalsSection) {
+                    console.log('Daily totals section not found - skipping calculation');
+                    return;
+                }
+                
+                if (dailyTotalsSection.classList.contains('hidden')) {
+                    console.log('Daily totals section is hidden - skipping calculation');
+                    return;
+                }
+                
+                // Check if required form elements exist
+                const requiredElements = ['foreman', 'arrivalTime', 'departureTime', 'truck', 'trailer'];
+                const missingElements = requiredElements.filter(id => !document.getElementById(id));
+                
+                if (missingElements.length > 0) {
+                    console.log('Missing required elements for calculation:', missingElements);
+                    return;
+                }
+                
                 calculateDailyTotals();
+            } catch (error) {
+                console.error('Error in safeCalculateDailyTotals:', error);
             }
         }
 
@@ -1893,8 +1919,13 @@
 
         // Calculate total hours on site
         function calculateHoursOnSite() {
-            const arrivalTime = document.getElementById('arrivalTime').value;
-            const departureTime = document.getElementById('departureTime').value;
+            const arrivalTimeElement = document.getElementById('arrivalTime');
+            const departureTimeElement = document.getElementById('departureTime');
+            
+            if (!arrivalTimeElement || !departureTimeElement) return 0;
+            
+            const arrivalTime = arrivalTimeElement.value;
+            const departureTime = departureTimeElement.value;
             
             if (!arrivalTime || !departureTime) return 0;
             
