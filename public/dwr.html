@@ -663,6 +663,13 @@
             border: 1px solid #d97706;
             box-shadow: 0 2px 8px rgba(251, 191, 36, 0.2);
         }
+
+        .alert-info {
+            background: linear-gradient(135deg, #1e2a3d 0%, #2d4263 100%);
+            color: #60a5fa;
+            border: 1px solid #3b82f6;
+            box-shadow: 0 2px 8px rgba(96, 165, 250, 0.2);
+        }
         
         /* Modal */
         .modal {
@@ -1144,9 +1151,11 @@
         async function initializeGoogleMaps() {
             try {
                 // Check if we can get the API key from the server
+                console.log('Initializing Google Maps...');
                 const apiKeyResponse = await AuthHelper.apiCall('google-maps-config');
                 
                 if (apiKeyResponse && apiKeyResponse.apiKey) {
+                    console.log('Google Maps API key received, loading API...');
                     await loadGoogleMapsAPI(apiKeyResponse.apiKey);
                     console.log('Google Maps API loaded successfully');
                 } else {
@@ -1159,9 +1168,10 @@
             }
         }
 
-        // Load Google Maps API dynamically
+        // Load Google Maps API dynamically with proper async loading
         function loadGoogleMapsAPI(apiKey) {
             return new Promise((resolve, reject) => {
+                // Check if already loaded
                 if (window.google && window.google.maps) {
                     isGoogleMapsLoaded = true;
                     initializeMapServices();
@@ -1169,30 +1179,75 @@
                     return;
                 }
 
-                window.initGoogleMaps = function() {
+                // Check if script is already being loaded
+                if (document.querySelector('script[src*="maps.googleapis.com"]')) {
+                    // Script already exists, wait for it to load
+                    const checkLoaded = setInterval(() => {
+                        if (window.google && window.google.maps) {
+                            clearInterval(checkLoaded);
+                            isGoogleMapsLoaded = true;
+                            initializeMapServices();
+                            resolve();
+                        }
+                    }, 100);
+                    
+                    // Timeout after 10 seconds
+                    setTimeout(() => {
+                        clearInterval(checkLoaded);
+                        reject(new Error('Google Maps API loading timeout'));
+                    }, 10000);
+                    return;
+                }
+
+                // Create global callback function
+                const callbackName = 'initGoogleMapsAsync';
+                window[callbackName] = function() {
                     isGoogleMapsLoaded = true;
                     initializeMapServices();
+                    delete window[callbackName]; // Cleanup
                     resolve();
                 };
 
+                // Create and load script
                 const script = document.createElement('script');
-                script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=${GOOGLE_MAPS_CONFIG.libraries.join(',')}&callback=initGoogleMaps&language=${GOOGLE_MAPS_CONFIG.language}&region=${GOOGLE_MAPS_CONFIG.region}`;
                 script.async = true;
                 script.defer = true;
-                script.onerror = () => reject(new Error('Failed to load Google Maps API'));
+                script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=${GOOGLE_MAPS_CONFIG.libraries.join(',')}&callback=${callbackName}&language=${GOOGLE_MAPS_CONFIG.language}&region=${GOOGLE_MAPS_CONFIG.region}&loading=async`;
+                script.onerror = () => {
+                    delete window[callbackName];
+                    reject(new Error('Failed to load Google Maps API'));
+                };
+                
                 document.head.appendChild(script);
             });
         }
 
         // Initialize map services after API is loaded
         function initializeMapServices() {
-            if (!window.google || !window.google.maps) return;
+            if (!window.google || !window.google.maps) {
+                console.warn('Google Maps API not properly loaded');
+                return;
+            }
             
-            geocoder = new google.maps.Geocoder();
-            
-            // Create a dummy div for places service
-            const dummyMap = new google.maps.Map(document.createElement('div'));
-            placesService = new google.maps.places.PlacesService(dummyMap);
+            try {
+                geocoder = new google.maps.Geocoder();
+                
+                // Create a dummy map for places service only if needed
+                // Note: PlacesService is deprecated for new customers as of March 2025
+                if (google.maps.places && google.maps.places.PlacesService) {
+                    const dummyMap = new google.maps.Map(document.createElement('div'));
+                    placesService = new google.maps.places.PlacesService(dummyMap);
+                } else {
+                    console.info('Places API not available - using geocoding only');
+                    placesService = null;
+                }
+                
+                console.log('Google Maps services initialized successfully');
+            } catch (error) {
+                console.error('Error initializing Google Maps services:', error);
+                geocoder = null;
+                placesService = null;
+            }
         }
 
         // Disable map features if API is not available
@@ -1360,13 +1415,28 @@
 
         // Load project bid items using AuthHelper
         async function loadProjectBidItems(projectId) {
-            if (!projectId) return;
-            try {
-                projectBidItems = await AuthHelper.apiCall('project-bid-items?project_id=' + projectId);
+            if (!projectId) {
+                projectBidItems = [];
                 updateAllItemDropdowns();
+                return;
+            }
+            
+            try {
+                console.log(`Loading project bid items for project: ${projectId}`);
+                projectBidItems = await AuthHelper.apiCall('project-bid-items?project_id=' + projectId);
+                console.log(`Loaded ${projectBidItems.length} project bid items:`, projectBidItems);
+                
+                // Update all item dropdowns with the new data
+                updateAllItemDropdowns();
+                
+                if (projectBidItems.length === 0) {
+                    showMessage('No bid items found for this project. Please contact your administrator.', 'warning');
+                }
             } catch (error) {
                 console.error('Error loading project bid items:', error);
-                showMessage('Error loading project bid items.', 'error');
+                projectBidItems = [];
+                updateAllItemDropdowns();
+                showMessage('Error loading project bid items: ' + error.message, 'error');
             }
         }
 
@@ -1400,16 +1470,21 @@
             
             document.querySelectorAll(`input[id^="${type}_"]:checked`).forEach(checkbox => {
                 const label = document.querySelector(`label[for="${checkbox.id}"]`);
-                container.add({
-                    id: checkbox.value,
-                    name: label.textContent
-                });
+                if (label) {
+                    container.add({
+                        id: checkbox.value,
+                        name: label.textContent
+                    });
+                }
             });
             
             updateSelectedDisplay(displayId, container, type);
             
-            // Recalculate daily totals when crew changes
-            calculateDailyTotals();
+            // Only recalculate daily totals if the daily totals section exists
+            const dailyTotalsSection = document.getElementById('dailyTotalsSection');
+            if (dailyTotalsSection && !dailyTotalsSection.classList.contains('hidden')) {
+                calculateDailyTotals();
+            }
         }
 
         function updateSelectedDisplay(displayId, selectedSet, type) {
@@ -1439,9 +1514,11 @@
 
         // Setup event listeners
         function setupEventListeners() {
-            document.getElementById('project').addEventListener('change', function() {
+            document.getElementById('project').addEventListener('change', async function() {
                 if (this.value) {
-                    loadProjectBidItems(this.value);
+                    await loadProjectBidItems(this.value);
+                    // Update all existing item dropdowns when project changes
+                    updateAllItemDropdowns();
                 }
             });
 
@@ -1449,12 +1526,20 @@
             document.getElementById('addItemBtn').addEventListener('click', addItemSection);
             document.getElementById('dwrForm').addEventListener('submit', handleSubmit);
             
-            // Add listeners for daily totals calculation
-            document.getElementById('foreman').addEventListener('change', calculateDailyTotals);
-            document.getElementById('arrivalTime').addEventListener('change', calculateDailyTotals);
-            document.getElementById('departureTime').addEventListener('change', calculateDailyTotals);
-            document.getElementById('truck').addEventListener('change', calculateDailyTotals);
-            document.getElementById('trailer').addEventListener('change', calculateDailyTotals);
+            // Add listeners for daily totals calculation with protection
+            document.getElementById('foreman').addEventListener('change', safeCalculateDailyTotals);
+            document.getElementById('arrivalTime').addEventListener('change', safeCalculateDailyTotals);
+            document.getElementById('departureTime').addEventListener('change', safeCalculateDailyTotals);
+            document.getElementById('truck').addEventListener('change', safeCalculateDailyTotals);
+            document.getElementById('trailer').addEventListener('change', safeCalculateDailyTotals);
+        }
+
+        // Safe wrapper for calculateDailyTotals
+        function safeCalculateDailyTotals() {
+            const dailyTotalsSection = document.getElementById('dailyTotalsSection');
+            if (dailyTotalsSection && !dailyTotalsSection.classList.contains('hidden')) {
+                calculateDailyTotals();
+            }
         }
 
         // Handle billable work selection
@@ -1464,13 +1549,26 @@
             const dailyTotalsSection = document.getElementById('dailyTotalsSection');
             
             if (value === 'Yes') {
+                const projectId = document.getElementById('project').value;
+                if (!projectId) {
+                    showMessage('Please select a project before adding billable work items.', 'warning');
+                    document.getElementById('billableWork').value = '';
+                    return;
+                }
+                
                 itemsSection.classList.remove('hidden');
                 dailyTotalsSection.classList.remove('hidden');
                 if (document.querySelectorAll('.item-section').length === 0) {
                     addItemSection();
                 }
-                calculateDailyTotals();
+                safeCalculateDailyTotals();
             } else if (value === 'Maybe') {
+                const projectId = document.getElementById('project').value;
+                if (!projectId) {
+                    showMessage('Please select a project before adding work items.', 'warning');
+                    document.getElementById('billableWork').value = '';
+                    return;
+                }
                 document.getElementById('maybeModal').classList.add('show');
             } else if (value === 'No') {
                 itemsSection.classList.add('hidden');
@@ -1492,6 +1590,14 @@
                 return;
             }
             
+            const projectId = document.getElementById('project').value;
+            if (!projectId) {
+                showMessage('Please select a project before adding work items.', 'warning');
+                closeMaybeModal();
+                document.getElementById('billableWork').value = '';
+                return;
+            }
+            
             closeMaybeModal();
             const itemsSection = document.getElementById('itemsSection');
             const dailyTotalsSection = document.getElementById('dailyTotalsSection');
@@ -1500,13 +1606,20 @@
             if (document.querySelectorAll('.item-section').length === 0) {
                 addItemSection();
             }
-            calculateDailyTotals();
+            safeCalculateDailyTotals();
         }
 
         // Add item section
         function addItemSection() {
             currentItemCount++;
             const container = document.getElementById('itemsContainer');
+            
+            // Check if project is selected
+            const projectId = document.getElementById('project').value;
+            if (!projectId) {
+                showMessage('Please select a project first before adding items.', 'warning');
+                return;
+            }
             
             const itemSection = document.createElement('div');
             itemSection.className = 'item-section';
@@ -1635,6 +1748,8 @@
             `;
             
             container.appendChild(itemSection);
+            
+            // Try to populate the dropdown immediately
             updateAllItemDropdowns();
             
             // Add event listeners for item selection and quantity
@@ -1667,8 +1782,7 @@
         // Update all item dropdowns
         function updateAllItemDropdowns() {
             const projectId = document.getElementById('project').value;
-            if (!projectId || !projectBidItems || projectBidItems.length === 0) return;
-
+            
             document.querySelectorAll('.item-section').forEach(section => {
                 const index = section.dataset.itemIndex;
                 const select = document.getElementById(`item_${index}`);
@@ -1677,6 +1791,26 @@
                 // Clear existing options except first
                 while (select.options.length > 1) {
                     select.remove(1);
+                }
+                
+                if (!projectId) {
+                    // No project selected
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = '-- Select a project first --';
+                    option.disabled = true;
+                    select.appendChild(option);
+                    return;
+                }
+                
+                if (!projectBidItems || projectBidItems.length === 0) {
+                    // Project selected but no bid items loaded
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = '-- Loading items or no items available --';
+                    option.disabled = true;
+                    select.appendChild(option);
+                    return;
                 }
                 
                 // Add bid items from the projectBidItems array
@@ -2283,27 +2417,38 @@
             updateSelectedDisplay('selectedLaborers', selectedLaborers, 'laborer');
             updateSelectedDisplay('selectedMachines', selectedMachines, 'machine');
             
-            // Reset daily totals display
+            // Reset daily totals display with null checks
             const zeroDisplay = '$0.00';
-            document.getElementById('hoursOnSite').textContent = '0.00 hrs';
-            document.getElementById('dailyRevenue').textContent = zeroDisplay;
-            document.getElementById('dailyMaterialCost').textContent = zeroDisplay;
-            document.getElementById('foremanBaseCost').textContent = zeroDisplay;
-            document.getElementById('laborBaseCost').textContent = zeroDisplay;
-            document.getElementById('laborBurden').textContent = zeroDisplay;
-            document.getElementById('totalLaborCost').textContent = zeroDisplay;
-            document.getElementById('truckCost').textContent = zeroDisplay;
-            document.getElementById('trailerCost').textContent = zeroDisplay;
-            document.getElementById('machineCost').textContent = zeroDisplay;
-            document.getElementById('totalEquipmentCost').textContent = zeroDisplay;
-            document.getElementById('summaryRevenue').textContent = zeroDisplay;
-            document.getElementById('totalCosts').textContent = zeroDisplay;
-            document.getElementById('netProfit').textContent = zeroDisplay;
-            document.getElementById('profitMargin').textContent = '0.00%';
+            const elementsToReset = [
+                'hoursOnSite', 'dailyRevenue', 'dailyMaterialCost', 'foremanBaseCost',
+                'laborBaseCost', 'laborBurden', 'totalLaborCost', 'truckCost', 'trailerCost',
+                'machineCost', 'totalEquipmentCost', 'summaryRevenue', 'totalCosts',
+                'netProfit', 'profitMargin'
+            ];
             
-            // Remove negative styling
-            document.getElementById('netProfit').classList.remove('negative');
-            document.getElementById('profitMargin').classList.remove('negative');
+            elementsToReset.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    if (id === 'hoursOnSite') {
+                        element.textContent = '0.00 hrs';
+                    } else if (id === 'profitMargin') {
+                        element.textContent = '0.00%';
+                    } else {
+                        element.textContent = zeroDisplay;
+                    }
+                }
+            });
+            
+            // Remove negative styling with null checks
+            const netProfitElement = document.getElementById('netProfit');
+            const profitMarginElement = document.getElementById('profitMargin');
+            
+            if (netProfitElement) {
+                netProfitElement.classList.remove('negative');
+            }
+            if (profitMarginElement) {
+                profitMarginElement.classList.remove('negative');
+            }
             
             // Uncheck all checkboxes
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
