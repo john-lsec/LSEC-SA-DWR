@@ -969,12 +969,16 @@
                                 <span class="total-value neutral" id="hoursOnSite">0.00 hrs</span>
                             </div>
                             <div class="total-row">
-                                <span class="total-label">Foreman Cost:</span>
-                                <span class="total-value cost" id="foremanCost">$0.00</span>
+                                <span class="total-label">Base Foreman Cost:</span>
+                                <span class="total-value cost" id="foremanBaseCost">$0.00</span>
                             </div>
                             <div class="total-row">
-                                <span class="total-label">Crew Labor Cost:</span>
-                                <span class="total-value cost" id="laborCost">$0.00</span>
+                                <span class="total-label">Base Crew Cost:</span>
+                                <span class="total-value cost" id="laborBaseCost">$0.00</span>
+                            </div>
+                            <div class="total-row">
+                                <span class="total-label">Labor Burden (55%):</span>
+                                <span class="total-value cost" id="laborBurden">$0.00</span>
                             </div>
                             <div class="total-row">
                                 <span class="total-label">Total Labor Cost:</span>
@@ -2284,8 +2288,9 @@
             document.getElementById('hoursOnSite').textContent = '0.00 hrs';
             document.getElementById('dailyRevenue').textContent = zeroDisplay;
             document.getElementById('dailyMaterialCost').textContent = zeroDisplay;
-            document.getElementById('foremanCost').textContent = zeroDisplay;
-            document.getElementById('laborCost').textContent = zeroDisplay;
+            document.getElementById('foremanBaseCost').textContent = zeroDisplay;
+            document.getElementById('laborBaseCost').textContent = zeroDisplay;
+            document.getElementById('laborBurden').textContent = zeroDisplay;
             document.getElementById('totalLaborCost').textContent = zeroDisplay;
             document.getElementById('truckCost').textContent = zeroDisplay;
             document.getElementById('trailerCost').textContent = zeroDisplay;
