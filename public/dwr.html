@@ -1991,7 +1991,9 @@
                 laborCost += rate * hoursOnSite;
             });
             
-            const totalLaborCost = foremanCost + laborCost;
+            const totalBaseLaborCost = foremanCost + laborCost;
+            const laborBurden = totalBaseLaborCost * 0.55; // 55% burden
+            const totalLaborCost = totalBaseLaborCost + laborBurden;
             
             // Calculate equipment costs
             const truckId = document.getElementById('truck').value;
@@ -2015,26 +2017,27 @@
             const netProfit = totalRevenue - totalCosts;
             const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
             
-            // Update display
-            document.getElementById('dailyRevenue').textContent = `${totalRevenue.toFixed(2)}`;
-            document.getElementById('dailyMaterialCost').textContent = `${totalMaterialCost.toFixed(2)}`;
+            // Update display with correct element IDs
+            document.getElementById('dailyRevenue').textContent = `$${totalRevenue.toFixed(2)}`;
+            document.getElementById('dailyMaterialCost').textContent = `$${totalMaterialCost.toFixed(2)}`;
             
-            document.getElementById('foremanCost').textContent = `${foremanCost.toFixed(2)}`;
-            document.getElementById('laborCost').textContent = `${laborCost.toFixed(2)}`;
-            document.getElementById('totalLaborCost').textContent = `${totalLaborCost.toFixed(2)}`;
+            document.getElementById('foremanBaseCost').textContent = `$${foremanCost.toFixed(2)}`;
+            document.getElementById('laborBaseCost').textContent = `$${laborCost.toFixed(2)}`;
+            document.getElementById('laborBurden').textContent = `$${laborBurden.toFixed(2)}`;
+            document.getElementById('totalLaborCost').textContent = `$${totalLaborCost.toFixed(2)}`;
             
-            document.getElementById('truckCost').textContent = `${truckCost.toFixed(2)}`;
-            document.getElementById('trailerCost').textContent = `${trailerCost.toFixed(2)}`;
-            document.getElementById('machineCost').textContent = `${machineCost.toFixed(2)}`;
-            document.getElementById('totalEquipmentCost').textContent = `${totalEquipmentCost.toFixed(2)}`;
+            document.getElementById('truckCost').textContent = `$${truckCost.toFixed(2)}`;
+            document.getElementById('trailerCost').textContent = `$${trailerCost.toFixed(2)}`;
+            document.getElementById('machineCost').textContent = `$${machineCost.toFixed(2)}`;
+            document.getElementById('totalEquipmentCost').textContent = `$${totalEquipmentCost.toFixed(2)}`;
             
-            document.getElementById('summaryRevenue').textContent = `${totalRevenue.toFixed(2)}`;
-            document.getElementById('totalCosts').textContent = `${totalCosts.toFixed(2)}`;
+            document.getElementById('summaryRevenue').textContent = `$${totalRevenue.toFixed(2)}`;
+            document.getElementById('totalCosts').textContent = `$${totalCosts.toFixed(2)}`;
             
             const netProfitElement = document.getElementById('netProfit');
             const profitMarginElement = document.getElementById('profitMargin');
             
-            netProfitElement.textContent = `${netProfit.toFixed(2)}`;
+            netProfitElement.textContent = `$${netProfit.toFixed(2)}`;
             profitMarginElement.textContent = `${profitMargin.toFixed(2)}%`;
             
             // Update styling based on profit/loss
