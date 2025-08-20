@@ -1139,6 +1139,16 @@
         async function initializeApp() {
             try {
                 console.log('Initializing application...');
+                
+                // Add temporary check for old element IDs to help debug
+                const oldElementIds = ['foremanCost', 'laborCost'];
+                oldElementIds.forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        console.warn(`Found old element ID: ${id} - this should have been updated`);
+                    }
+                });
+                
                 await loadMasterData();
                 console.log('Master data loaded, setting up event listeners...');
                 setupEventListeners();
