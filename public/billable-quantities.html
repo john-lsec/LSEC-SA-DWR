@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LSEC SA Billable Quantities Report</title>
+    <style>
+        * { box-sizing: border-box; }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #121212;
+            min-height: 100vh;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #4a9eff;
+            position: relative;
+        }
+        
+        .header h1 {
+            color: #4a9eff;
+            margin: 0;
+            font-size: 2.5rem;
+        }
+        
+        .header p {
+            color: #888;
+            margin: 10px 0;
+        }
+        
+        .user-info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            text-align: right;
+            font-size: 0.9rem;
+            color: #888;
+        }
+        
+        .user-info .user-name {
+            color: #4a9eff;
+            font-weight: 600;
+        }
+        
+        .logout-btn {
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+            margin-top: 5px;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .logout-btn:hover {
+            background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%);
+        }
+        
+        .section {
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border: 1px solid #333;
+        }
+        
+        .date-controls {
+            background-color: #1e1e1e;
+            padding: 20px;
+            margin-bottom: 25px;
+            border-radius: 12px;
+            border: 1px solid #333;
+        }
+        
+        .date-toggle {
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .toggle-btn {
+            background: linear-gradient(135deg, #4a9eff 0%, #357abd 100%);
+            color: #ffffff;
+            border: none;
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 0 5px;
+        }
+        
+        .toggle-btn.active {
+            background: linear-gradient(135deg, #357abd 0%, #2968a3 100%);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        
+        .toggle-btn:hover {
+            background: linear-gradient(135deg, #357abd 0%, #2968a3 100%);
+        }
+        
+        .custom-date-inputs {
+            display: none;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #333;
+        }
+        
+        .custom-date-inputs.active {
+            display: block;
+        }
+        
+        .date-input-group {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .date-input-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .date-input-label {
+            color: #c0c0c0;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .date-input {
+            background-color: #2a2a2a;
+            border: 2px solid #404040;
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: #e0e0e0;
+            font-size: 16px;
+            width: 150px;
+        }
+        
+        .date-input:focus {
+            outline: none;
+            border-color: #4a9eff;
+            box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.2);
+            background: #333;
+        }
+        
+        .load-custom-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20924c 100%);
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-left: 15px;
+        }
+        
+        .load-custom-btn:hover {
+            background: linear-gradient(135deg, #20924c 0%, #1e7e34 100%);
+            transform: translateY(-2px);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2em;
+            color: #b0b0b0;
+        }
+        
+        .spinner {
+            border: 4px solid #333;
+            border-top: 4px solid #4a9eff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .grand-totals {
+            background: linear-gradient(135deg, #2c2c2c 0%, #1a1a1a 100%);
+            padding: 25px;
+            margin-bottom: 30px;
+            border-radius: 12px;
+            border: 2px solid #4a9eff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        
+        .grand-totals-title {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #4a9eff;
+            margin-bottom: 20px;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .grand-totals-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .grand-total-item {
+            background-color: #1e1e1e;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #4a9eff;
+            text-align: center;
+            border: 1px solid #333;
+        }
+        
+        .grand-total-label {
+            font-size: 0.9em;
+            color: #c0c0c0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        
+        .grand-total-value {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #4a9eff;
+        }
+        
+        .controls {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .control-btn {
+            background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            margin: 0 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .control-btn:hover {
+            background: linear-gradient(135deg, #5a6268 0%, #495057 100%);
+            transform: translateY(-2px);
+        }
+        
+        .project-section {
+            margin-bottom: 40px;
+            border: 1px solid #333;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            background-color: #1e1e1e;
+        }
+        
+        .project-header {
+            background-color: #242424;
+            padding: 20px;
+            border-bottom: 2px solid #4a9eff;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            position: relative;
+        }
+        
+        .project-header:hover {
+            background-color: #2a2a2a;
+        }
+        
+        .project-header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .project-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #4a9eff;
+            margin-bottom: 10px;
+            flex-grow: 1;
+        }
+        
+        .expand-icon {
+            font-size: 1.5em;
+            color: #c0c0c0;
+            transition: transform 0.3s ease;
+            margin-left: 20px;
+            user-select: none;
+        }
+        
+        .expand-icon.expanded {
+            transform: rotate(180deg);
+        }
+        
+        .project-totals {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .project-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease-out, padding 0.4s ease-out;
+            background-color: #1e1e1e;
+        }
+        
+        .project-content.expanded {
+            max-height: 2000px;
+            padding: 20px;
+            transition: max-height 0.4s ease-in, padding 0.4s ease-in;
+        }
+        
+        .project-summary {
+            background-color: #242424;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border-left: 4px solid #4a9eff;
+            border: 1px solid #333;
+        }
+        
+        .summary-title {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #4a9eff;
+            margin-bottom: 10px;
+        }
+        
+        .total-item {
+            background-color: #242424;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #4a9eff;
+            border: 1px solid #333;
+        }
+        
+        .total-label {
+            font-size: 0.9em;
+            color: #c0c0c0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .total-value {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #4a9eff;
+            margin-top: 5px;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background-color: #1e1e1e;
+        }
+        
+        .data-table th {
+            background-color: #242424;
+            color: #4a9eff;
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #4a9eff;
+        }
+        
+        .data-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #333;
+            font-size: 0.9em;
+            color: #e0e0e0;
+        }
+        
+        .data-table tbody tr:hover {
+            background-color: #242424;
+        }
+        
+        .item-group {
+            background-color: #2a2a2a !important;
+            font-weight: bold;
+            color: #4a9eff !important;
+        }
+        
+        .item-total {
+            background-color: #242424 !important;
+            font-weight: 600;
+            border-top: 2px solid #4a9eff !important;
+            color: #4a9eff !important;
+        }
+        
+        .currency {
+            text-align: right;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .number {
+            text-align: right;
+        }
+        
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .alert-success {
+            background: #1e3d29;
+            color: #4ade80;
+            border: 1px solid #16a34a;
+        }
+        
+        .alert-error {
+            background: #3d1e1e;
+            color: #f87171;
+            border: 1px solid #dc2626;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .refresh-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: linear-gradient(135deg, #4a9eff 0%, #357abd 100%);
+            color: #ffffff;
+            border: none;
+            border-radius: 50px;
+            padding: 15px 25px;
+            font-size: 1em;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            transition: transform 0.2s;
+        }
+        
+        .refresh-btn:hover {
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, #357abd 0%, #2968a3 100%);
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .container {
+                padding: 15px;
+            }
+            
+            .date-controls {
+                padding: 15px;
+                margin-bottom: 20px;
+            }
+            
+            .date-input-group {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .date-input-item {
+                width: 100%;
+            }
+            
+            .date-input {
+                width: 100%;
+                max-width: 200px;
+            }
+            
+            .load-custom-btn {
+                margin-left: 0;
+                margin-top: 10px;
+                width: 100%;
+                max-width: 200px;
+            }
+            
+            .toggle-btn {
+                display: block;
+                width: 90%;
+                margin: 5px auto;
+            }
+            
+            .grand-totals {
+                padding: 20px;
+                margin-bottom: 25px;
+            }
+            
+            .grand-totals-title {
+                font-size: 1.5em;
+                margin-bottom: 15px;
+            }
+            
+            .grand-totals-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+            
+            .project-totals {
+                grid-template-columns: 1fr;
+            }
+            
+            .project-header {
+                padding: 15px;
+            }
+            
+            .project-header-content {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .expand-icon {
+                margin-left: 0;
+                margin-top: 10px;
+                align-self: flex-end;
+            }
+            
+            .data-table {
+                font-size: 0.8em;
+            }
+            
+            .data-table th,
+            .data-table td {
+                padding: 8px 4px;
+            }
+            
+            .control-btn {
+                display: block;
+                width: 90%;
+                margin: 10px auto;
+            }
+            
+            .refresh-btn {
+                bottom: 20px;
+                right: 20px;
+                padding: 12px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Billable Quantities Report</h1>
+            <p>LSEC SA Project Billing Data</p>
+            <div class="date-range" id="dateRange">Loading...</div>
+            <div class="user-info">
+                <div class="user-name" id="userDisplay">Loading...</div>
+                <button class="logout-btn" onclick="handleLogout()">Logout</button>
+            </div>
+        </div>
+        
+        <div class="date-controls">
+            <div class="date-toggle">
+                <button class="toggle-btn active" id="previousWeekBtn" onclick="toggleDateMode('previous')">📅 Previous Week</button>
+                <button class="toggle-btn" id="customRangeBtn" onclick="toggleDateMode('custom')">🗓️ Custom Range</button>
+            </div>
+            <div class="custom-date-inputs" id="customDateInputs">
+                <div class="date-input-group">
+                    <div class="date-input-item">
+                        <div class="date-input-label">Start Date</div>
+                        <input type="date" id="startDate" class="date-input">
+                    </div>
+                    <div class="date-input-item">
+                        <div class="date-input-label">End Date</div>
+                        <input type="date" id="endDate" class="date-input">
+                    </div>
+                    <button class="load-custom-btn" onclick="loadCustomDateRange()">Load Data</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="loadingDiv" class="loading">
+            <div class="spinner"></div>
+            Loading billing data...
+        </div>
+        
+        <div id="contentDiv" style="display: none;"></div>
+        <div id="errorDiv" style="display: none;"></div>
+    </div>
+    
+    <button class="refresh-btn" onclick="loadData()">🔄 Refresh</button>
+    
+    <!-- Include AuthHelper -->
+    <script src="auth-helper.js"></script>
+    
+    <script>
+        // Global variables
+        let currentDateRange = null;
+        
+        // Initialize page on DOM load
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize authentication
+            const isAuthenticated = await AuthHelper.init({
+                onAuthenticated: function(userInfo) {
+                    // Update user display
+                    const userDisplay = document.getElementById('userDisplay');
+                    if (userDisplay) {
+                        userDisplay.textContent = userInfo.name + ' (' + userInfo.role + ')';
+                    }
+                    
+                    // Load initial data
+                    loadData();
+                }
+            });
+            
+            if (!isAuthenticated) {
+                // User will be redirected to login by AuthHelper
+                return;
+            }
+        });
+        
+        // Logout handler
+        function handleLogout() {
+            AuthHelper.logout();
+        }
+        
+        function toggleDateMode(mode) {
+            const previousBtn = document.getElementById('previousWeekBtn');
+            const customBtn = document.getElementById('customRangeBtn');
+            const customInputs = document.getElementById('customDateInputs');
+            
+            if (mode === 'previous') {
+                previousBtn.classList.add('active');
+                customBtn.classList.remove('active');
+                customInputs.classList.remove('active');
+                loadData(); // Load previous week data
+            } else {
+                previousBtn.classList.remove('active');
+                customBtn.classList.add('active');
+                customInputs.classList.add('active');
+                setDefaultCustomDates();
+            }
+        }
+        
+        function setDefaultCustomDates() {
+            // Set default dates to previous week when switching to custom mode
+            const today = new Date();
+            const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+            
+            // Calculate days to subtract to get to previous Monday
+            const daysToSubtract = currentDay === 0 ? 13 : (currentDay + 6);
+            
+            const previousMonday = new Date(today);
+            previousMonday.setDate(today.getDate() - daysToSubtract);
+            
+            const previousSunday = new Date(previousMonday);
+            previousSunday.setDate(previousMonday.getDate() + 6);
+            
+            // Format dates for input fields (YYYY-MM-DD)
+            const startDateStr = previousMonday.toISOString().split('T')[0];
+            const endDateStr = previousSunday.toISOString().split('T')[0];
+            
+            document.getElementById('startDate').value = startDateStr;
+            document.getElementById('endDate').value = endDateStr;
+        }
+        
+        function loadCustomDateRange() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (!startDate || !endDate) {
+                showMessage('Please select both start and end dates.', 'error');
+                return;
+            }
+            
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            
+            if (start > end) {
+                showMessage('Start date must be before or equal to end date.', 'error');
+                return;
+            }
+            
+            // Load data with custom date range
+            loadBillingData(startDate, endDate);
+        }
+        
+        function loadData() {
+            // Calculate previous week range
+            const today = new Date();
+            const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+            
+            // Calculate days to subtract to get to previous Monday
+            const daysToSubtract = currentDay === 0 ? 13 : (currentDay + 6);
+            
+            const previousMonday = new Date(today);
+            previousMonday.setDate(today.getDate() - daysToSubtract);
+            
+            const previousSunday = new Date(previousMonday);
+            previousSunday.setDate(previousMonday.getDate() + 6);
+            
+            const startDate = previousMonday.toISOString().split('T')[0];
+            const endDate = previousSunday.toISOString().split('T')[0];
+            
+            loadBillingData(startDate, endDate);
+        }
+        
+        async function loadBillingData(startDate, endDate) {
+            document.getElementById('loadingDiv').style.display = 'block';
+            document.getElementById('contentDiv').style.display = 'none';
+            document.getElementById('errorDiv').style.display = 'none';
+            
+            try {
+                // Set current date range for display
+                currentDateRange = {
+                    start: new Date(startDate),
+                    end: new Date(endDate)
+                };
+                
+                // Update date range display
+                document.getElementById('dateRange').textContent = formatDateRange(currentDateRange);
+                
+                // Fetch billing data from the database
+                const billingData = await AuthHelper.apiCall(`billing-data?start_date=${startDate}&end_date=${endDate}`);
+                
+                displayData(billingData);
+                
+            } catch (error) {
+                console.error('Error loading billing data:', error);
+                displayError(error);
+            }
+        }
+        
+        function displayData(data) {
+            document.getElementById('loadingDiv').style.display = 'none';
+            
+            if (!data) {
+                document.getElementById('errorDiv').innerHTML = 
+                    '<div class="alert alert-error">No data received from server.</div>';
+                document.getElementById('errorDiv').style.display = 'block';
+                return;
+            }
+            
+            if (data.error) {
+                document.getElementById('errorDiv').innerHTML = 
+                    `<div class="alert alert-error">Server Error: ${data.error}</div>`;
+                document.getElementById('errorDiv').style.display = 'block';
+                return;
+            }
+            
+            if (!data.projects || data.projects.length === 0) {
+                document.getElementById('errorDiv').innerHTML = 
+                    '<div class="alert alert-error">No project data found for the selected date range.</div>';
+                document.getElementById('errorDiv').style.display = 'block';
+                return;
+            }
+            
+            let html = `
+                <div class="grand-totals">
+                    <div class="grand-totals-title">📊 All Projects Summary</div>
+                    <div class="grand-totals-grid">
+                        <div class="grand-total-item">
+                            <div class="grand-total-label">Total Extension</div>
+                            <div class="grand-total-value">$${formatNumber(data.grandTotals ? data.grandTotals.extension : 0)}</div>
+                        </div>
+                        <div class="grand-total-item">
+                            <div class="grand-total-label">Total MOH Amount</div>
+                            <div class="grand-total-value">$${formatNumber(data.grandTotals ? data.grandTotals.mohAmount : 0)}</div>
+                        </div>
+                        <div class="grand-total-item">
+                            <div class="grand-total-label">Total Less MOH</div>
+                            <div class="grand-total-value">$${formatNumber(data.grandTotals ? data.grandTotals.lessMoh : 0)}</div>
+                        </div>
+                        <div class="grand-total-item">
+                            <div class="grand-total-label">Total Retainage Amount</div>
+                            <div class="grand-total-value">$${formatNumber(data.grandTotals ? data.grandTotals.retainage : 0)}</div>
+                        </div>
+                        <div class="grand-total-item">
+                            <div class="grand-total-label">Total Billable Amount</div>
+                            <div class="grand-total-value">$${formatNumber(data.grandTotals ? data.grandTotals.billableAmount : 0)}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <button class="control-btn" onclick="expandAllProjects()">📂 Expand All</button>
+                    <button class="control-btn" onclick="collapseAllProjects()">📁 Collapse All</button>
+                </div>
+            `;
+            
+            data.projects.forEach((project, index) => {
+                const isExpanded = index === 0 ? 'expanded' : ''; // First project expanded by default
+                const contentExpanded = index === 0 ? 'expanded' : '';
+                
+                const projectTotals = project.totals || {
+                    extension: 0, mohAmount: 0, lessMoh: 0, retainage: 0, 
+                    billableAmount: 0, retainagePercent: 0
+                };
+                
+                html += `
+                    <div class="project-section">
+                        <div class="project-header" onclick="toggleProject(${index})">
+                            <div class="project-header-content">
+                                <div>
+                                    <div class="project-title">${project.name}</div>
+                                    <div class="project-summary">
+                                        <div class="summary-title">Project Summary</div>
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; font-size: 0.9em;">
+                                            <div><strong>Extension:</strong> $${formatNumber(projectTotals.extension)}</div>
+                                            <div><strong>MOH:</strong> $${formatNumber(projectTotals.mohAmount)}</div>
+                                            <div><strong>Less MOH:</strong> $${formatNumber(projectTotals.lessMoh)}</div>
+                                            <div><strong>Retainage:</strong> $${formatNumber(projectTotals.retainage)}</div>
+                                            <div><strong>Retainage %:</strong> ${formatNumber(projectTotals.retainagePercent)}%</div>
+                                            <div><strong>Billable:</strong> $${formatNumber(projectTotals.billableAmount)}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="expand-icon ${isExpanded}" id="icon-${index}">▼</div>
+                            </div>
+                        </div>
+                        
+                        <div class="project-content ${contentExpanded}" id="content-${index}">
+                            <div class="project-totals">
+                                <div class="total-item">
+                                    <div class="total-label">Total Extension</div>
+                                    <div class="total-value">$${formatNumber(projectTotals.extension)}</div>
+                                </div>
+                                <div class="total-item">
+                                    <div class="total-label">MOH Amount</div>
+                                    <div class="total-value">$${formatNumber(projectTotals.mohAmount)}</div>
+                                </div>
+                                <div class="total-item">
+                                    <div class="total-label">Less MOH</div>
+                                    <div class="total-value">$${formatNumber(projectTotals.lessMoh)}</div>
+                                </div>
+                                <div class="total-item">
+                                    <div class="total-label">Retainage Amount</div>
+                                    <div class="total-value">$${formatNumber(projectTotals.retainage)}</div>
+                                </div>
+                                <div class="total-item">
+                                    <div class="total-label">Retainage %</div>
+                                    <div class="total-value">${formatNumber(projectTotals.retainagePercent)}%</div>
+                                </div>
+                                <div class="total-item">
+                                    <div class="total-label">Billable Amount</div>
+                                    <div class="total-value">$${formatNumber(projectTotals.billableAmount)}</div>
+                                </div>
+                            </div>
+                            
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>Work Date</th>
+                                        <th>Qty</th>
+                                        <th>Unit</th>
+                                        <th>Rate</th>
+                                        <th>MOH Rate</th>
+                                        <th>Extension</th>
+                                        <th>MOH Amount</th>
+                                        <th>Less MOH</th>
+                                        <th>Retainage</th>
+                                        <th>Billable Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+                
+                const projectItems = project.items || [];
+                
+                projectItems.forEach(item => {
+                    html += `<tr class="item-group"><td colspan="11"><strong>ITEM: ${item.name}</strong></td></tr>`;
+                    
+                    const itemEntries = item.entries || [];
+                    itemEntries.forEach(entry => {
+                        html += `
+                            <tr>
+                                <td></td>
+                                <td>${entry.workDate || ''}</td>
+                                <td class="number">${formatNumber(entry.qty || 0)}</td>
+                                <td>${entry.unit || ''}</td>
+                                <td class="currency">$${formatNumber(entry.rate || 0)}</td>
+                                <td class="currency">$${formatNumber(entry.mohRate || 0)}</td>
+                                <td class="currency">$${formatNumber(entry.extension || 0)}</td>
+                                <td class="currency">$${formatNumber(entry.mohAmount || 0)}</td>
+                                <td class="currency">$${formatNumber(entry.lessMoh || 0)}</td>
+                                <td class="currency">$${formatNumber(entry.retainage || 0)}</td>
+                                <td class="currency">$${formatNumber(entry.billableAmount || 0)}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    const itemTotals = item.totals || {
+                        extension: 0, mohAmount: 0, lessMoh: 0, retainage: 0, 
+                        billableAmount: 0, retainagePercent: 0
+                    };
+                    
+                    html += `
+                        <tr class="item-total">
+                            <td><strong>TOTAL for ${item.name}</strong></td>
+                            <td></td>
+                            <td class="number"><strong>${formatNumber(item.totalQty || 0)}</strong></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td class="currency"><strong>$${formatNumber(itemTotals.extension)}</strong></td>
+                            <td class="currency"><strong>$${formatNumber(itemTotals.mohAmount)}</strong></td>
+                            <td class="currency"><strong>$${formatNumber(itemTotals.lessMoh)}</strong></td>
+                            <td class="currency"><strong>$${formatNumber(itemTotals.retainage)}</strong></td>
+                            <td class="currency"><strong>$${formatNumber(itemTotals.billableAmount)}</strong></td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            document.getElementById('contentDiv').innerHTML = html;
+            document.getElementById('contentDiv').style.display = 'block';
+        }
+        
+        function displayError(error) {
+            document.getElementById('loadingDiv').style.display = 'none';
+            console.error('Error details:', error);
+            document.getElementById('errorDiv').innerHTML = 
+                `<div class="alert alert-error">
+                    <strong>Error loading data:</strong><br>
+                    ${error.message || error}<br><br>
+                    <small>Please check your connection and try again.</small>
+                </div>`;
+            document.getElementById('errorDiv').style.display = 'block';
+        }
+        
+        function toggleProject(index) {
+            const content = document.getElementById(`content-${index}`);
+            const icon = document.getElementById(`icon-${index}`);
+            
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                icon.classList.remove('expanded');
+            } else {
+                content.classList.add('expanded');
+                icon.classList.add('expanded');
+            }
+        }
+        
+        function expandAllProjects() {
+            const contents = document.querySelectorAll('.project-content');
+            const icons = document.querySelectorAll('.expand-icon');
+            
+            contents.forEach(content => content.classList.add('expanded'));
+            icons.forEach(icon => icon.classList.add('expanded'));
+        }
+        
+        function collapseAllProjects() {
+            const contents = document.querySelectorAll('.project-content');
+            const icons = document.querySelectorAll('.expand-icon');
+            
+            contents.forEach(content => content.classList.remove('expanded'));
+            icons.forEach(icon => icon.classList.remove('expanded'));
+        }
+        
+        function formatNumber(num) {
+            if (num === null || num === undefined || num === '') return '0.00';
+            return parseFloat(num).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+        
+        function formatDateRange(dateRange) {
+            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+            return `${dateRange.start.toLocaleDateString('en-US', options)} - ${dateRange.end.toLocaleDateString('en-US', options)}`;
+        }
+        
+        function showMessage(message, type) {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `alert alert-${type}`;
+            resultDiv.textContent = message;
+            
+            // Insert at the top of the container
+            const container = document.querySelector('.container');
+            container.insertBefore(resultDiv, container.firstChild);
+            
+            if (type === 'success') {
+                setTimeout(function() {
+                    resultDiv.remove();
+                }, 5000);
+            }
+        }
+    </script>
+</body>
+</html>
