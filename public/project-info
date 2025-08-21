@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LSEC SA Project Information</title>
+    <style>
+        * { box-sizing: border-box; }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #121212;
+            min-height: 100vh;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #4a9eff;
+            position: relative;
+        }
+        
+        .header h1 {
+            color: #4a9eff;
+            margin: 0;
+            font-size: 2.5rem;
+        }
+        
+        .user-info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            text-align: right;
+            font-size: 0.9rem;
+            color: #888;
+        }
+        
+        .user-info .user-name {
+            color: #4a9eff;
+            font-weight: 600;
+        }
+        
+        .logout-btn {
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+            margin-top: 5px;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .logout-btn:hover {
+            background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%);
+        }
+        
+        .tabs {
+            display: flex;
+            background: #1e1e1e;
+            border-radius: 12px 12px 0 0;
+            margin-bottom: 0;
+            border: 1px solid #333;
+            border-bottom: none;
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 15px 20px;
+            background: #2a2a2a;
+            color: #888;
+            cursor: pointer;
+            border: none;
+            border-right: 1px solid #333;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .tab:first-child {
+            border-radius: 12px 0 0 0;
+        }
+        
+        .tab:last-child {
+            border-radius: 0 12px 0 0;
+            border-right: none;
+        }
+        
+        .tab.active {
+            background: #4a9eff;
+            color: white;
+        }
+        
+        .tab:hover:not(.active) {
+            background: #333;
+            color: #c0c0c0;
+        }
+        
+        .tab-content {
+            background: #1e1e1e;
+            border-radius: 0 0 12px 12px;
+            padding: 25px;
+            border: 1px solid #333;
+            border-top: none;
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            color: #e0e0e0;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #c0c0c0;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #404040;
+            border-radius: 8px;
+            font-size: 16px;
+            background: #2a2a2a;
+            color: #e0e0e0;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #4a9eff;
+            box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.2);
+            background: #333;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #4a9eff 0%, #357abd 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn:hover {
+            background: linear-gradient(135deg, #357abd 0%, #2968a3 100%);
+            transform: translateY(-2px);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20924c 100%);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        }
+        
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+        
+        .search-filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        
+        .search-filter-bar input, .search-filter-bar select {
+            max-width: 200px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #1e1e1e;
+        }
+        
+        table th, table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #404040;
+        }
+        
+        table th {
+            background: #242424;
+            font-weight: 600;
+            color: #4a9eff;
+            position: sticky;
+            top: 0;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .modal.show {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .alert-success {
+            background: #1e3d29;
+            color: #4ade80;
+            border: 1px solid #16a34a;
+        }
+        
+        .alert-error {
+            background: #3d1e1e;
+            color: #f87171;
+            border: 1px solid #dc2626;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .form-row-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .status-active {
+            color: #4ade80;
+            font-weight: 600;
+        }
+        
+        .status-inactive {
+            color: #f87171;
+            font-weight: 600;
+        }
+        
+        small {
+            color: #666;
+            display: block;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Project Information</h1>
+            <p>General Contractors & Projects Management</p>
+            <div class="user-info">
+                <div class="user-name" id="userDisplay">Loading...</div>
+                <button class="logout-btn" onclick="handleLogout()">Logout</button>
+            </div>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('contractors')">General Contractors</button>
+            <button class="tab" onclick="switchTab('projects')">Projects</button>
+        </div>
+        
+        <!-- General Contractors Tab -->
+        <div class="tab-content active" id="contractorsTab">
+            <div class="section-header">
+                <span>General Contractors</span>
+                <button type="button" id="addContractorBtn" class="btn btn-success">Add Contractor</button>
+            </div>
+            
+            <div class="search-filter-bar">
+                <input type="text" id="contractorSearchInput" placeholder="Search contractors...">
+                <select id="contractorStatusFilter">
+                    <option value="">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Contact Person</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>City, State</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="contractorsTableBody">
+                    <tr><td colspan="7">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Projects Tab -->
+        <div class="tab-content" id="projectsTab">
+            <div class="section-header">
+                <span>Projects</span>
+                <button type="button" id="addProjectBtn" class="btn btn-success">Add Project</button>
+            </div>
+            
+            <div class="search-filter-bar">
+                <input type="text" id="projectSearchInput" placeholder="Search projects...">
+                <select id="projectContractorFilter">
+                    <option value="">All Contractors</option>
+                </select>
+                <select id="projectStatusFilter">
+                    <option value="">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Project Name</th>
+                        <th>Project Code</th>
+                        <th>General Contractor</th>
+                        <th>Site Location</th>
+                        <th>County</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="projectsTableBody">
+                    <tr><td colspan="7">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div id="resultMessage"></div>
+    </div>
+    
+    <!-- Contractor Modal -->
+    <div id="contractorModal" class="modal">
+        <div class="modal-content">
+            <h3 id="contractorModalTitle">Add General Contractor</h3>
+            
+            <form id="contractorForm">
+                <input type="hidden" id="contractorId" value="">
+                
+                <div class="form-group">
+                    <label for="contractorName">Company Name:</label>
+                    <input type="text" id="contractorName" required>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="contactPerson">Contact Person:</label>
+                        <input type="text" id="contactPerson">
+                    </div>
+                    <div class="form-group">
+                        <label for="contractorEmail">Email:</label>
+                        <input type="email" id="contractorEmail">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="contractorPhone">Phone:</label>
+                        <input type="tel" id="contractorPhone">
+                    </div>
+                    <div class="form-group">
+                        <label for="contractorActive">Status:</label>
+                        <select id="contractorActive" required>
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="contractorAddress">Address:</label>
+                    <textarea id="contractorAddress" rows="2"></textarea>
+                </div>
+                
+                <div class="form-row-3">
+                    <div class="form-group">
+                        <label for="contractorCity">City:</label>
+                        <input type="text" id="contractorCity">
+                    </div>
+                    <div class="form-group">
+                        <label for="contractorState">State:</label>
+                        <input type="text" id="contractorState" maxlength="2" placeholder="TX">
+                    </div>
+                    <div class="form-group">
+                        <label for="contractorZip">ZIP Code:</label>
+                        <input type="text" id="contractorZip" maxlength="10">
+                    </div>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeContractorModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success">Save Contractor</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Project Modal -->
+    <div id="projectModal" class="modal">
+        <div class="modal-content">
+            <h3 id="projectModalTitle">Add Project</h3>
+            
+            <form id="projectForm">
+                <input type="hidden" id="projectId" value="">
+                
+                <div class="form-group">
+                    <label for="projectGeneralContractor">General Contractor:</label>
+                    <select id="projectGeneralContractor" required>
+                        <option value="">-- Select Contractor --</option>
+                    </select>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="projectSite">Site Location:</label>
+                        <input type="text" id="projectSite" required placeholder="e.g., FM 140">
+                    </div>
+                    <div class="form-group">
+                        <label for="projectCounty">County:</label>
+                        <input type="text" id="projectCounty" required placeholder="e.g., FRIO">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="projectName">Project Name:</label>
+                    <input type="text" id="projectName" readonly placeholder="Auto-generated from contractor, site, and county">
+                    <small>Automatically generated: CONTRACTOR SITE COUNTY</small>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="projectCode">Project Code:</label>
+                        <input type="text" id="projectCode">
+                    </div>
+                    <div class="form-group">
+                        <label for="projectActive">Status:</label>
+                        <select id="projectActive" required>
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeProjectModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success">Save Project</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <h3>Confirm Delete</h3>
+            <p id="deleteMessage">Are you sure you want to delete this item?</p>
+            <p id="deleteItemDetails"></p>
+            <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+            <button type="button" id="confirmDeleteBtn" class="btn btn-danger">Delete</button>
+        </div>
+    </div>
+    
+    <!-- Include AuthHelper -->
+    <script src="auth-helper.js"></script>
+    
+    <script>
+        // State variables
+        let allContractors = [];
+        let allProjects = [];
+        let currentTab = 'contractors';
+        let itemToDelete = null;
+        
+        // Initialize page on DOM load
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize authentication
+            const isAuthenticated = await AuthHelper.init({
+                onAuthenticated: function(userInfo) {
+                    // Update user display
+                    const userDisplay = document.getElementById('userDisplay');
+                    if (userDisplay) {
+                        userDisplay.textContent = userInfo.name + ' (' + userInfo.role + ')';
+                    }
+                    
+                    // Initialize the page functionality
+                    loadContractors();
+                    loadProjects();
+                    setupEventListeners();
+                }
+            });
+            
+            if (!isAuthenticated) {
+                // User will be redirected to login by AuthHelper
+                return;
+            }
+        });
+        
+        // Logout handler
+        function handleLogout() {
+            AuthHelper.logout();
+        }
+        
+        // Tab switching
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            // Activate selected tab
+            if (tabName === 'contractors') {
+                document.querySelector('.tab:first-child').classList.add('active');
+                document.getElementById('contractorsTab').classList.add('active');
+            } else {
+                document.querySelector('.tab:last-child').classList.add('active');
+                document.getElementById('projectsTab').classList.add('active');
+            }
+            
+            currentTab = tabName;
+        }
+        
+        // Load contractors
+        async function loadContractors() {
+            try {
+                allContractors = await AuthHelper.apiCall('general-contractors');
+                renderContractorsTable();
+            } catch (error) {
+                showMessage('Error loading contractors.', 'error');
+            }
+        }
+        
+        // Load projects
+        async function loadProjects() {
+            try {
+                allProjects = await AuthHelper.apiCall('projects-with-contractors');
+                populateContractorFilters();
+                renderProjectsTable();
+            } catch (error) {
+                showMessage('Error loading projects.', 'error');
+            }
+        }
+        
+        // Render contractors table
+        function renderContractorsTable() {
+            const tableBody = document.getElementById('contractorsTableBody');
+            const searchTerm = document.getElementById('contractorSearchInput').value.toLowerCase();
+            const statusFilter = document.getElementById('contractorStatusFilter').value;
+            
+            let filteredContractors = allContractors;
+            
+            // Apply search filter
+            if (searchTerm) {
+                filteredContractors = filteredContractors.filter(contractor => 
+                    contractor.name.toLowerCase().includes(searchTerm) ||
+                    (contractor.contact_person && contractor.contact_person.toLowerCase().includes(searchTerm)) ||
+                    (contractor.email && contractor.email.toLowerCase().includes(searchTerm))
+                );
+            }
+            
+            // Apply status filter
+            if (statusFilter) {
+                const isActive = statusFilter === 'active';
+                filteredContractors = filteredContractors.filter(contractor => contractor.is_active === isActive);
+            }
+            
+            if (filteredContractors.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="7">No contractors found.</td></tr>';
+                return;
+            }
+            
+            tableBody.innerHTML = '';
+            filteredContractors.forEach(contractor => {
+                const row = document.createElement('tr');
+                const statusClass = contractor.is_active ? 'status-active' : 'status-inactive';
+                const statusText = contractor.is_active ? 'Active' : 'Inactive';
+                const cityState = (contractor.city ? contractor.city + ', ' : '') + (contractor.state || '');
+                
+                row.innerHTML = `
+                    <td>${contractor.name}</td>
+                    <td>${contractor.contact_person || '-'}</td>
+                    <td>${contractor.email || '-'}</td>
+                    <td>${contractor.phone || '-'}</td>
+                    <td>${cityState || '-'}</td>
+                    <td><span class="${statusClass}">${statusText}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-secondary" onclick="editContractor('${contractor.id}')">Edit</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteContractor('${contractor.id}', '${contractor.name}')">Delete</button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+        
+        // Render projects table
+        function renderProjectsTable() {
+            const tableBody = document.getElementById('projectsTableBody');
+            const searchTerm = document.getElementById('projectSearchInput').value.toLowerCase();
+            const contractorFilter = document.getElementById('projectContractorFilter').value;
+            const statusFilter = document.getElementById('projectStatusFilter').value;
+            
+            let filteredProjects = allProjects;
+            
+            // Apply search filter
+            if (searchTerm) {
+                filteredProjects = filteredProjects.filter(project => 
+                    project.name.toLowerCase().includes(searchTerm) ||
+                    (project.project_code && project.project_code.toLowerCase().includes(searchTerm)) ||
+                    (project.contractor_name && project.contractor_name.toLowerCase().includes(searchTerm))
+                );
+            }
+            
+            // Apply contractor filter
+            if (contractorFilter) {
+                filteredProjects = filteredProjects.filter(project => project.general_contractor_id === contractorFilter);
+            }
+            
+            // Apply status filter
+            if (statusFilter) {
+                const isActive = statusFilter === 'active';
+                filteredProjects = filteredProjects.filter(project => project.active === isActive);
+            }
+            
+            if (filteredProjects.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="7">No projects found.</td></tr>';
+                return;
+            }
+            
+            tableBody.innerHTML = '';
+            filteredProjects.forEach(project => {
+                const row = document.createElement('tr');
+                const statusClass = project.active ? 'status-active' : 'status-inactive';
+                const statusText = project.active ? 'Active' : 'Inactive';
+                
+                row.innerHTML = `
+                    <td>${project.name}</td>
+                    <td>${project.project_code || '-'}</td>
+                    <td>${project.contractor_name || '-'}</td>
+                    <td>${project.site_location || '-'}</td>
+                    <td>${project.county || '-'}</td>
+                    <td><span class="${statusClass}">${statusText}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-secondary" onclick="editProject('${project.id}')">Edit</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteProject('${project.id}', '${project.name}')">Delete</button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+        
+        // Populate contractor filters
+        function populateContractorFilters() {
+            const projectSelect = document.getElementById('projectGeneralContractor');
+            const filterSelect = document.getElementById('projectContractorFilter');
+            
+            // Clear existing options (keep first option)
+            projectSelect.innerHTML = '<option value="">-- Select Contractor --</option>';
+            filterSelect.innerHTML = '<option value="">All Contractors</option>';
+            
+            // Add active contractors
+            allContractors.filter(c => c.is_active).forEach(contractor => {
+                const option1 = document.createElement('option');
+                option1.value = contractor.id;
+                option1.textContent = contractor.name;
+                projectSelect.appendChild(option1);
+                
+                const option2 = document.createElement('option');
+                option2.value = contractor.id;
+                option2.textContent = contractor.name;
+                filterSelect.appendChild(option2);
+            });
+        }
+        
+        // Setup event listeners
+        function setupEventListeners() {
+            // Search and filter inputs
+            document.getElementById('contractorSearchInput').addEventListener('input', renderContractorsTable);
+            document.getElementById('contractorStatusFilter').addEventListener('change', renderContractorsTable);
+            document.getElementById('projectSearchInput').addEventListener('input', renderProjectsTable);
+            document.getElementById('projectContractorFilter').addEventListener('change', renderProjectsTable);
+            document.getElementById('projectStatusFilter').addEventListener('change', renderProjectsTable);
+            
+            // Add buttons
+            document.getElementById('addContractorBtn').addEventListener('click', showAddContractorModal);
+            document.getElementById('addProjectBtn').addEventListener('click', showAddProjectModal);
+            
+            // Form submissions
+            document.getElementById('contractorForm').addEventListener('submit', saveContractor);
+            document.getElementById('projectForm').addEventListener('submit', saveProject);
+            
+            // Project name generation
+            document.getElementById('projectGeneralContractor').addEventListener('change', generateProjectName);
+            document.getElementById('projectSite').addEventListener('input', generateProjectName);
+            document.getElementById('projectCounty').addEventListener('input', generateProjectName);
+            
+            // Delete confirmation
+            document.getElementById('confirmDeleteBtn').addEventListener('click', confirmDelete);
+        }
+        
+        // Generate project name from contractor, site, and county
+        function generateProjectName() {
+            const contractorId = document.getElementById('projectGeneralContractor').value;
+            const site = document.getElementById('projectSite').value.trim();
+            const county = document.getElementById('projectCounty').value.trim();
+            
+            let projectName = '';
+            
+            if (contractorId && site && county) {
+                const contractor = allContractors.find(c => c.id === contractorId);
+                if (contractor) {
+                    projectName = `${contractor.name.toUpperCase()} ${site.toUpperCase()} ${county.toUpperCase()}`;
+                }
+            }
+            
+            document.getElementById('projectName').value = projectName;
+        }
+        
+        // Modal functions
+        function showAddContractorModal() {
+            document.getElementById('contractorModalTitle').textContent = 'Add General Contractor';
+            document.getElementById('contractorId').value = '';
+            document.getElementById('contractorForm').reset();
+            document.getElementById('contractorModal').classList.add('show');
+        }
+        
+        function showAddProjectModal() {
+            document.getElementById('projectModalTitle').textContent = 'Add Project';
+            document.getElementById('projectId').value = '';
+            document.getElementById('projectForm').reset();
+            populateContractorFilters(); // Refresh contractor list
+            document.getElementById('projectModal').classList.add('show');
+        }
+        
+        function editContractor(id) {
+            const contractor = allContractors.find(c => c.id === id);
+            if (!contractor) {
+                showMessage('Contractor not found.', 'error');
+                return;
+            }
+            
+            document.getElementById('contractorModalTitle').textContent = 'Edit General Contractor';
+            document.getElementById('contractorId').value = id;
+            document.getElementById('contractorName').value = contractor.name;
+            document.getElementById('contactPerson').value = contractor.contact_person || '';
+            document.getElementById('contractorEmail').value = contractor.email || '';
+            document.getElementById('contractorPhone').value = contractor.phone || '';
+            document.getElementById('contractorAddress').value = contractor.address || '';
+            document.getElementById('contractorCity').value = contractor.city || '';
+            document.getElementById('contractorState').value = contractor.state || '';
+            document.getElementById('contractorZip').value = contractor.zip || '';
+            document.getElementById('contractorActive').value = contractor.is_active.toString();
+            document.getElementById('contractorModal').classList.add('show');
+        }
+        
+        function editProject(id) {
+            const project = allProjects.find(p => p.id === id);
+            if (!project) {
+                showMessage('Project not found.', 'error');
+                return;
+            }
+            
+            document.getElementById('projectModalTitle').textContent = 'Edit Project';
+            document.getElementById('projectId').value = id;
+            document.getElementById('projectGeneralContractor').value = project.general_contractor_id || '';
+            document.getElementById('projectSite').value = project.site_location || '';
+            document.getElementById('projectCounty').value = project.county || '';
+            document.getElementById('projectName').value = project.name;
+            document.getElementById('projectCode').value = project.project_code || '';
+            document.getElementById('projectActive').value = project.active.toString();
+            document.getElementById('projectModal').classList.add('show');
+        }
+        
+        function closeContractorModal() {
+            document.getElementById('contractorModal').classList.remove('show');
+        }
+        
+        function closeProjectModal() {
+            document.getElementById('projectModal').classList.remove('show');
+        }
+        
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').classList.remove('show');
+            itemToDelete = null;
+        }
+        
+        // Save contractor
+        async function saveContractor(event) {
+            event.preventDefault();
+            
+            const contractorId = document.getElementById('contractorId').value;
+            const contractorData = {
+                name: document.getElementById('contractorName').value,
+                contact_person: document.getElementById('contactPerson').value || null,
+                email: document.getElementById('contractorEmail').value || null,
+                phone: document.getElementById('contractorPhone').value || null,
+                address: document.getElementById('contractorAddress').value || null,
+                city: document.getElementById('contractorCity').value || null,
+                state: document.getElementById('contractorState').value || null,
+                zip: document.getElementById('contractorZip').value || null,
+                is_active: document.getElementById('contractorActive').value === 'true'
+            };
+            
+            try {
+                if (contractorId) {
+                    // Update existing contractor
+                    await AuthHelper.apiCall(`general-contractors/${contractorId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify(contractorData)
+                    });
+                    showMessage('Contractor updated successfully.', 'success');
+                } else {
+                    // Create new contractor
+                    await AuthHelper.apiCall('general-contractors', {
+                        method: 'POST',
+                        body: JSON.stringify(contractorData)
+                    });
+                    showMessage('Contractor added successfully.', 'success');
+                }
+                
+                loadContractors();
+                closeContractorModal();
+            } catch (error) {
+                showMessage('Error saving contractor: ' + error.message, 'error');
+            }
+        }
+        
+        // Save project
+        async function saveProject(event) {
+            event.preventDefault();
+            
+            const projectId = document.getElementById('projectId').value;
+            const projectData = {
+                name: document.getElementById('projectName').value,
+                project_code: document.getElementById('projectCode').value || null,
+                general_contractor_id: document.getElementById('projectGeneralContractor').value,
+                site_location: document.getElementById('projectSite').value,
+                county: document.getElementById('projectCounty').value,
+                active: document.getElementById('projectActive').value === 'true'
+            };
+            
+            try {
+                if (projectId) {
+                    // Update existing project
+                    await AuthHelper.apiCall(`projects/${projectId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify(projectData)
+                    });
+                    showMessage('Project updated successfully.', 'success');
+                } else {
+                    // Create new project
+                    await AuthHelper.apiCall('projects', {
+                        method: 'POST',
+                        body: JSON.stringify(projectData)
+                    });
+                    showMessage('Project added successfully.', 'success');
+                }
+                
+                loadProjects();
+                closeProjectModal();
+            } catch (error) {
+                showMessage('Error saving project: ' + error.message, 'error');
+            }
+        }
+        
+        // Delete functions
+        function deleteContractor(id, name) {
+            itemToDelete = { type: 'contractor', id: id };
+            document.getElementById('deleteMessage').textContent = 'Are you sure you want to delete this contractor?';
+            document.getElementById('deleteItemDetails').textContent = name;
+            document.getElementById('deleteModal').classList.add('show');
+        }
+        
+        function deleteProject(id, name) {
+            itemToDelete = { type: 'project', id: id };
+            document.getElementById('deleteMessage').textContent = 'Are you sure you want to delete this project?';
+            document.getElementById('deleteItemDetails').textContent = name;
+            document.getElementById('deleteModal').classList.add('show');
+        }
+        
+        async function confirmDelete() {
+            if (!itemToDelete) return;
+            
+            try {
+                if (itemToDelete.type === 'contractor') {
+                    await AuthHelper.apiCall(`general-contractors/${itemToDelete.id}`, { method: 'DELETE' });
+                    showMessage('Contractor deleted successfully.', 'success');
+                    loadContractors();
+                } else if (itemToDelete.type === 'project') {
+                    await AuthHelper.apiCall(`projects/${itemToDelete.id}`, { method: 'DELETE' });
+                    showMessage('Project deleted successfully.', 'success');
+                    loadProjects();
+                }
+                
+                closeDeleteModal();
+            } catch (error) {
+                showMessage('Error deleting item: ' + error.message, 'error');
+            }
+        }
+        
+        function showMessage(message, type) {
+            const resultDiv = document.getElementById('resultMessage');
+            resultDiv.className = 'alert alert-' + type;
+            resultDiv.textContent = message;
+            
+            if (type === 'success') {
+                setTimeout(function() {
+                    resultDiv.innerHTML = '';
+                    resultDiv.className = '';
+                }, 5000);
+            }
+        }
+    </script>
+</body>
+</html>
