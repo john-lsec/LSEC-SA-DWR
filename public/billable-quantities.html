@@ -689,9 +689,9 @@
             const previousSunday = new Date(previousMonday);
             previousSunday.setDate(previousMonday.getDate() + 6);
             
-            // Format dates for input fields (YYYY-MM-DD)
-            const startDateStr = previousMonday.toISOString().split('T')[0];
-            const endDateStr = previousSunday.toISOString().split('T')[0];
+            // Format dates for input fields (YYYY-MM-DD) using local timezone
+            const startDateStr = formatDateForInput(previousMonday);
+            const endDateStr = formatDateForInput(previousSunday);
             
             document.getElementById('startDate').value = startDateStr;
             document.getElementById('endDate').value = endDateStr;
