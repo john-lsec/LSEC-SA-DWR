@@ -2833,12 +2833,7 @@ async function handleBillingData(event, headers, method) {
         di.unit,
         pbi.rate,
         pbi.material_cost,
-        -- Calculate financial metrics
-        (di.quantity * pbi.rate) as extension,
-        (di.quantity * pbi.rate * ${MOH_RATE_PERCENTAGE}) as moh_amount,
-        (di.quantity * pbi.rate * (1 - ${MOH_RATE_PERCENTAGE})) as less_moh,
-        (di.quantity * pbi.rate * ${RETAINAGE_PERCENTAGE}) as retainage_amount,
-        (di.quantity * pbi.rate * (1 - ${MOH_RATE_PERCENTAGE} - ${RETAINAGE_PERCENTAGE})) as billable_amount
+        (di.quantity * pbi.rate) as extension
       FROM daily_work_reports dwr
       JOIN dwr_items di ON dwr.id = di.dwr_id
       JOIN project_bid_items pbi ON di.project_bid_item_id = pbi.id
@@ -2920,15 +2915,17 @@ async function handleBillingData(event, headers, method) {
 
       const item = project.items.get(itemKey);
 
-      // Convert numeric values
+      // Convert numeric values and calculate financial metrics
       const qty = parseFloat(row.quantity) || 0;
       const rate = parseFloat(row.rate) || 0;
       const materialCost = parseFloat(row.material_cost) || 0;
       const extension = parseFloat(row.extension) || 0;
-      const mohAmount = parseFloat(row.moh_amount) || 0;
-      const lessMoh = parseFloat(row.less_moh) || 0;
-      const retainageAmount = parseFloat(row.retainage_amount) || 0;
-      const billableAmount = parseFloat(row.billable_amount) || 0;
+      
+      // Calculate financial metrics in JavaScript
+      const mohAmount = extension * MOH_RATE_PERCENTAGE;
+      const lessMoh = extension - mohAmount;
+      const retainageAmount = extension * RETAINAGE_PERCENTAGE;
+      const billableAmount = lessMoh - retainageAmount;
 
       // Add entry
       item.entries.push({
