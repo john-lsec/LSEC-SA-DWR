@@ -2776,226 +2776,226 @@ async function handleUsers(event, headers, method, id, action) {
       };
   }
 
-  // Billing Data handler for quantities report
-async function handleBillingData(event, headers, method) {
-  if (method !== 'GET') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
-  const { role, userId } = event.auth || {};
-
-  try {
-    const params = event.queryStringParameters || {};
-    const startDate = params.start_date;
-    const endDate = params.end_date;
-
-    if (!startDate || !endDate) {
+    // Billing Data handler for quantities report
+  async function handleBillingData(event, headers, method) {
+    if (method !== 'GET') {
       return {
-        statusCode: 400,
+        statusCode: 405,
         headers,
-        body: JSON.stringify({ 
-          error: 'start_date and end_date parameters are required (YYYY-MM-DD format)' 
-        })
+        body: JSON.stringify({ error: 'Method not allowed' })
       };
     }
-
-    // Validate date format
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ 
-          error: 'Invalid date format. Use YYYY-MM-DD format.' 
-        })
+  
+    const { role, userId } = event.auth || {};
+  
+    try {
+      const params = event.queryStringParameters || {};
+      const startDate = params.start_date;
+      const endDate = params.end_date;
+  
+      if (!startDate || !endDate) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ 
+            error: 'start_date and end_date parameters are required (YYYY-MM-DD format)' 
+          })
+        };
+      }
+  
+      // Validate date format
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ 
+            error: 'Invalid date format. Use YYYY-MM-DD format.' 
+          })
+        };
+      }
+  
+      // Configuration for financial calculations
+      const MOH_RATE_PERCENTAGE = 0.10; // 10% MOH rate (configurable)
+      const RETAINAGE_PERCENTAGE = 0.05; // 5% retainage (configurable)
+  
+      // Main query to get all billing data for the date range
+      const billingData = await sql`
+        SELECT 
+          p.name as project_name,
+          p.id as project_id,
+          bi.item_code,
+          bi.item_name,
+          bi.category,
+          dwr.work_date,
+          di.quantity,
+          di.unit,
+          pbi.rate,
+          pbi.material_cost,
+          -- Calculate financial metrics
+          (di.quantity * pbi.rate) as extension,
+          (di.quantity * pbi.rate * ${MOH_RATE_PERCENTAGE}) as moh_amount,
+          (di.quantity * pbi.rate * (1 - ${MOH_RATE_PERCENTAGE})) as less_moh,
+          (di.quantity * pbi.rate * ${RETAINAGE_PERCENTAGE}) as retainage_amount,
+          (di.quantity * pbi.rate * (1 - ${MOH_RATE_PERCENTAGE} - ${RETAINAGE_PERCENTAGE})) as billable_amount
+        FROM daily_work_reports dwr
+        JOIN dwr_items di ON dwr.id = di.dwr_id
+        JOIN project_bid_items pbi ON di.project_bid_item_id = pbi.id
+        JOIN projects p ON pbi.project_id = p.id
+        JOIN bid_items bi ON pbi.bid_item_id = bi.id
+        WHERE dwr.work_date >= ${startDate}::date 
+          AND dwr.work_date <= ${endDate}::date
+          AND p.active = true
+          AND pbi.is_active = true
+          AND bi.is_active = true
+        ORDER BY p.name, bi.item_name, dwr.work_date
+      `;
+  
+      if (billingData.length === 0) {
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            projects: [],
+            grandTotals: {
+              extension: 0,
+              mohAmount: 0,
+              lessMoh: 0,
+              retainage: 0,
+              billableAmount: 0
+            }
+          })
+        };
+      }
+  
+      // Process and group the data
+      const projectsMap = new Map();
+      const grandTotals = {
+        extension: 0,
+        mohAmount: 0,
+        lessMoh: 0,
+        retainage: 0,
+        billableAmount: 0
       };
-    }
-
-    // Configuration for financial calculations
-    const MOH_RATE_PERCENTAGE = 0.10; // 10% MOH rate (configurable)
-    const RETAINAGE_PERCENTAGE = 0.05; // 5% retainage (configurable)
-
-    // Main query to get all billing data for the date range
-    const billingData = await sql`
-      SELECT 
-        p.name as project_name,
-        p.id as project_id,
-        bi.item_code,
-        bi.item_name,
-        bi.category,
-        dwr.work_date,
-        di.quantity,
-        di.unit,
-        pbi.rate,
-        pbi.material_cost,
-        -- Calculate financial metrics
-        (di.quantity * pbi.rate) as extension,
-        (di.quantity * pbi.rate * ${MOH_RATE_PERCENTAGE}) as moh_amount,
-        (di.quantity * pbi.rate * (1 - ${MOH_RATE_PERCENTAGE})) as less_moh,
-        (di.quantity * pbi.rate * ${RETAINAGE_PERCENTAGE}) as retainage_amount,
-        (di.quantity * pbi.rate * (1 - ${MOH_RATE_PERCENTAGE} - ${RETAINAGE_PERCENTAGE})) as billable_amount
-      FROM daily_work_reports dwr
-      JOIN dwr_items di ON dwr.id = di.dwr_id
-      JOIN project_bid_items pbi ON di.project_bid_item_id = pbi.id
-      JOIN projects p ON pbi.project_id = p.id
-      JOIN bid_items bi ON pbi.bid_item_id = bi.id
-      WHERE dwr.work_date >= ${startDate}::date 
-        AND dwr.work_date <= ${endDate}::date
-        AND p.active = true
-        AND pbi.is_active = true
-        AND bi.is_active = true
-      ORDER BY p.name, bi.item_name, dwr.work_date
-    `;
-
-    if (billingData.length === 0) {
+  
+      billingData.forEach(row => {
+        const projectName = row.project_name;
+        const itemKey = `${row.item_code}-${row.item_name}`;
+        
+        // Initialize project if not exists
+        if (!projectsMap.has(projectName)) {
+          projectsMap.set(projectName, {
+            name: projectName,
+            items: new Map(),
+            totals: {
+              extension: 0,
+              mohAmount: 0,
+              lessMoh: 0,
+              retainage: 0,
+              billableAmount: 0,
+              retainagePercent: RETAINAGE_PERCENTAGE * 100
+            }
+          });
+        }
+  
+        const project = projectsMap.get(projectName);
+  
+        // Initialize item if not exists
+        if (!project.items.has(itemKey)) {
+          project.items.set(itemKey, {
+            name: `${row.item_code} - ${row.item_name}`,
+            totalQty: 0,
+            entries: [],
+            totals: {
+              extension: 0,
+              mohAmount: 0,
+              lessMoh: 0,
+              retainage: 0,
+              billableAmount: 0,
+              retainagePercent: RETAINAGE_PERCENTAGE * 100
+            }
+          });
+        }
+  
+        const item = project.items.get(itemKey);
+  
+        // Convert numeric values
+        const qty = parseFloat(row.quantity) || 0;
+        const rate = parseFloat(row.rate) || 0;
+        const materialCost = parseFloat(row.material_cost) || 0;
+        const extension = parseFloat(row.extension) || 0;
+        const mohAmount = parseFloat(row.moh_amount) || 0;
+        const lessMoh = parseFloat(row.less_moh) || 0;
+        const retainageAmount = parseFloat(row.retainage_amount) || 0;
+        const billableAmount = parseFloat(row.billable_amount) || 0;
+  
+        // Add entry
+        item.entries.push({
+          workDate: row.work_date ? new Date(row.work_date).toISOString().split('T')[0] : '',
+          qty: qty,
+          unit: row.unit || 'EA',
+          rate: rate,
+          mohRate: rate * MOH_RATE_PERCENTAGE, // MOH rate per unit
+          extension: extension,
+          mohAmount: mohAmount,
+          lessMoh: lessMoh,
+          retainage: retainageAmount,
+          billableAmount: billableAmount
+        });
+  
+        // Update item totals
+        item.totalQty += qty;
+        item.totals.extension += extension;
+        item.totals.mohAmount += mohAmount;
+        item.totals.lessMoh += lessMoh;
+        item.totals.retainage += retainageAmount;
+        item.totals.billableAmount += billableAmount;
+  
+        // Update project totals
+        project.totals.extension += extension;
+        project.totals.mohAmount += mohAmount;
+        project.totals.lessMoh += lessMoh;
+        project.totals.retainage += retainageAmount;
+        project.totals.billableAmount += billableAmount;
+  
+        // Update grand totals
+        grandTotals.extension += extension;
+        grandTotals.mohAmount += mohAmount;
+        grandTotals.lessMoh += lessMoh;
+        grandTotals.retainage += retainageAmount;
+        grandTotals.billableAmount += billableAmount;
+      });
+  
+      // Convert Maps to Arrays for JSON response
+      const projects = Array.from(projectsMap.values()).map(project => ({
+        ...project,
+        items: Array.from(project.items.values())
+      }));
+  
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({
-          projects: [],
-          grandTotals: {
-            extension: 0,
-            mohAmount: 0,
-            lessMoh: 0,
-            retainage: 0,
-            billableAmount: 0
+          projects: projects,
+          grandTotals: grandTotals,
+          dateRange: `${startDate} - ${endDate}`,
+          configuration: {
+            mohRatePercentage: MOH_RATE_PERCENTAGE * 100,
+            retainagePercentage: RETAINAGE_PERCENTAGE * 100
           }
         })
       };
+  
+    } catch (error) {
+      console.error('Error fetching billing data:', error);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Failed to fetch billing data',
+          details: error.message 
+        })
+      };
     }
-
-    // Process and group the data
-    const projectsMap = new Map();
-    const grandTotals = {
-      extension: 0,
-      mohAmount: 0,
-      lessMoh: 0,
-      retainage: 0,
-      billableAmount: 0
-    };
-
-    billingData.forEach(row => {
-      const projectName = row.project_name;
-      const itemKey = `${row.item_code}-${row.item_name}`;
-      
-      // Initialize project if not exists
-      if (!projectsMap.has(projectName)) {
-        projectsMap.set(projectName, {
-          name: projectName,
-          items: new Map(),
-          totals: {
-            extension: 0,
-            mohAmount: 0,
-            lessMoh: 0,
-            retainage: 0,
-            billableAmount: 0,
-            retainagePercent: RETAINAGE_PERCENTAGE * 100
-          }
-        });
-      }
-
-      const project = projectsMap.get(projectName);
-
-      // Initialize item if not exists
-      if (!project.items.has(itemKey)) {
-        project.items.set(itemKey, {
-          name: `${row.item_code} - ${row.item_name}`,
-          totalQty: 0,
-          entries: [],
-          totals: {
-            extension: 0,
-            mohAmount: 0,
-            lessMoh: 0,
-            retainage: 0,
-            billableAmount: 0,
-            retainagePercent: RETAINAGE_PERCENTAGE * 100
-          }
-        });
-      }
-
-      const item = project.items.get(itemKey);
-
-      // Convert numeric values
-      const qty = parseFloat(row.quantity) || 0;
-      const rate = parseFloat(row.rate) || 0;
-      const materialCost = parseFloat(row.material_cost) || 0;
-      const extension = parseFloat(row.extension) || 0;
-      const mohAmount = parseFloat(row.moh_amount) || 0;
-      const lessMoh = parseFloat(row.less_moh) || 0;
-      const retainageAmount = parseFloat(row.retainage_amount) || 0;
-      const billableAmount = parseFloat(row.billable_amount) || 0;
-
-      // Add entry
-      item.entries.push({
-        workDate: row.work_date ? new Date(row.work_date).toISOString().split('T')[0] : '',
-        qty: qty,
-        unit: row.unit || 'EA',
-        rate: rate,
-        mohRate: rate * MOH_RATE_PERCENTAGE, // MOH rate per unit
-        extension: extension,
-        mohAmount: mohAmount,
-        lessMoh: lessMoh,
-        retainage: retainageAmount,
-        billableAmount: billableAmount
-      });
-
-      // Update item totals
-      item.totalQty += qty;
-      item.totals.extension += extension;
-      item.totals.mohAmount += mohAmount;
-      item.totals.lessMoh += lessMoh;
-      item.totals.retainage += retainageAmount;
-      item.totals.billableAmount += billableAmount;
-
-      // Update project totals
-      project.totals.extension += extension;
-      project.totals.mohAmount += mohAmount;
-      project.totals.lessMoh += lessMoh;
-      project.totals.retainage += retainageAmount;
-      project.totals.billableAmount += billableAmount;
-
-      // Update grand totals
-      grandTotals.extension += extension;
-      grandTotals.mohAmount += mohAmount;
-      grandTotals.lessMoh += lessMoh;
-      grandTotals.retainage += retainageAmount;
-      grandTotals.billableAmount += billableAmount;
-    });
-
-    // Convert Maps to Arrays for JSON response
-    const projects = Array.from(projectsMap.values()).map(project => ({
-      ...project,
-      items: Array.from(project.items.values())
-    }));
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        projects: projects,
-        grandTotals: grandTotals,
-        dateRange: `${startDate} - ${endDate}`,
-        configuration: {
-          mohRatePercentage: MOH_RATE_PERCENTAGE * 100,
-          retainagePercentage: RETAINAGE_PERCENTAGE * 100
-        }
-      })
-    };
-
-  } catch (error) {
-    console.error('Error fetching billing data:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ 
-        error: 'Failed to fetch billing data',
-        details: error.message 
-      })
-    };
   }
-}
 }
