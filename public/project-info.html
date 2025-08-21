@@ -676,7 +676,9 @@
                 filteredProjects = filteredProjects.filter(project => 
                     project.name.toLowerCase().includes(searchTerm) ||
                     (project.project_code && project.project_code.toLowerCase().includes(searchTerm)) ||
-                    (project.contractor_name && project.contractor_name.toLowerCase().includes(searchTerm))
+                    (project.contractor_name && project.contractor_name.toLowerCase().includes(searchTerm)) ||
+                    (project.site_location && project.site_location.toLowerCase().includes(searchTerm)) ||
+                    (project.county && project.county.toLowerCase().includes(searchTerm))
                 );
             }
             
