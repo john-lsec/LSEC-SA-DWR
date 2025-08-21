@@ -1236,7 +1236,7 @@ async function handleBidItems(event, headers, method, id) {
   }
 }
 
-// Project Bid Items handler - keeping existing functionality
+// FIXED Project Bid Items handler - corrected field references
 async function handleProjectBidItems(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -1260,7 +1260,7 @@ async function handleProjectBidItems(event, headers, method, id) {
               pbi.unit,
               pbi.rate,
               pbi.material_cost,
-              pbi.material_cost as current_cost,
+              pbi.contract_quantity,
               pbi.notes,
               CASE 
                 WHEN pbi.material_cost > 0 
@@ -1316,7 +1316,7 @@ async function handleProjectBidItems(event, headers, method, id) {
             pbi.unit,
             pbi.rate,
             pbi.material_cost,
-            pbi.material_cost as current_cost,
+            pbi.contract_quantity,
             pbi.notes,
             CASE 
               WHEN pbi.material_cost > 0 
@@ -1422,13 +1422,14 @@ async function handleProjectBidItems(event, headers, method, id) {
         // Insert new project bid item
         const newItem = await sql`
           INSERT INTO project_bid_items (
-            project_id, bid_item_id, rate, material_cost, unit, notes, is_active, created_at, updated_at
+            project_id, bid_item_id, rate, material_cost, unit, contract_quantity, notes, is_active, created_at, updated_at
           ) VALUES (
             ${data.project_id},
             ${data.bid_item_id},
             ${data.rate || 0},
             ${data.material_cost !== undefined ? data.material_cost : defaultMaterialCost},
             ${data.unit || defaultUnit},
+            ${data.contract_quantity || null},
             ${data.notes || null},
             ${data.is_active !== false},
             CURRENT_TIMESTAMP,
@@ -1449,6 +1450,7 @@ async function handleProjectBidItems(event, headers, method, id) {
             pbi.unit,
             pbi.rate,
             pbi.material_cost,
+            pbi.contract_quantity,
             pbi.notes,
             CASE 
               WHEN pbi.material_cost > 0 
@@ -1512,13 +1514,14 @@ async function handleProjectBidItems(event, headers, method, id) {
           };
         }
         
-        // Update the item
+        // Update the item - FIXED: removed reference to non-existent current_cost field
         const updated = await sql`
           UPDATE project_bid_items
           SET 
             rate = ${data.rate !== undefined ? data.rate : existing[0].rate},
             material_cost = ${data.material_cost !== undefined ? data.material_cost : existing[0].material_cost},
             unit = ${data.unit !== undefined ? data.unit : existing[0].unit},
+            contract_quantity = ${data.contract_quantity !== undefined ? data.contract_quantity : existing[0].contract_quantity},
             notes = ${data.notes !== undefined ? data.notes : existing[0].notes},
             is_active = ${data.is_active !== undefined ? data.is_active : existing[0].is_active},
             updated_at = CURRENT_TIMESTAMP
@@ -1538,6 +1541,7 @@ async function handleProjectBidItems(event, headers, method, id) {
             pbi.unit,
             pbi.rate,
             pbi.material_cost,
+            pbi.contract_quantity,
             pbi.notes,
             CASE 
               WHEN pbi.material_cost > 0 
