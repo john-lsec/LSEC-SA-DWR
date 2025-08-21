@@ -460,6 +460,14 @@
             }
         });
         
+        // Get URL parameter by name
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            var results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        }
+        
         // Logout handler
         function handleLogout() {
             AuthHelper.logout();
@@ -476,6 +484,19 @@
                     option.textContent = project.name;
                     select.appendChild(option);
                 });
+                
+                // Check for project parameter in URL
+                const projectParam = getUrlParameter('project');
+                if (projectParam) {
+                    // Find the project in the list
+                    const projectExists = projects.some(project => project.id === projectParam);
+                    if (projectExists) {
+                        select.value = projectParam;
+                        selectedProjectId = projectParam;
+                        loadAllBidItems();
+                        loadProjectBidItems(selectedProjectId);
+                    }
+                }
             } catch (error) {
                 showMessage('Error loading projects.', 'error');
             }
