@@ -1,4 +1,4 @@
-// netlify/functions/api.js - Complete version with DWR functionality, User Management, and Google Maps Integration
+// netlify/functions/api.js - Complete version with DWR functionality, User Management, Google Maps Integration, and Project Info Management
 const { neon } = require('@neondatabase/serverless');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
@@ -296,6 +296,12 @@ exports.handler = async (event, context) => {
       case 'projects':
         return await handleProjects(event, headers, method, id);
       
+      case 'projects-with-contractors':
+        return await handleProjectsWithContractors(event, headers, method);
+      
+      case 'general-contractors':
+        return await handleGeneralContractors(event, headers, method, id);
+      
       case 'equipment':
         return await handleEquipment(event, headers, method);
       
@@ -365,7 +371,7 @@ exports.handler = async (event, context) => {
             error: 'Resource not found',
             resource: resource,
             availableEndpoints: [
-              'foremen', 'laborers', 'projects', 'equipment',
+              'foremen', 'laborers', 'projects', 'projects-with-contractors', 'general-contractors', 'equipment',
               'bid-items', 'project-bid-items', 'submit-dwr',
               'po-data', 'po-submit', 'po-requests', 'vendors', 
               'authorized-users', 'users', 'check-username', 
@@ -388,6 +394,561 @@ exports.handler = async (event, context) => {
     };
   }
 };
+
+// General Contractors handler
+async function handleGeneralContractors(event, headers, method, id) {
+  const { role, userId } = event.auth || {};
+
+  switch (method) {
+    case 'GET':
+      try {
+        if (id) {
+          // Get specific contractor by ID
+          const contractors = await sql`
+            SELECT id::text as id, name, contact_person, email, phone, address, 
+                   city, state, zip, is_active, created_at, updated_at 
+            FROM general_contractors WHERE id = ${id}
+          `;
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(contractors[0] || null)
+          };
+        } else {
+          // Get all contractors
+          const contractors = await sql`
+            SELECT id::text as id, name, contact_person, email, phone, address, 
+                   city, state, zip, is_active, created_at, updated_at 
+            FROM general_contractors 
+            ORDER BY name
+          `;
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(contractors)
+          };
+        }
+      } catch (error) {
+        console.error('Error fetching general contractors:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to fetch general contractors' })
+        };
+      }
+
+    case 'POST':
+      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions' })
+        };
+      }
+
+      try {
+        const contractorData = JSON.parse(event.body);
+        
+        // Validate required fields
+        if (!contractorData.name) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'Contractor name is required' })
+          };
+        }
+        
+        const newContractor = await sql`
+          INSERT INTO general_contractors (
+            name, contact_person, email, phone, address, city, state, zip, is_active, created_at, updated_at
+          ) VALUES (
+            ${contractorData.name}, 
+            ${contractorData.contact_person || null}, 
+            ${contractorData.email || null},
+            ${contractorData.phone || null},
+            ${contractorData.address || null},
+            ${contractorData.city || null},
+            ${contractorData.state || null},
+            ${contractorData.zip || null},
+            ${contractorData.is_active !== false},
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+          )
+          RETURNING id::text as id, name, contact_person, email, phone, address, 
+                   city, state, zip, is_active, created_at, updated_at
+        `;
+
+        return {
+          statusCode: 201,
+          headers,
+          body: JSON.stringify(newContractor[0])
+        };
+      } catch (error) {
+        console.error('Error creating general contractor:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to create general contractor: ' + error.message })
+        };
+      }
+
+    case 'PUT':
+      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions' })
+        };
+      }
+
+      if (!id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'ID required for update' })
+        };
+      }
+
+      try {
+        const updateData = JSON.parse(event.body);
+        
+        // Check if contractor exists
+        const existing = await sql`
+          SELECT * FROM general_contractors WHERE id = ${id}
+        `;
+        
+        if (existing.length === 0) {
+          return {
+            statusCode: 404,
+            headers,
+            body: JSON.stringify({ error: 'General contractor not found' })
+          };
+        }
+        
+        const updated = await sql`
+          UPDATE general_contractors
+          SET 
+            name = ${updateData.name || existing[0].name},
+            contact_person = ${updateData.contact_person !== undefined ? updateData.contact_person : existing[0].contact_person},
+            email = ${updateData.email !== undefined ? updateData.email : existing[0].email},
+            phone = ${updateData.phone !== undefined ? updateData.phone : existing[0].phone},
+            address = ${updateData.address !== undefined ? updateData.address : existing[0].address},
+            city = ${updateData.city !== undefined ? updateData.city : existing[0].city},
+            state = ${updateData.state !== undefined ? updateData.state : existing[0].state},
+            zip = ${updateData.zip !== undefined ? updateData.zip : existing[0].zip},
+            is_active = ${updateData.is_active !== undefined ? updateData.is_active : existing[0].is_active},
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${id}
+          RETURNING id::text as id, name, contact_person, email, phone, address, 
+                   city, state, zip, is_active, created_at, updated_at
+        `;
+
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(updated[0])
+        };
+      } catch (error) {
+        console.error('Error updating general contractor:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to update general contractor: ' + error.message })
+        };
+      }
+
+    case 'DELETE':
+      if (!requireRole(role, ['admin', 'manager'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions to delete' })
+        };
+      }
+
+      if (!id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'ID required for delete' })
+        };
+      }
+
+      try {
+        // Check if contractor has associated projects
+        const associatedProjects = await sql`
+          SELECT COUNT(*) as count FROM projects WHERE general_contractor_id = ${id}
+        `;
+        
+        if (associatedProjects[0].count > 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ 
+              error: 'Cannot delete contractor with associated projects. Please deactivate instead.' 
+            })
+          };
+        }
+        
+        await sql`DELETE FROM general_contractors WHERE id = ${id}`;
+        
+        return {
+          statusCode: 204,
+          headers,
+          body: ''
+        };
+      } catch (error) {
+        console.error('Error deleting general contractor:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to delete general contractor: ' + error.message })
+        };
+      }
+
+    default:
+      return {
+        statusCode: 405,
+        headers,
+        body: JSON.stringify({ error: 'Method not allowed' })
+      };
+  }
+}
+
+// Projects with Contractors handler - returns projects joined with contractor information
+async function handleProjectsWithContractors(event, headers, method) {
+  if (method !== 'GET') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  try {
+    const projects = await sql`
+      SELECT 
+        p.id::text as id, 
+        p.name, 
+        p.project_code, 
+        p.general_contractor_id::text as general_contractor_id,
+        p.site_location,
+        p.county,
+        p.active, 
+        p.created_at, 
+        p.updated_at,
+        gc.name as contractor_name
+      FROM projects p
+      LEFT JOIN general_contractors gc ON p.general_contractor_id = gc.id
+      ORDER BY p.name
+    `;
+    
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(projects)
+    };
+  } catch (error) {
+    console.error('Error fetching projects with contractors:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Failed to fetch projects with contractors' })
+    };
+  }
+}
+
+// Enhanced Projects handler with general contractor relationship
+async function handleProjects(event, headers, method, id) {
+  const { role, userId } = event.auth || {};
+
+  switch (method) {
+    case 'GET':
+      try {
+        if (id) {
+          // Get specific project by UUID
+          const projects = await sql`
+            SELECT 
+              p.id::text as id, 
+              p.name, 
+              p.project_code, 
+              p.general_contractor_id::text as general_contractor_id,
+              p.site_location,
+              p.county,
+              p.active, 
+              p.created_at, 
+              p.updated_at,
+              gc.name as contractor_name
+            FROM projects p
+            LEFT JOIN general_contractors gc ON p.general_contractor_id = gc.id
+            WHERE p.id = ${id}
+          `;
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(projects[0] || null)
+          };
+        } else {
+          // Get all active projects
+          const projects = await sql`
+            SELECT 
+              p.id::text as id, 
+              p.name, 
+              p.project_code, 
+              p.general_contractor_id::text as general_contractor_id,
+              p.site_location,
+              p.county,
+              p.active, 
+              p.created_at, 
+              p.updated_at,
+              gc.name as contractor_name
+            FROM projects p
+            LEFT JOIN general_contractors gc ON p.general_contractor_id = gc.id
+            WHERE p.active = true
+            ORDER BY p.name
+          `;
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(projects)
+          };
+        }
+      } catch (error) {
+        console.error('Error fetching projects:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to fetch projects' })
+        };
+      }
+
+    case 'POST':
+      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions' })
+        };
+      }
+
+      try {
+        const projectData = JSON.parse(event.body);
+        
+        // Validate required fields
+        if (!projectData.name) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'Project name is required' })
+          };
+        }
+        
+        // Validate general contractor exists if provided
+        if (projectData.general_contractor_id) {
+          const contractorExists = await sql`
+            SELECT id FROM general_contractors 
+            WHERE id = ${projectData.general_contractor_id} AND is_active = true
+          `;
+          
+          if (contractorExists.length === 0) {
+            return {
+              statusCode: 400,
+              headers,
+              body: JSON.stringify({ error: 'Invalid or inactive general contractor' })
+            };
+          }
+        }
+        
+        const newProject = await sql`
+          INSERT INTO projects (
+            name, 
+            project_code, 
+            general_contractor_id,
+            site_location,
+            county,
+            active, 
+            created_at, 
+            updated_at
+          ) VALUES (
+            ${projectData.name}, 
+            ${projectData.project_code || null}, 
+            ${projectData.general_contractor_id || null},
+            ${projectData.site_location || null},
+            ${projectData.county || null},
+            ${projectData.active !== false},
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+          )
+          RETURNING 
+            id::text as id, 
+            name, 
+            project_code, 
+            general_contractor_id::text as general_contractor_id,
+            site_location,
+            county,
+            active, 
+            created_at, 
+            updated_at
+        `;
+
+        return {
+          statusCode: 201,
+          headers,
+          body: JSON.stringify(newProject[0])
+        };
+      } catch (error) {
+        console.error('Error creating project:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to create project: ' + error.message })
+        };
+      }
+
+    case 'PUT':
+      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions' })
+        };
+      }
+
+      if (!id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'ID required for update' })
+        };
+      }
+
+      try {
+        const updateData = JSON.parse(event.body);
+        
+        // Check if project exists
+        const existing = await sql`
+          SELECT * FROM projects WHERE id = ${id}
+        `;
+        
+        if (existing.length === 0) {
+          return {
+            statusCode: 404,
+            headers,
+            body: JSON.stringify({ error: 'Project not found' })
+          };
+        }
+        
+        // Validate general contractor exists if being updated
+        if (updateData.general_contractor_id && updateData.general_contractor_id !== existing[0].general_contractor_id) {
+          const contractorExists = await sql`
+            SELECT id FROM general_contractors 
+            WHERE id = ${updateData.general_contractor_id} AND is_active = true
+          `;
+          
+          if (contractorExists.length === 0) {
+            return {
+              statusCode: 400,
+              headers,
+              body: JSON.stringify({ error: 'Invalid or inactive general contractor' })
+            };
+          }
+        }
+        
+        const updated = await sql`
+          UPDATE projects
+          SET 
+            name = ${updateData.name || existing[0].name},
+            project_code = ${updateData.project_code !== undefined ? updateData.project_code : existing[0].project_code},
+            general_contractor_id = ${updateData.general_contractor_id !== undefined ? updateData.general_contractor_id : existing[0].general_contractor_id},
+            site_location = ${updateData.site_location !== undefined ? updateData.site_location : existing[0].site_location},
+            county = ${updateData.county !== undefined ? updateData.county : existing[0].county},
+            active = ${updateData.active !== undefined ? updateData.active : existing[0].active},
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${id}
+          RETURNING 
+            id::text as id, 
+            name, 
+            project_code, 
+            general_contractor_id::text as general_contractor_id,
+            site_location,
+            county,
+            active, 
+            created_at, 
+            updated_at
+        `;
+
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(updated[0])
+        };
+      } catch (error) {
+        console.error('Error updating project:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to update project: ' + error.message })
+        };
+      }
+
+    case 'DELETE':
+      if (!requireRole(role, ['admin', 'manager'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions to delete' })
+        };
+      }
+
+      if (!id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'ID required for delete' })
+        };
+      }
+
+      try {
+        // Check if project has associated data (DWRs, bid items, etc.)
+        const [dwrCount, bidItemCount] = await Promise.all([
+          sql`SELECT COUNT(*) as count FROM daily_work_reports WHERE project_id = ${id}`,
+          sql`SELECT COUNT(*) as count FROM project_bid_items WHERE project_id = ${id} AND is_active = true`
+        ]);
+        
+        if (dwrCount[0].count > 0 || bidItemCount[0].count > 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ 
+              error: 'Cannot delete project with associated data. Please deactivate instead.' 
+            })
+          };
+        }
+        
+        await sql`DELETE FROM projects WHERE id = ${id}`;
+        
+        return {
+          statusCode: 204,
+          headers,
+          body: ''
+        };
+      } catch (error) {
+        console.error('Error deleting project:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to delete project: ' + error.message })
+        };
+      }
+
+    default:
+      return {
+        statusCode: 405,
+        headers,
+        body: JSON.stringify({ error: 'Method not allowed' })
+      };
+  }
+}
 
 // Google Maps Configuration handler
 async function handleGoogleMapsConfig(event, headers, method) {
@@ -621,162 +1182,6 @@ async function handleLaborers(event, headers, method) {
       headers,
       body: JSON.stringify({ error: 'Failed to fetch laborers' })
     };
-  }
-}
-
-// Fixed Projects handler with ID casting
-async function handleProjects(event, headers, method, id) {
-  const { role, userId } = event.auth || {};
-
-  switch (method) {
-    case 'GET':
-      try {
-        if (id) {
-          // Get specific project by UUID
-          const projects = await sql`
-            SELECT id::text as id, name, project_code, active, created_at, updated_at 
-            FROM projects WHERE id = ${id}
-          `;
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify(projects[0] || null)
-          };
-        } else {
-          // Get all active projects
-          const projects = await sql`
-            SELECT id::text as id, name, project_code, active, created_at, updated_at 
-            FROM projects 
-            WHERE active = true
-            ORDER BY name
-          `;
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify(projects)
-          };
-        }
-      } catch (error) {
-        console.error('Error fetching projects:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to fetch projects' })
-        };
-      }
-
-    case 'POST':
-      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
-        };
-      }
-
-      try {
-        const projectData = JSON.parse(event.body);
-        
-        // Validate required fields
-        if (!projectData.name) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'Project name is required' })
-          };
-        }
-        
-        const newProject = await sql`
-          INSERT INTO projects (name, project_code, active, created_at, updated_at)
-          VALUES (
-            ${projectData.name}, 
-            ${projectData.project_code || null}, 
-            ${projectData.active !== false},
-            CURRENT_TIMESTAMP,
-            CURRENT_TIMESTAMP
-          )
-          RETURNING id::text as id, name, project_code, active, created_at, updated_at
-        `;
-
-        return {
-          statusCode: 201,
-          headers,
-          body: JSON.stringify(newProject[0])
-        };
-      } catch (error) {
-        console.error('Error creating project:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to create project: ' + error.message })
-        };
-      }
-
-    case 'PUT':
-      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
-        };
-      }
-
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'ID required for update' })
-        };
-      }
-
-      try {
-        const updateData = JSON.parse(event.body);
-        
-        // Check if project exists
-        const existing = await sql`
-          SELECT id::text as id, name, project_code, active, created_at, updated_at 
-          FROM projects WHERE id = ${id}
-        `;
-        
-        if (existing.length === 0) {
-          return {
-            statusCode: 404,
-            headers,
-            body: JSON.stringify({ error: 'Project not found' })
-          };
-        }
-        
-        const updated = await sql`
-          UPDATE projects
-          SET 
-            name = ${updateData.name || existing[0].name},
-            project_code = ${updateData.project_code !== undefined ? updateData.project_code : existing[0].project_code},
-            active = ${updateData.active !== undefined ? updateData.active : existing[0].active},
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${id}
-          RETURNING id::text as id, name, project_code, active, created_at, updated_at
-        `;
-
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify(updated[0])
-        };
-      } catch (error) {
-        console.error('Error updating project:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to update project: ' + error.message })
-        };
-      }
-
-    default:
-      return {
-        statusCode: 405,
-        headers,
-        body: JSON.stringify({ error: 'Method not allowed' })
-      };
   }
 }
 
