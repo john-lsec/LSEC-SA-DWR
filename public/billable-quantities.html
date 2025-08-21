@@ -675,6 +675,11 @@
             }
         }
         
+        // Helper function to format date for input field without timezone issues
+        function formatDateForInput(year, month, day) {
+            return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+        
         function setDefaultCustomDates() {
             // Set default dates to previous week when switching to custom mode
             const today = new Date();
@@ -689,9 +694,17 @@
             const previousSunday = new Date(previousMonday);
             previousSunday.setDate(previousMonday.getDate() + 6);
             
-            // Format dates for input fields (YYYY-MM-DD) using local timezone
-            const startDateStr = formatDateForInput(previousMonday);
-            const endDateStr = formatDateForInput(previousSunday);
+            // Format dates for input fields (YYYY-MM-DD) using proper formatting
+            const startDateStr = formatDateForInput(
+                previousMonday.getFullYear(),
+                previousMonday.getMonth() + 1,
+                previousMonday.getDate()
+            );
+            const endDateStr = formatDateForInput(
+                previousSunday.getFullYear(),
+                previousSunday.getMonth() + 1,
+                previousSunday.getDate()
+            );
             
             document.getElementById('startDate').value = startDateStr;
             document.getElementById('endDate').value = endDateStr;
@@ -706,10 +719,8 @@
                 return;
             }
             
-            const start = new Date(startDate);
-            const end = new Date(endDate);
-            
-            if (start > end) {
+            // Simple string comparison for YYYY-MM-DD format (avoids timezone issues)
+            if (startDate > endDate) {
                 showMessage('Start date must be before or equal to end date.', 'error');
                 return;
             }
@@ -732,8 +743,16 @@
             const previousSunday = new Date(previousMonday);
             previousSunday.setDate(previousMonday.getDate() + 6);
             
-            const startDate = previousMonday.toISOString().split('T')[0];
-            const endDate = previousSunday.toISOString().split('T')[0];
+            const startDate = formatDateForInput(
+                previousMonday.getFullYear(),
+                previousMonday.getMonth() + 1,
+                previousMonday.getDate()
+            );
+            const endDate = formatDateForInput(
+                previousSunday.getFullYear(),
+                previousSunday.getMonth() + 1,
+                previousSunday.getDate()
+            );
             
             loadBillingData(startDate, endDate);
         }
@@ -744,10 +763,10 @@
             document.getElementById('errorDiv').style.display = 'none';
             
             try {
-                // Set current date range for display
+                // Set current date range for display using string dates to avoid timezone issues
                 currentDateRange = {
-                    start: new Date(startDate),
-                    end: new Date(endDate)
+                    start: startDate,
+                    end: endDate
                 };
                 
                 // Update date range display
@@ -1007,8 +1026,19 @@
         }
         
         function formatDateRange(dateRange) {
-            const options = { year: 'numeric', month: 'long', day: 'numeric' };
-            return `${dateRange.start.toLocaleDateString('en-US', options)} - ${dateRange.end.toLocaleDateString('en-US', options)}`;
+            // Parse YYYY-MM-DD strings and format them without any Date object creation
+            const [startYear, startMonth, startDay] = dateRange.start.split('-').map(num => parseInt(num));
+            const [endYear, endMonth, endDay] = dateRange.end.split('-').map(num => parseInt(num));
+            
+            const months = [
+                'January', 'February', 'March', 'April', 'May', 'June',
+                'July', 'August', 'September', 'October', 'November', 'December'
+            ];
+            
+            const startMonthName = months[startMonth - 1];
+            const endMonthName = months[endMonth - 1];
+            
+            return `${startMonthName} ${startDay}, ${startYear} - ${endMonthName} ${endDay}, ${endYear}`;
         }
         
         function showMessage(message, type) {
