@@ -567,6 +567,11 @@
             }
         });
         
+        // Navigate to bid items management for a specific project
+        function goToProject(projectId) {
+            window.location.href = `bid-items-management.html?project=${projectId}`;
+        }
+        
         // Logout handler
         function handleLogout() {
             AuthHelper.logout();
@@ -712,6 +717,7 @@
                     <td>${project.county || '-'}</td>
                     <td><span class="${statusClass}">${statusText}</span></td>
                     <td>
+                        <button class="btn btn-sm" onclick="goToProject('${project.id}')">Go to Project</button>
                         <button class="btn btn-sm btn-secondary" onclick="editProject('${project.id}')">Edit</button>
                         <button class="btn btn-sm btn-danger" onclick="deleteProject('${project.id}', '${project.name}')">Delete</button>
                     </td>
