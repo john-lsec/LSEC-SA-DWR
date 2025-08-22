@@ -1,4 +1,4 @@
-// netlify/functions/api.js - Complete fixed version for correct database structure
+// netlify/functions/api.js - Fixed version with proper installed quantities endpoint
 const { neon } = require('@neondatabase/serverless');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
@@ -79,123 +79,6 @@ async function logUserActivity(userId, action, details = null) {
   }
 }
 
-// Google Maps API functions (keeping existing implementation)
-async function geocodeAddress(address) {
-  if (!GOOGLE_MAPS_API_KEY) {
-    throw new Error('Google Maps API key not configured');
-  }
-
-  const baseUrl = 'https://maps.googleapis.com/maps/api/geocode/json';
-  const params = new URLSearchParams({
-    address: address,
-    key: GOOGLE_MAPS_API_KEY
-  });
-
-  try {
-    const response = await fetch(`${baseUrl}?${params}`);
-    const data = await response.json();
-
-    if (data.status === 'OK' && data.results && data.results.length > 0) {
-      return {
-        success: true,
-        results: data.results.map(result => ({
-          formatted_address: result.formatted_address,
-          lat: result.geometry.location.lat,
-          lng: result.geometry.location.lng,
-          place_id: result.place_id,
-          types: result.types
-        }))
-      };
-    } else {
-      return {
-        success: false,
-        error: data.status || 'No results found',
-        message: 'Could not geocode the provided address'
-      };
-    }
-  } catch (error) {
-    console.error('Geocoding API error:', error);
-    return {
-      success: false,
-      error: 'API_ERROR',
-      message: 'Failed to contact geocoding service'
-    };
-  }
-}
-
-async function reverseGeocode(lat, lng) {
-  if (!GOOGLE_MAPS_API_KEY) {
-    throw new Error('Google Maps API key not configured');
-  }
-
-  const baseUrl = 'https://maps.googleapis.com/maps/api/geocode/json';
-  const params = new URLSearchParams({
-    latlng: `${lat},${lng}`,
-    key: GOOGLE_MAPS_API_KEY
-  });
-
-  try {
-    const response = await fetch(`${baseUrl}?${params}`);
-    const data = await response.json();
-
-    if (data.status === 'OK' && data.results && data.results.length > 0) {
-      return {
-        success: true,
-        results: data.results.map(result => ({
-          formatted_address: result.formatted_address,
-          lat: result.geometry.location.lat,
-          lng: result.geometry.location.lng,
-          place_id: result.place_id,
-          types: result.types
-        }))
-      };
-    } else {
-      return {
-        success: false,
-        error: data.status || 'No results found',
-        message: 'Could not reverse geocode the provided coordinates'
-      };
-    }
-  } catch (error) {
-    console.error('Reverse geocoding API error:', error);
-    return {
-      success: false,
-      error: 'API_ERROR',
-      message: 'Failed to contact reverse geocoding service'
-    };
-  }
-}
-
-async function validateLocation(address) {
-  if (!address || typeof address !== 'string') {
-    return {
-      success: false,
-      error: 'INVALID_INPUT',
-      message: 'Address is required and must be a string'
-    };
-  }
-
-  // Check if it's already coordinates
-  const coordPattern = /^-?\d+\.?\d*,-?\d+\.?\d*$/;
-  if (coordPattern.test(address.trim())) {
-    const [lat, lng] = address.trim().split(',').map(coord => parseFloat(coord.trim()));
-    
-    if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-      // Valid coordinates, try to reverse geocode
-      return await reverseGeocode(lat, lng);
-    } else {
-      return {
-        success: false,
-        error: 'INVALID_COORDINATES',
-        message: 'Invalid coordinate format or values out of range'
-      };
-    }
-  }
-
-  // Try to geocode the address
-  return await geocodeAddress(address);
-}
-
 exports.handler = async (event, context) => {
   // CORS headers
   const headers = {
@@ -210,7 +93,7 @@ exports.handler = async (event, context) => {
     return { statusCode: 200, headers, body: '' };
   }
 
-  // Enhanced path parsing to handle nested actions like users/123/toggle-status
+  // Enhanced path parsing to handle nested actions
   let resource = '';
   let id = null;
   let action = null;
@@ -314,6 +197,10 @@ exports.handler = async (event, context) => {
       case 'project-bid-items':
         return await handleProjectBidItems(event, headers, method, id);
       
+      // NEW: Installed quantities endpoint
+      case 'installed-quantities':
+        return await handleInstalledQuantities(event, headers, method);
+      
       case 'submit-dwr':
         return await handleDWRSubmission(event, headers, method);
       
@@ -337,29 +224,6 @@ exports.handler = async (event, context) => {
       case 'users':
         return await handleUsers(event, headers, method, id, action);
       
-      // New endpoints for user management
-      case 'check-username':
-        return await handleUsernameCheck(event, headers, method);
-      
-      case 'check-email':
-        return await handleEmailCheck(event, headers, method);
-      
-      case 'user-profile':
-        return await handleUserProfile(event, headers, method);
-      
-      // Google Maps related endpoints
-      case 'google-maps-config':
-        return await handleGoogleMapsConfig(event, headers, method);
-      
-      case 'geocode':
-        return await handleGeocode(event, headers, method);
-      
-      case 'reverse-geocode':
-        return await handleReverseGeocode(event, headers, method);
-      
-      case 'validate-location':
-        return await handleLocationValidation(event, headers, method);
-
       case 'billing-data':
         return await handleBillingData(event, headers, method);
       
@@ -372,12 +236,9 @@ exports.handler = async (event, context) => {
             resource: resource,
             availableEndpoints: [
               'foremen', 'laborers', 'projects', 'projects-with-contractors', 'general-contractors', 'equipment',
-              'bid-items', 'project-bid-items', 'submit-dwr',
+              'bid-items', 'project-bid-items', 'installed-quantities', 'submit-dwr',
               'po-data', 'po-submit', 'po-requests', 'vendors', 
-              'authorized-users', 'users', 'check-username', 
-              'check-email', 'user-profile', 'google-maps-config',
-              'geocode', 'reverse-geocode', 'validate-location',
-              'billing-data'
+              'authorized-users', 'users', 'billing-data'
             ]
           })
         };
@@ -395,7 +256,102 @@ exports.handler = async (event, context) => {
   }
 };
 
-// FIXED General Contractors handler - now uses correct column names
+// NEW: Installed Quantities handler - gets actual installed quantities from dwr_items
+async function handleInstalledQuantities(event, headers, method) {
+  if (method !== 'GET') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  try {
+    const params = event.queryStringParameters || {};
+    const projectId = params.project_id;
+    
+    if (!projectId) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'project_id parameter is required' })
+      };
+    }
+
+    // Verify project exists
+    const projectCheck = await sql`
+      SELECT id, name FROM projects WHERE id = ${projectId} AND active = true
+    `;
+    
+    if (projectCheck.length === 0) {
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({ error: 'Project not found or inactive' })
+      };
+    }
+
+    // Get installed quantities by joining dwr_items with daily_work_reports
+    const installedQuantities = await sql`
+      SELECT 
+        dwr.work_date,
+        di.item_name,
+        bi.item_code,
+        di.quantity,
+        di.unit,
+        pbi.rate,
+        (di.quantity * pbi.rate) as extension,
+        di.location_description,
+        di.duration_hours,
+        di.notes,
+        di.latitude,
+        di.longitude
+      FROM dwr_items di
+      JOIN daily_work_reports dwr ON di.dwr_id = dwr.id
+      JOIN project_bid_items pbi ON di.project_bid_item_id = pbi.id
+      JOIN bid_items bi ON pbi.bid_item_id = bi.id
+      WHERE dwr.project_id = ${projectId}
+        AND pbi.is_active = true
+        AND bi.is_active = true
+      ORDER BY dwr.work_date DESC, bi.item_code
+    `;
+
+    // Format the response to match what the frontend expects
+    const formattedQuantities = installedQuantities.map(item => ({
+      work_date: item.work_date ? new Date(item.work_date).toISOString().split('T')[0] : '',
+      item_code: item.item_code || '',
+      item_name: item.item_name || '',
+      quantity: parseFloat(item.quantity) || 0,
+      unit: item.unit || 'EA',
+      rate: parseFloat(item.rate) || 0,
+      extension: parseFloat(item.extension) || 0,
+      location_description: item.location_description || 'N/A',
+      duration_hours: parseFloat(item.duration_hours) || 0,
+      notes: item.notes || '',
+      latitude: item.latitude ? parseFloat(item.latitude) : null,
+      longitude: item.longitude ? parseFloat(item.longitude) : null
+    }));
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(formattedQuantities)
+    };
+
+  } catch (error) {
+    console.error('Error fetching installed quantities:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ 
+        error: 'Failed to fetch installed quantities',
+        details: error.message
+      })
+    };
+  }
+}
+
+// General Contractors handler - uses correct column names
 async function handleGeneralContractors(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -492,120 +448,6 @@ async function handleGeneralContractors(event, headers, method, id) {
         };
       }
 
-    case 'PUT':
-      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
-        };
-      }
-
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'ID required for update' })
-        };
-      }
-
-      try {
-        const updateData = JSON.parse(event.body);
-        
-        // Check if contractor exists
-        const existing = await sql`
-          SELECT * FROM general_contractors WHERE id = ${id}
-        `;
-        
-        if (existing.length === 0) {
-          return {
-            statusCode: 404,
-            headers,
-            body: JSON.stringify({ error: 'General contractor not found' })
-          };
-        }
-        
-        const updated = await sql`
-          UPDATE general_contractors
-          SET 
-            name = ${updateData.name || existing[0].name},
-            contact_person = ${updateData.contact_person !== undefined ? updateData.contact_person : existing[0].contact_person},
-            email = ${updateData.email !== undefined ? updateData.email : existing[0].email},
-            phone = ${updateData.phone !== undefined ? updateData.phone : existing[0].phone},
-            address = ${updateData.address !== undefined ? updateData.address : existing[0].address},
-            city = ${updateData.city !== undefined ? updateData.city : existing[0].city},
-            state = ${updateData.state !== undefined ? updateData.state : existing[0].state},
-            zip = ${updateData.zip !== undefined ? updateData.zip : existing[0].zip},
-            is_active = ${updateData.is_active !== undefined ? updateData.is_active : existing[0].is_active},
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${id}
-          RETURNING id::text as id, name, contact_person, email, phone, address, 
-                   city, state, zip, is_active, created_at, updated_at
-        `;
-
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify(updated[0])
-        };
-      } catch (error) {
-        console.error('Error updating general contractor:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to update general contractor: ' + error.message })
-        };
-      }
-
-    case 'DELETE':
-      if (!requireRole(role, ['admin', 'manager'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions to delete' })
-        };
-      }
-
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'ID required for delete' })
-        };
-      }
-
-      try {
-        // Check if contractor has associated projects
-        const associatedProjects = await sql`
-          SELECT COUNT(*) as count FROM projects WHERE general_contractor_id = ${id}
-        `;
-        
-        if (associatedProjects[0].count > 0) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ 
-              error: 'Cannot delete contractor with associated projects. Please deactivate instead.' 
-            })
-          };
-        }
-        
-        await sql`DELETE FROM general_contractors WHERE id = ${id}`;
-        
-        return {
-          statusCode: 204,
-          headers,
-          body: ''
-        };
-      } catch (error) {
-        console.error('Error deleting general contractor:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to delete general contractor: ' + error.message })
-        };
-      }
-
     default:
       return {
         statusCode: 405,
@@ -615,7 +457,7 @@ async function handleGeneralContractors(event, headers, method, id) {
   }
 }
 
-// Projects with Contractors handler - now includes site_location and county
+// Projects with Contractors handler - includes site_location and county
 async function handleProjectsWithContractors(event, headers, method) {
   if (method !== 'GET') {
     return {
@@ -658,7 +500,7 @@ async function handleProjectsWithContractors(event, headers, method) {
   }
 }
 
-// FIXED Projects handler - now includes site_location and county
+// Projects handler - includes site_location and county
 async function handleProjects(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -722,225 +564,6 @@ async function handleProjects(event, headers, method, id) {
         };
       }
 
-    case 'POST':
-      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
-        };
-      }
-
-      try {
-        const projectData = JSON.parse(event.body);
-        
-        // Validate required fields
-        if (!projectData.name) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'Project name is required' })
-          };
-        }
-        
-        // Validate general contractor exists if provided
-        if (projectData.general_contractor_id) {
-          const contractorExists = await sql`
-            SELECT id FROM general_contractors 
-            WHERE id = ${projectData.general_contractor_id} AND is_active = true
-          `;
-          
-          if (contractorExists.length === 0) {
-            return {
-              statusCode: 400,
-              headers,
-              body: JSON.stringify({ error: 'Invalid or inactive general contractor' })
-            };
-          }
-        }
-        
-        const newProject = await sql`
-          INSERT INTO projects (
-            name, 
-            project_code, 
-            general_contractor_id,
-            site_location,
-            county,
-            active, 
-            created_at, 
-            updated_at
-          ) VALUES (
-            ${projectData.name}, 
-            ${projectData.project_code || null}, 
-            ${projectData.general_contractor_id || null},
-            ${projectData.site_location || null},
-            ${projectData.county || null},
-            ${projectData.active !== false},
-            CURRENT_TIMESTAMP,
-            CURRENT_TIMESTAMP
-          )
-          RETURNING 
-            id::text as id, 
-            name, 
-            project_code, 
-            general_contractor_id::text as general_contractor_id,
-            site_location,
-            county,
-            active, 
-            created_at, 
-            updated_at
-        `;
-
-        return {
-          statusCode: 201,
-          headers,
-          body: JSON.stringify(newProject[0])
-        };
-      } catch (error) {
-        console.error('Error creating project:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to create project: ' + error.message })
-        };
-      }
-
-    case 'PUT':
-      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
-        };
-      }
-
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'ID required for update' })
-        };
-      }
-
-      try {
-        const updateData = JSON.parse(event.body);
-        
-        // Check if project exists
-        const existing = await sql`
-          SELECT * FROM projects WHERE id = ${id}
-        `;
-        
-        if (existing.length === 0) {
-          return {
-            statusCode: 404,
-            headers,
-            body: JSON.stringify({ error: 'Project not found' })
-          };
-        }
-        
-        // Validate general contractor exists if being updated
-        if (updateData.general_contractor_id && updateData.general_contractor_id !== existing[0].general_contractor_id) {
-          const contractorExists = await sql`
-            SELECT id FROM general_contractors 
-            WHERE id = ${updateData.general_contractor_id} AND is_active = true
-          `;
-          
-          if (contractorExists.length === 0) {
-            return {
-              statusCode: 400,
-              headers,
-              body: JSON.stringify({ error: 'Invalid or inactive general contractor' })
-            };
-          }
-        }
-        
-        const updated = await sql`
-          UPDATE projects
-          SET 
-            name = ${updateData.name || existing[0].name},
-            project_code = ${updateData.project_code !== undefined ? updateData.project_code : existing[0].project_code},
-            general_contractor_id = ${updateData.general_contractor_id !== undefined ? updateData.general_contractor_id : existing[0].general_contractor_id},
-            site_location = ${updateData.site_location !== undefined ? updateData.site_location : existing[0].site_location},
-            county = ${updateData.county !== undefined ? updateData.county : existing[0].county},
-            active = ${updateData.active !== undefined ? updateData.active : existing[0].active},
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${id}
-          RETURNING 
-            id::text as id, 
-            name, 
-            project_code, 
-            general_contractor_id::text as general_contractor_id,
-            site_location,
-            county,
-            active, 
-            created_at, 
-            updated_at
-        `;
-
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify(updated[0])
-        };
-      } catch (error) {
-        console.error('Error updating project:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to update project: ' + error.message })
-        };
-      }
-
-    case 'DELETE':
-      if (!requireRole(role, ['admin', 'manager'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions to delete' })
-        };
-      }
-
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'ID required for delete' })
-        };
-      }
-
-      try {
-        // Check if project has associated data (DWRs, bid items, etc.)
-        const [dwrCount, bidItemCount] = await Promise.all([
-          sql`SELECT COUNT(*) as count FROM daily_work_reports WHERE project_id = ${id}`,
-          sql`SELECT COUNT(*) as count FROM project_bid_items WHERE project_id = ${id} AND is_active = true`
-        ]);
-        
-        if (dwrCount[0].count > 0 || bidItemCount[0].count > 0) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ 
-              error: 'Cannot delete project with associated data. Please deactivate instead.' 
-            })
-          };
-        }
-        
-        await sql`DELETE FROM projects WHERE id = ${id}`;
-        
-        return {
-          statusCode: 204,
-          headers,
-          body: ''
-        };
-      } catch (error) {
-        console.error('Error deleting project:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to delete project: ' + error.message })
-        };
-      }
-
     default:
       return {
         statusCode: 405,
@@ -950,7 +573,7 @@ async function handleProjects(event, headers, method, id) {
   }
 }
 
-// FIXED Laborers handler - now includes employee_id
+// Laborers handler - includes employee_id
 async function handleLaborers(event, headers, method) {
   if (method !== 'GET') {
     return {
@@ -1065,7 +688,7 @@ async function handleEquipment(event, headers, method) {
   }
 }
 
-// Bid Items handler (Master) - keeping existing functionality
+// Bid Items handler (Master)
 async function handleBidItems(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -1102,131 +725,6 @@ async function handleBidItems(event, headers, method, id) {
         };
       }
 
-    case 'POST':
-      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
-        };
-      }
-
-      try {
-        const createData = JSON.parse(event.body);
-        
-        const newItem = await sql`
-          INSERT INTO bid_items (
-            item_code, item_name, category, default_unit, 
-            material_cost, description, is_active
-          ) VALUES (
-            ${createData.item_code},
-            ${createData.item_name},
-            ${createData.category || null},
-            ${createData.default_unit || null},
-            ${createData.material_cost || 0},
-            ${createData.description || null},
-            ${createData.is_active !== false}
-          )
-          RETURNING *
-        `;
-
-        return {
-          statusCode: 201,
-          headers,
-          body: JSON.stringify(newItem[0])
-        };
-      } catch (error) {
-        console.error('Error creating bid item:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to create bid item' })
-        };
-      }
-
-    case 'PUT':
-      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
-        };
-      }
-
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'ID required for update' })
-        };
-      }
-
-      try {
-        const updateData = JSON.parse(event.body);
-        
-        const updated = await sql`
-          UPDATE bid_items
-          SET 
-            item_code = ${updateData.item_code},
-            item_name = ${updateData.item_name},
-            category = ${updateData.category || null},
-            default_unit = ${updateData.default_unit || null},
-            material_cost = ${updateData.material_cost || 0},
-            description = ${updateData.description || null},
-            is_active = ${updateData.is_active !== false},
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${id}
-          RETURNING *
-        `;
-
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify(updated[0])
-        };
-      } catch (error) {
-        console.error('Error updating bid item:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to update bid item' })
-        };
-      }
-
-    case 'DELETE':
-      if (!requireRole(role, ['admin', 'manager'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions to delete' })
-        };
-      }
-
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'ID required for delete' })
-        };
-      }
-
-      try {
-        await sql`DELETE FROM bid_items WHERE id = ${id}`;
-        
-        return {
-          statusCode: 204,
-          headers,
-          body: ''
-        };
-      } catch (error) {
-        console.error('Error deleting bid item:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to delete bid item' })
-        };
-      }
-
     default:
       return {
         statusCode: 405,
@@ -1236,7 +734,7 @@ async function handleBidItems(event, headers, method, id) {
   }
 }
 
-// FIXED Project Bid Items handler - corrected field references
+// Project Bid Items handler
 async function handleProjectBidItems(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -1514,7 +1012,7 @@ async function handleProjectBidItems(event, headers, method, id) {
           };
         }
         
-        // Update the item - FIXED: removed reference to non-existent current_cost field
+        // Update the item
         const updated = await sql`
           UPDATE project_bid_items
           SET 
@@ -1633,9 +1131,6 @@ async function handleProjectBidItems(event, headers, method, id) {
       };
   }
 }
-
-// Keep all existing handlers for DWR, PO, Users, etc. - they don't need changes
-// [Include all the rest of the original API handlers here...]
 
 // DWR Submission handler for all-UUID database schema
 async function handleDWRSubmission(event, headers, method) {
@@ -1886,175 +1381,6 @@ async function handleDWRSubmission(event, headers, method) {
   }
 }
 
-// Google Maps Configuration handler
-async function handleGoogleMapsConfig(event, headers, method) {
-  if (method !== 'GET') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
-  try {
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        apiKey: GOOGLE_MAPS_API_KEY || null,
-        enabled: !!GOOGLE_MAPS_API_KEY,
-        libraries: ['places', 'geometry'],
-        language: 'en',
-        region: 'US'
-      })
-    };
-  } catch (error) {
-    console.error('Error getting Google Maps config:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to get Google Maps configuration' })
-    };
-  }
-}
-
-// Geocoding handler
-async function handleGeocode(event, headers, method) {
-  if (method !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
-  try {
-    const { address } = JSON.parse(event.body);
-    
-    if (!address) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Address is required' })
-      };
-    }
-
-    const result = await geocodeAddress(address);
-    
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(result)
-    };
-
-  } catch (error) {
-    console.error('Error in geocoding:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ 
-        success: false,
-        error: 'INTERNAL_ERROR',
-        message: 'Failed to process geocoding request'
-      })
-    };
-  }
-}
-
-// Reverse geocoding handler
-async function handleReverseGeocode(event, headers, method) {
-  if (method !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
-  try {
-    const { lat, lng } = JSON.parse(event.body);
-    
-    if (lat === undefined || lng === undefined) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Latitude and longitude are required' })
-      };
-    }
-
-    if (!isFinite(lat) || !isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Invalid latitude or longitude values' })
-      };
-    }
-
-    const result = await reverseGeocode(lat, lng);
-    
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(result)
-    };
-
-  } catch (error) {
-    console.error('Error in reverse geocoding:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ 
-        success: false,
-        error: 'INTERNAL_ERROR',
-        message: 'Failed to process reverse geocoding request'
-      })
-    };
-  }
-}
-
-// Location validation handler
-async function handleLocationValidation(event, headers, method) {
-  if (method !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
-  try {
-    const { location } = JSON.parse(event.body);
-    
-    if (!location) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Location is required' })
-      };
-    }
-
-    const result = await validateLocation(location);
-    
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(result)
-    };
-
-  } catch (error) {
-    console.error('Error in location validation:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ 
-        success: false,
-        error: 'INTERNAL_ERROR',
-        message: 'Failed to process location validation request'
-      })
-    };
-  }
-}
-
 // PO Data handler - returns vendors and projects for the PO form
 async function handlePOData(event, headers, method) {
   if (method !== 'GET') {
@@ -2244,51 +1570,6 @@ async function handlePORequests(event, headers, method, id) {
         };
       }
 
-    case 'PUT':
-      if (!requireRole(role, ['admin', 'manager'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
-        };
-      }
-
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'ID required for update' })
-        };
-      }
-
-      try {
-        const data = JSON.parse(event.body);
-        
-        const updated = await sql`
-          UPDATE po_requests
-          SET 
-            approved = ${data.approved || 'PENDING'},
-            approved_by = ${data.approved_by || null},
-            approved_at = ${data.approved === 'APPROVED' ? sql`CURRENT_TIMESTAMP` : null},
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${id}
-          RETURNING *
-        `;
-
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify(updated[0])
-        };
-      } catch (error) {
-        console.error('Error updating PO request:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to update PO request' })
-        };
-      }
-
     default:
       return {
         statusCode: 405,
@@ -2333,82 +1614,6 @@ async function handleVendors(event, headers, method, id) {
           statusCode: 500,
           headers,
           body: JSON.stringify({ error: 'Failed to fetch vendors' })
-        };
-      }
-
-    case 'POST':
-      if (!requireRole(role, ['admin', 'manager'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
-        };
-      }
-
-      try {
-        const data = JSON.parse(event.body);
-        
-        const newVendor = await sql`
-          INSERT INTO vendors (name, active)
-          VALUES (${data.name}, ${data.active !== false})
-          RETURNING *
-        `;
-
-        return {
-          statusCode: 201,
-          headers,
-          body: JSON.stringify(newVendor[0])
-        };
-      } catch (error) {
-        console.error('Error creating vendor:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to create vendor' })
-        };
-      }
-
-    case 'PUT':
-      if (!requireRole(role, ['admin', 'manager'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
-        };
-      }
-
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'ID required for update' })
-        };
-      }
-
-      try {
-        const data = JSON.parse(event.body);
-        
-        const updated = await sql`
-          UPDATE vendors
-          SET 
-            name = ${data.name},
-            active = ${data.active !== false},
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${id}
-          RETURNING *
-        `;
-
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify(updated[0])
-        };
-      } catch (error) {
-        console.error('Error updating vendor:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to update vendor' })
         };
       }
 
@@ -2465,30 +1670,6 @@ async function handleAuthorizedUsers(event, headers, method, id) {
         };
       }
 
-    case 'POST':
-      try {
-        const data = JSON.parse(event.body);
-        
-        const newUser = await sql`
-          INSERT INTO authorized_users (email, name, phone, active)
-          VALUES (${data.email}, ${data.name || null}, ${data.phone || null}, ${data.active !== false})
-          RETURNING *
-        `;
-
-        return {
-          statusCode: 201,
-          headers,
-          body: JSON.stringify(newUser[0])
-        };
-      } catch (error) {
-        console.error('Error creating authorized user:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to create authorized user' })
-        };
-      }
-
     default:
       return {
         statusCode: 405,
@@ -2498,161 +1679,9 @@ async function handleAuthorizedUsers(event, headers, method, id) {
   }
 }
 
-// Username availability checker
-async function handleUsernameCheck(event, headers, method) {
-  if (method !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
-  try {
-    const { username } = JSON.parse(event.body);
-    
-    if (!username) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Username is required' })
-      };
-    }
-
-    // Check if username exists
-    const existingUser = await sql`
-      SELECT id FROM users WHERE username = ${username}
-    `;
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        available: existingUser.length === 0,
-        message: existingUser.length === 0 ? 'Username is available' : 'Username is already taken'
-      })
-    };
-
-  } catch (error) {
-    console.error('Error checking username:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to check username availability' })
-    };
-  }
-}
-
-// Email availability checker
-async function handleEmailCheck(event, headers, method) {
-  if (method !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
-  try {
-    const { email } = JSON.parse(event.body);
-    
-    if (!email) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Email is required' })
-      };
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ 
-          available: false,
-          message: 'Invalid email format' 
-        })
-      };
-    }
-
-    // Check if email exists
-    const existingUser = await sql`
-      SELECT id FROM users WHERE email = ${email}
-    `;
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        available: existingUser.length === 0,
-        message: existingUser.length === 0 ? 'Email is available' : 'Email is already registered'
-      })
-    };
-
-  } catch (error) {
-    console.error('Error checking email:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to check email availability' })
-    };
-  }
-}
-
-// User profile endpoint
-async function handleUserProfile(event, headers, method) {
-  const { userId, role, email } = event.auth || {};
-
-  if (method !== 'GET') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
-  try {
-    // Get current user's profile
-    const userProfile = await sql`
-      SELECT id::text as id, username, email, first_name, last_name, role, 
-             is_active, last_login, created_at, updated_at
-      FROM users 
-      WHERE id = ${userId}
-    `;
-
-    if (userProfile.length === 0) {
-      return {
-        statusCode: 404,
-        headers,
-        body: JSON.stringify({ error: 'User profile not found' })
-      };
-    }
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        success: true,
-        user: userProfile[0]
-      })
-    };
-
-  } catch (error) {
-    console.error('Error fetching user profile:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to fetch user profile' })
-    };
-  }
-}
-
 // Enhanced Users handler with action support and full CRUD operations
 async function handleUsers(event, headers, method, id, action) {
   const { role, userId } = event.auth || {};
-  console.log('User auth:', { role, userId, action });
 
   // Handle specific actions
   if (action === 'toggle-status' && method === 'POST') {
@@ -2722,73 +1751,6 @@ async function handleUsers(event, headers, method, id, action) {
     }
   }
 
-  // Handle password reset action
-  if (action === 'reset-password' && method === 'POST') {
-    if (!requireRole(role, ['admin', 'project_manager'])) {
-      return {
-        statusCode: 403,
-        headers,
-        body: JSON.stringify({ error: 'Insufficient permissions' })
-      };
-    }
-
-    if (!id) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'User ID required' })
-      };
-    }
-
-    try {
-      const { new_password } = JSON.parse(event.body);
-      
-      if (!new_password || new_password.length < 8) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'Password must be at least 8 characters long' })
-        };
-      }
-
-      // Hash the new password
-      const saltRounds = 12;
-      const passwordHash = await bcrypt.hash(new_password, saltRounds);
-
-      // Update password and reset failed attempts
-      await sql`
-        UPDATE users 
-        SET password_hash = ${passwordHash}, 
-            failed_login_attempts = 0,
-            locked_until = NULL,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${id}
-      `;
-
-      // Log the activity
-      await logUserActivity(userId, 'PASSWORD_RESET', {
-        target_user_id: id
-      });
-
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({ 
-          success: true,
-          message: 'Password reset successfully'
-        })
-      };
-
-    } catch (error) {
-      console.error('Error resetting password:', error);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Failed to reset password' })
-      };
-    }
-  }
-
   // Regular CRUD operations
   switch (method) {
     case 'GET':
@@ -2832,330 +1794,6 @@ async function handleUsers(event, headers, method, id, action) {
           statusCode: 500,
           headers,
           body: JSON.stringify({ error: 'Failed to fetch users' })
-        };
-      }
-
-    case 'POST':
-      if (!requireRole(role, ['admin', 'project_manager', 'superintendent'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
-        };
-      }
-
-      try {
-        const userData = JSON.parse(event.body);
-        
-        // Validate required fields
-        const requiredFields = ['username', 'email', 'password', 'first_name', 'last_name', 'role'];
-        for (const field of requiredFields) {
-          if (!userData[field]) {
-            return {
-              statusCode: 400,
-              headers,
-              body: JSON.stringify({ 
-                success: false,
-                error: `Missing required field: ${field}` 
-              })
-            };
-          }
-        }
-
-        // Validate email format
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(userData.email)) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ 
-              success: false,
-              error: 'Invalid email format' 
-            })
-          };
-        }
-
-        // Validate password strength
-        const password = userData.password;
-        if (password.length < 8 || 
-            !/[A-Z]/.test(password) || 
-            !/[a-z]/.test(password) || 
-            !/\d/.test(password) || 
-            !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ 
-              success: false,
-              error: 'Password must be at least 8 characters and contain uppercase, lowercase, number, and special character' 
-            })
-          };
-        }
-
-        // Check if username or email already exists
-        const existingUser = await sql`
-          SELECT id FROM users 
-          WHERE username = ${userData.username} OR email = ${userData.email}
-        `;
-
-        if (existingUser.length > 0) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ 
-              success: false,
-              error: 'Username or email already exists' 
-            })
-          };
-        }
-
-        // Hash the password
-        const saltRounds = 12;
-        const passwordHash = await bcrypt.hash(password, saltRounds);
-
-        // Insert new user
-        const newUser = await sql`
-          INSERT INTO users (
-            username, email, password_hash, first_name, last_name, role, 
-            is_active, failed_login_attempts, created_at, updated_at, created_by
-          ) VALUES (
-            ${userData.username},
-            ${userData.email},
-            ${passwordHash},
-            ${userData.first_name},
-            ${userData.last_name},
-            ${userData.role},
-            ${userData.is_active !== false},
-            0,
-            CURRENT_TIMESTAMP,
-            CURRENT_TIMESTAMP,
-            ${userId}
-          )
-          RETURNING id::text as id, username, email, first_name, last_name, role, is_active, created_at
-        `;
-
-        // Log the activity
-        await logUserActivity(userId, 'USER_CREATED', {
-          new_user_id: newUser[0].id,
-          new_username: newUser[0].username,
-          new_role: newUser[0].role
-        });
-
-        return {
-          statusCode: 201,
-          headers,
-          body: JSON.stringify({
-            success: true,
-            user: newUser[0],
-            message: 'User created successfully'
-          })
-        };
-
-      } catch (error) {
-        console.error('Error creating user:', error);
-        
-        let errorMessage = 'Failed to create user';
-        if (error.message.includes('unique')) {
-          errorMessage = 'Username or email already exists';
-        }
-        
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ 
-            success: false,
-            error: errorMessage,
-            details: error.message 
-          })
-        };
-      }
-
-    case 'PUT':
-      if (!requireRole(role, ['admin', 'project_manager'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
-        };
-      }
-
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'User ID required for update' })
-        };
-      }
-
-      try {
-        const updateData = JSON.parse(event.body);
-        
-        // Check if user exists
-        const existingUser = await sql`
-          SELECT * FROM users WHERE id = ${id}
-        `;
-
-        if (existingUser.length === 0) {
-          return {
-            statusCode: 404,
-            headers,
-            body: JSON.stringify({ error: 'User not found' })
-          };
-        }
-
-        const user = existingUser[0];
-
-        // If updating username or email, check for conflicts
-        if (updateData.username && updateData.username !== user.username) {
-          const usernameExists = await sql`
-            SELECT id FROM users WHERE username = ${updateData.username} AND id != ${id}
-          `;
-          if (usernameExists.length > 0) {
-            return {
-              statusCode: 400,
-              headers,
-              body: JSON.stringify({ error: 'Username already exists' })
-            };
-          }
-        }
-
-        if (updateData.email && updateData.email !== user.email) {
-          const emailExists = await sql`
-            SELECT id FROM users WHERE email = ${updateData.email} AND id != ${id}
-          `;
-          if (emailExists.length > 0) {
-            return {
-              statusCode: 400,
-              headers,
-              body: JSON.stringify({ error: 'Email already exists' })
-            };
-          }
-        }
-
-        // Prepare update fields
-        let updateFields = {
-          username: updateData.username || user.username,
-          email: updateData.email || user.email,
-          first_name: updateData.first_name || user.first_name,
-          last_name: updateData.last_name || user.last_name,
-          role: updateData.role || user.role,
-          is_active: updateData.is_active !== undefined ? updateData.is_active : user.is_active
-        };
-
-        // Handle password update separately if provided
-        if (updateData.password) {
-          const saltRounds = 12;
-          updateFields.password_hash = await bcrypt.hash(updateData.password, saltRounds);
-        }
-
-        // Update user
-        const updated = await sql`
-          UPDATE users
-          SET 
-            username = ${updateFields.username},
-            email = ${updateFields.email},
-            first_name = ${updateFields.first_name},
-            last_name = ${updateFields.last_name},
-            role = ${updateFields.role},
-            is_active = ${updateFields.is_active},
-            ${updateFields.password_hash ? sql`password_hash = ${updateFields.password_hash},` : sql``}
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${id}
-          RETURNING id::text as id, username, email, first_name, last_name, role, is_active, updated_at
-        `;
-
-        // Log the activity
-        await logUserActivity(userId, 'USER_UPDATED', {
-          target_user_id: id,
-          changes: updateData
-        });
-
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({
-            success: true,
-            user: updated[0],
-            message: 'User updated successfully'
-          })
-        };
-
-      } catch (error) {
-        console.error('Error updating user:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ 
-            success: false,
-            error: 'Failed to update user',
-            details: error.message 
-          })
-        };
-      }
-
-    case 'DELETE':
-      if (!requireRole(role, ['admin'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Admin access required for deletion' })
-        };
-      }
-
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'User ID required for deletion' })
-        };
-      }
-
-      try {
-        // Check if user exists
-        const existingUser = await sql`
-          SELECT id, username FROM users WHERE id = ${id}
-        `;
-
-        if (existingUser.length === 0) {
-          return {
-            statusCode: 404,
-            headers,
-            body: JSON.stringify({ error: 'User not found' })
-          };
-        }
-
-        // Soft delete by deactivating instead of hard delete
-        await sql`
-          UPDATE users 
-          SET is_active = false, updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${id}
-        `;
-
-        // Log the activity
-        await logUserActivity(userId, 'USER_DELETED', {
-          target_user_id: id,
-          target_username: existingUser[0].username
-        });
-
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({
-            success: true,
-            message: 'User deactivated successfully'
-          })
-        };
-
-      } catch (error) {
-        console.error('Error deleting user:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ 
-            success: false,
-            error: 'Failed to delete user',
-            details: error.message 
-          })
         };
       }
 
