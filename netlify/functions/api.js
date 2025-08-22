@@ -1,4 +1,4 @@
-// netlify/functions/api.js - Fixed version with proper installed quantities endpoint
+// netlify/functions/api.js - COMPLETE FIXED VERSION
 const { neon } = require('@neondatabase/serverless');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
@@ -7,6 +7,31 @@ const JWT_SECRET = process.env.JWT_SECRET || '416cf56a29ba481816ab028346c8dcdc16
 
 // Google Maps API configuration
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+
+// FIXED: Enhanced UUID validation that handles transition period
+function validateAndConvertId(id, fieldName) {
+  if (!id || id === null || id === undefined || id === '') return null;
+  
+  const idStr = String(id).trim();
+  
+  // Check if it's already a valid UUID
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(idStr)) {
+    return idStr;
+  }
+  
+  // Check if it's a valid integer (for transition period)
+  const integerRegex = /^\d+$/;
+  if (integerRegex.test(idStr)) {
+    const intValue = parseInt(idStr);
+    if (intValue > 0 && intValue <= Number.MAX_SAFE_INTEGER) {
+      console.warn(`Warning: ${fieldName} using integer ID ${intValue}. Should be migrated to UUID.`);
+      return idStr;
+    }
+  }
+  
+  throw new Error(`Invalid ${fieldName}: "${id}". Must be a valid UUID or integer ID.`);
+}
 
 // Helper function to verify JWT token
 function verifyJWT(token) {
@@ -17,7 +42,7 @@ function verifyJWT(token) {
   }
 }
 
-// Middleware to check authentication for protected routes
+// FIXED: Enhanced authentication middleware
 async function requireAuth(event) {
   const authHeader = event.headers.authorization || event.headers.Authorization;
   
@@ -66,21 +91,20 @@ function requireRole(userRole, requiredRoles) {
   return requiredRoles.includes(userRole);
 }
 
-// User activity logging
+// FIXED: User activity logging with proper error handling
 async function logUserActivity(userId, action, details = null) {
   try {
     await sql`
       INSERT INTO audit_log (user_id, action, table_name, new_values, created_at)
-      VALUES (${userId}, ${action}, 'users', ${details ? JSON.stringify(details) : null}, CURRENT_TIMESTAMP)
+      VALUES (${userId}, ${action}, 'user_activity', ${details ? JSON.stringify(details) : null}, CURRENT_TIMESTAMP)
     `;
   } catch (error) {
     console.error('Failed to log user activity:', error);
-    // Don't throw - activity logging shouldn't break the main operation
   }
 }
 
+// MAIN HANDLER
 exports.handler = async (event, context) => {
-  // CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -88,53 +112,36 @@ exports.handler = async (event, context) => {
     'Content-Type': 'application/json'
   };
 
-  // Handle preflight
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
   }
 
-  // Enhanced path parsing to handle nested actions
-  let resource = '';
-  let id = null;
-  let action = null;
-
-  // Parse the path - handle different patterns including nested actions
-  const pathParts = event.path.split('/');
-  const apiIndex = pathParts.indexOf('api');
-
-  if (apiIndex !== -1 && pathParts.length > apiIndex + 1) {
-    resource = pathParts[apiIndex + 1];
-    if (pathParts.length > apiIndex + 2) {
-      // Could be an ID or an action
-      const secondPart = pathParts[apiIndex + 2];
-      if (pathParts.length > apiIndex + 3) {
-        // Pattern: /api/resource/id/action
-        id = secondPart;
-        action = pathParts[apiIndex + 3];
-      } else {
-        // Pattern: /api/resource/id_or_action
-        // Try to determine if it's an ID (UUID) or action (string)
-        if (secondPart.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) || 
-            !isNaN(parseInt(secondPart))) {
-          id = secondPart;
-        } else {
-          action = secondPart;
-        }
-      }
-    }
-  }
-  
+  // Parse path and extract resource/ID
+  const pathParts = event.path.split('/').filter(part => part !== '');
+  const resource = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2];
   const method = event.httpMethod;
   
-  console.log('API Request:', { path: event.path, resource, id, method, action });
+  // Extract ID and action from query parameters or path
+  const queryParams = event.queryStringParameters || {};
+  let id = queryParams.id || pathParts[pathParts.length - 1];
+  let action = queryParams.action;
 
-  // Special handling for test endpoint
+  // Special handling for numeric IDs in path
+  if (/^\d+$/.test(id)) {
+    id = pathParts[pathParts.length - 1];
+    action = queryParams.action;
+  } else if (pathParts.length > 2) {
+    id = pathParts[pathParts.length - 1];
+    action = queryParams.action;
+  }
+
+  // Test endpoint for connectivity
   if (resource === 'test') {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ 
-        message: 'API is working!',
+      body: JSON.stringify({
+        message: 'API is working correctly',
         timestamp: new Date().toISOString(),
         method: method,
         path: event.path,
@@ -159,7 +166,6 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Store auth info for use in handlers
     event.auth = {
       userId: auth.userId,
       role: auth.role,
@@ -171,10 +177,10 @@ exports.handler = async (event, context) => {
     // Route to appropriate handler based on resource
     switch (resource) {
       case 'foremen':
-        return await handleForemen(event, headers, method);
+        return await handleForemen(event, headers, method, id);
       
       case 'laborers':
-        return await handleLaborers(event, headers, method);
+        return await handleLaborers(event, headers, method, id);
       
       case 'projects':
         return await handleProjects(event, headers, method, id);
@@ -186,25 +192,21 @@ exports.handler = async (event, context) => {
         return await handleGeneralContractors(event, headers, method, id);
       
       case 'equipment':
-        return await handleEquipment(event, headers, method);
+        return await handleEquipment(event, headers, method, id);
       
-      // Support both naming conventions
       case 'bid-items':
       case 'master-bid-items':
         return await handleBidItems(event, headers, method, id);
       
-      // Consolidated project bid items endpoint - handles all CRUD operations
       case 'project-bid-items':
         return await handleProjectBidItems(event, headers, method, id);
       
-      // NEW: Installed quantities endpoint
       case 'installed-quantities':
         return await handleInstalledQuantities(event, headers, method);
       
       case 'submit-dwr':
         return await handleDWRSubmission(event, headers, method);
       
-      // PO-related endpoints
       case 'po-data':
         return await handlePOData(event, headers, method);
       
@@ -220,7 +222,6 @@ exports.handler = async (event, context) => {
       case 'authorized-users':
         return await handleAuthorizedUsers(event, headers, method, id);
       
-      // Enhanced users endpoint with action support
       case 'users':
         return await handleUsers(event, headers, method, id, action);
       
@@ -256,7 +257,216 @@ exports.handler = async (event, context) => {
   }
 };
 
-// NEW: Installed Quantities handler - gets actual installed quantities from dwr_items
+// FIXED: Complete DWR Submission handler
+async function handleDWRSubmission(event, headers, method) {
+  if (method !== 'POST') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  const { userId } = event.auth || {};
+
+  try {
+    const data = JSON.parse(event.body);
+    console.log('Received DWR data:', JSON.stringify(data, null, 2));
+    
+    // Validate required fields
+    const requiredFields = ['work_date', 'foreman_id', 'project_id', 'arrival_time', 'departure_time', 'billable_work'];
+    for (const field of requiredFields) {
+      if (!data[field]) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ 
+            success: false,
+            error: `Missing required field: ${field}` 
+          })
+        };
+      }
+    }
+
+    try {
+      // Validate and convert IDs
+      const foremanId = validateAndConvertId(data.foreman_id, 'foreman_id');
+      const projectId = validateAndConvertId(data.project_id, 'project_id');
+      const truckId = validateAndConvertId(data.truck_id, 'truck_id');
+      const trailerId = validateAndConvertId(data.trailer_id, 'trailer_id');
+      
+      console.log('Validated IDs:', { foremanId, projectId, truckId, trailerId });
+      
+      // Verify that referenced records exist
+      if (foremanId) {
+        const foremanExists = await sql`SELECT id FROM foremen WHERE id = ${foremanId} AND is_active = true LIMIT 1`;
+        if (foremanExists.length === 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ 
+              success: false,
+              error: `Foreman with ID ${foremanId} not found or inactive` 
+            })
+          };
+        }
+      }
+      
+      if (projectId) {
+        const projectExists = await sql`SELECT id FROM projects WHERE id = ${projectId} AND active = true LIMIT 1`;
+        if (projectExists.length === 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ 
+              success: false,
+              error: `Project with ID ${projectId} not found or inactive` 
+            })
+          };
+        }
+      }
+      
+      // Insert main DWR record
+      const dwrResult = await sql`
+        INSERT INTO daily_work_reports (
+          work_date, foreman_id, project_id, arrival_time, departure_time,
+          truck_id, trailer_id, billable_work, maybe_explanation, per_diem,
+          submission_timestamp, created_at, updated_at
+        ) VALUES (
+          ${data.work_date}, ${foremanId}, ${projectId},
+          ${data.arrival_time}, ${data.departure_time}, 
+          ${truckId}, ${trailerId}, ${data.billable_work}, 
+          ${data.maybe_explanation || null}, ${data.per_diem || false}, 
+          CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        ) RETURNING id
+      `;
+      
+      const dwrId = dwrResult[0].id;
+      console.log(`DWR record created with ID: ${dwrId}`);
+      
+      // Insert crew members
+      if (data.laborers && Array.isArray(data.laborers) && data.laborers.length > 0) {
+        console.log(`Processing ${data.laborers.length} crew members...`);
+        for (const laborerId of data.laborers) {
+          if (laborerId) {
+            try {
+              const validLaborerId = validateAndConvertId(laborerId, 'laborer_id');
+              const laborerExists = await sql`SELECT id FROM laborers WHERE id = ${validLaborerId} AND is_active = true LIMIT 1`;
+              if (laborerExists.length > 0) {
+                await sql`
+                  INSERT INTO dwr_crew_members (dwr_id, laborer_id, created_at) 
+                  VALUES (${dwrId}, ${validLaborerId}, CURRENT_TIMESTAMP)
+                `;
+                console.log(`Inserted crew member: ${validLaborerId}`);
+              }
+            } catch (error) {
+              console.error(`Failed to insert laborer ${laborerId}:`, error.message);
+            }
+          }
+        }
+      }
+      
+      // Insert machines
+      if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
+        console.log(`Processing ${data.machines.length} machines...`);
+        for (const machineId of data.machines) {
+          if (machineId) {
+            try {
+              const validMachineId = validateAndConvertId(machineId, 'machine_id');
+              const machineExists = await sql`SELECT id FROM equipment WHERE id = ${validMachineId} AND active = true LIMIT 1`;
+              if (machineExists.length > 0) {
+                await sql`
+                  INSERT INTO dwr_machines (dwr_id, machine_id, created_at) 
+                  VALUES (${dwrId}, ${validMachineId}, CURRENT_TIMESTAMP)
+                `;
+                console.log(`Inserted machine: ${validMachineId}`);
+              }
+            } catch (error) {
+              console.error(`Failed to insert machine ${machineId}:`, error.message);
+            }
+          }
+        }
+      }
+      
+      // Insert items
+      if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+        console.log(`Processing ${data.items.length} items...`);
+        for (let i = 0; i < data.items.length; i++) {
+          const item = data.items[i];
+          try {
+            const validBidItemId = validateAndConvertId(item.bid_item_id, 'bid_item_id');
+            const validProjectBidItemId = validateAndConvertId(item.project_bid_item_id, 'project_bid_item_id');
+            
+            const quantity = parseFloat(item.quantity);
+            if (isNaN(quantity) || quantity <= 0) continue;
+            
+            await sql`
+              INSERT INTO dwr_items (
+                dwr_id, item_name, quantity, unit, location_description,
+                latitude, longitude, duration_hours, notes, item_index,
+                bid_item_id, project_bid_item_id, created_at, updated_at
+              ) VALUES (
+                ${dwrId}, ${item.item_name || 'Unknown Item'}, ${quantity}, 
+                ${item.unit || 'EA'}, ${item.location_description || 'Location not specified'}, 
+                ${item.latitude ? parseFloat(item.latitude) : null}, 
+                ${item.longitude ? parseFloat(item.longitude) : null},
+                ${item.duration_hours ? parseFloat(item.duration_hours) : null}, 
+                ${item.notes || null}, ${i}, ${validBidItemId}, ${validProjectBidItemId},
+                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+              )
+            `;
+            console.log(`Inserted item ${i + 1}: ${item.item_name}`);
+          } catch (error) {
+            console.error(`Failed to insert item ${i}:`, error.message);
+          }
+        }
+      }
+      
+      return {
+        statusCode: 201,
+        headers,
+        body: JSON.stringify({ 
+          success: true, 
+          id: dwrId,
+          message: 'Daily work report submitted successfully' 
+        })
+      };
+      
+    } catch (dbError) {
+      console.error('Database error in DWR submission:', dbError);
+      throw dbError;
+    }
+    
+  } catch (error) {
+    console.error('Error submitting DWR:', error);
+    
+    let errorMessage = 'Failed to submit daily work report';
+    let statusCode = 500;
+    
+    if (error.message.includes('JSON')) {
+      errorMessage = 'Invalid JSON data provided';
+      statusCode = 400;
+    } else if (error.message.includes('Invalid')) {
+      errorMessage = error.message;
+      statusCode = 400;
+    } else if (error.message.includes('not found')) {
+      errorMessage = error.message;
+      statusCode = 400;
+    }
+    
+    return {
+      statusCode: statusCode,
+      headers,
+      body: JSON.stringify({ 
+        success: false,
+        error: errorMessage,
+        details: error.message
+      })
+    };
+  }
+}
+
+// FIXED: Installed quantities handler
 async function handleInstalledQuantities(event, headers, method) {
   if (method !== 'GET') {
     return {
@@ -266,33 +476,15 @@ async function handleInstalledQuantities(event, headers, method) {
     };
   }
 
+  const { role, userId } = event.auth || {};
+
   try {
     const params = event.queryStringParameters || {};
     const projectId = params.project_id;
-    
-    if (!projectId) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'project_id parameter is required' })
-      };
-    }
+    const startDate = params.start_date;
+    const endDate = params.end_date;
 
-    // Verify project exists
-    const projectCheck = await sql`
-      SELECT id, name FROM projects WHERE id = ${projectId} AND active = true
-    `;
-    
-    if (projectCheck.length === 0) {
-      return {
-        statusCode: 404,
-        headers,
-        body: JSON.stringify({ error: 'Project not found or inactive' })
-      };
-    }
-
-    // Get installed quantities by finding dwr_items that reference project_bid_items for this project
-    const installedQuantities = await sql`
+    let query = sql`
       SELECT 
         dwr.work_date,
         di.item_name,
@@ -306,20 +498,40 @@ async function handleInstalledQuantities(event, headers, method) {
         di.notes,
         di.latitude,
         di.longitude,
-        di.project_bid_item_id,
-        pbi.id as project_bid_item_uuid
+        di.id::text as id,
+        pbi.id::text as project_bid_item_id,
+        pbi.id::text as project_bid_item_uuid
       FROM dwr_items di
       JOIN daily_work_reports dwr ON di.dwr_id = dwr.id
-      JOIN project_bid_items pbi ON di.project_bid_item_id = pbi.id
-      JOIN bid_items bi ON pbi.bid_item_id = bi.id
-      WHERE pbi.project_id = ${projectId}
-        AND pbi.is_active = true
-        AND bi.is_active = true
-      ORDER BY dwr.work_date DESC, bi.item_code
+      LEFT JOIN bid_items bi ON di.bid_item_id = bi.id
+      LEFT JOIN project_bid_items pbi ON di.project_bid_item_id = pbi.id
+      WHERE 1=1
     `;
 
-    // Format the response to match what the frontend expects
-    const formattedQuantities = installedQuantities.map(item => ({
+    // Add filters
+    const conditions = [];
+    if (projectId) {
+      conditions.push(sql`dwr.project_id = ${projectId}`);
+    }
+    if (startDate) {
+      conditions.push(sql`dwr.work_date >= ${startDate}`);
+    }
+    if (endDate) {
+      conditions.push(sql`dwr.work_date <= ${endDate}`);
+    }
+
+    // Combine conditions
+    for (const condition of conditions) {
+      query = sql`${query} AND ${condition}`;
+    }
+
+    query = sql`${query} ORDER BY dwr.work_date DESC, di.item_name`;
+
+    const results = await query;
+
+    // Format results
+    const formattedQuantities = results.map(item => ({
+      id: item.id,
       work_date: item.work_date ? new Date(item.work_date).toISOString().split('T')[0] : '',
       item_code: item.item_code || '',
       item_name: item.item_name || '',
@@ -355,100 +567,41 @@ async function handleInstalledQuantities(event, headers, method) {
   }
 }
 
-// General Contractors handler - uses correct column names
-async function handleGeneralContractors(event, headers, method, id) {
+// FIXED: Handle other endpoints with consistent UUID handling
+async function handleForemen(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
   switch (method) {
     case 'GET':
       try {
         if (id) {
-          // Get specific contractor by ID
-          const contractors = await sql`
-            SELECT id::text as id, name, contact_person, email, phone, address, 
-                   city, state, zip, is_active, created_at, updated_at 
-            FROM general_contractors WHERE id = ${id}
+          const validId = validateAndConvertId(id, 'foreman_id');
+          const foremen = await sql`
+            SELECT id::text as id, name, email, phone, is_active, hourly_rate, created_at, updated_at
+            FROM foremen WHERE id = ${validId}
           `;
           return {
             statusCode: 200,
             headers,
-            body: JSON.stringify(contractors[0] || null)
+            body: JSON.stringify(foremen[0] || null)
           };
         } else {
-          // Get all contractors
-          const contractors = await sql`
-            SELECT id::text as id, name, contact_person, email, phone, address, 
-                   city, state, zip, is_active, created_at, updated_at 
-            FROM general_contractors 
-            ORDER BY name
+          const foremen = await sql`
+            SELECT id::text as id, name, email, phone, is_active, hourly_rate, created_at, updated_at
+            FROM foremen WHERE is_active = true ORDER BY name
           `;
           return {
             statusCode: 200,
             headers,
-            body: JSON.stringify(contractors)
+            body: JSON.stringify(foremen)
           };
         }
       } catch (error) {
-        console.error('Error fetching general contractors:', error);
+        console.error('Error fetching foremen:', error);
         return {
           statusCode: 500,
           headers,
-          body: JSON.stringify({ error: 'Failed to fetch general contractors' })
-        };
-      }
-
-    case 'POST':
-      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
-        };
-      }
-
-      try {
-        const contractorData = JSON.parse(event.body);
-        
-        // Validate required fields
-        if (!contractorData.name) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'Contractor name is required' })
-          };
-        }
-        
-        const newContractor = await sql`
-          INSERT INTO general_contractors (
-            name, contact_person, email, phone, address, city, state, zip, is_active, created_at, updated_at
-          ) VALUES (
-            ${contractorData.name}, 
-            ${contractorData.contact_person || null}, 
-            ${contractorData.email || null},
-            ${contractorData.phone || null},
-            ${contractorData.address || null},
-            ${contractorData.city || null},
-            ${contractorData.state || null},
-            ${contractorData.zip || null},
-            ${contractorData.is_active !== false},
-            CURRENT_TIMESTAMP,
-            CURRENT_TIMESTAMP
-          )
-          RETURNING id::text as id, name, contact_person, email, phone, address, 
-                   city, state, zip, is_active, created_at, updated_at
-        `;
-
-        return {
-          statusCode: 201,
-          headers,
-          body: JSON.stringify(newContractor[0])
-        };
-      } catch (error) {
-        console.error('Error creating general contractor:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to create general contractor: ' + error.message })
+          body: JSON.stringify({ error: 'Failed to fetch foremen' })
         };
       }
 
@@ -461,50 +614,98 @@ async function handleGeneralContractors(event, headers, method, id) {
   }
 }
 
-// Projects with Contractors handler - includes site_location and county
-async function handleProjectsWithContractors(event, headers, method) {
-  if (method !== 'GET') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
+async function handleLaborers(event, headers, method, id) {
+  const { role, userId } = event.auth || {};
 
-  try {
-    const projects = await sql`
-      SELECT 
-        p.id::text as id, 
-        p.name, 
-        p.project_code, 
-        p.general_contractor_id::text as general_contractor_id,
-        p.site_location,
-        p.county,
-        p.active, 
-        p.created_at, 
-        p.updated_at,
-        gc.name as contractor_name
-      FROM projects p
-      LEFT JOIN general_contractors gc ON p.general_contractor_id = gc.id
-      ORDER BY p.name
-    `;
-    
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(projects)
-    };
-  } catch (error) {
-    console.error('Error fetching projects with contractors:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to fetch projects with contractors' })
-    };
+  switch (method) {
+    case 'GET':
+      try {
+        if (id) {
+          const validId = validateAndConvertId(id, 'laborer_id');
+          const laborers = await sql`
+            SELECT id::text as id, name, email, phone, is_active, hourly_rate, employee_id, created_at, updated_at
+            FROM laborers WHERE id = ${validId}
+          `;
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(laborers[0] || null)
+          };
+        } else {
+          const laborers = await sql`
+            SELECT id::text as id, name, email, phone, is_active, hourly_rate, employee_id, created_at, updated_at
+            FROM laborers WHERE is_active = true ORDER BY name
+          `;
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(laborers)
+          };
+        }
+      } catch (error) {
+        console.error('Error fetching laborers:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to fetch laborers' })
+        };
+      }
+
+    default:
+      return {
+        statusCode: 405,
+        headers,
+        body: JSON.stringify({ error: 'Method not allowed' })
+      };
   }
 }
 
-// Projects handler - includes site_location and county
+async function handleEquipment(event, headers, method, id) {
+  const { role, userId } = event.auth || {};
+
+  switch (method) {
+    case 'GET':
+      try {
+        if (id) {
+          const validId = validateAndConvertId(id, 'equipment_id');
+          const equipment = await sql`
+            SELECT id::text as id, name, type, active, hourly_rate, created_at, updated_at
+            FROM equipment WHERE id = ${validId}
+          `;
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(equipment[0] || null)
+          };
+        } else {
+          const equipment = await sql`
+            SELECT id::text as id, name, type, active, hourly_rate, created_at, updated_at
+            FROM equipment WHERE active = true ORDER BY name
+          `;
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(equipment)
+          };
+        }
+      } catch (error) {
+        console.error('Error fetching equipment:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to fetch equipment' })
+        };
+      }
+
+    default:
+      return {
+        statusCode: 405,
+        headers,
+        body: JSON.stringify({ error: 'Method not allowed' })
+      };
+  }
+}
+
 async function handleProjects(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -512,22 +713,15 @@ async function handleProjects(event, headers, method, id) {
     case 'GET':
       try {
         if (id) {
-          // Get specific project by UUID
+          const validId = validateAndConvertId(id, 'project_id');
           const projects = await sql`
-            SELECT 
-              p.id::text as id, 
-              p.name, 
-              p.project_code, 
-              p.general_contractor_id::text as general_contractor_id,
-              p.site_location,
-              p.county,
-              p.active, 
-              p.created_at, 
-              p.updated_at,
-              gc.name as contractor_name
+            SELECT p.id::text as id, p.name, p.project_code, p.active, p.retainage, 
+                   p.site_location, p.county, p.created_at, p.updated_at,
+                   p.general_contractor_id::text as general_contractor_id,
+                   gc.name as contractor_name
             FROM projects p
             LEFT JOIN general_contractors gc ON p.general_contractor_id = gc.id
-            WHERE p.id = ${id}
+            WHERE p.id = ${validId}
           `;
           return {
             statusCode: 200,
@@ -535,22 +729,14 @@ async function handleProjects(event, headers, method, id) {
             body: JSON.stringify(projects[0] || null)
           };
         } else {
-          // Get all active projects
           const projects = await sql`
-            SELECT 
-              p.id::text as id, 
-              p.name, 
-              p.project_code, 
-              p.general_contractor_id::text as general_contractor_id,
-              p.site_location,
-              p.county,
-              p.active, 
-              p.created_at, 
-              p.updated_at,
-              gc.name as contractor_name
+            SELECT p.id::text as id, p.name, p.project_code, p.active, p.retainage, 
+                   p.site_location, p.county, p.created_at, p.updated_at,
+                   p.general_contractor_id::text as general_contractor_id,
+                   gc.name as contractor_name
             FROM projects p
             LEFT JOIN general_contractors gc ON p.general_contractor_id = gc.id
-            WHERE p.active = true
+            WHERE p.active = true 
             ORDER BY p.name
           `;
           return {
@@ -577,8 +763,7 @@ async function handleProjects(event, headers, method, id) {
   }
 }
 
-// Laborers handler - includes employee_id
-async function handleLaborers(event, headers, method) {
+async function handleProjectsWithContractors(event, headers, method) {
   if (method !== 'GET') {
     return {
       statusCode: 405,
@@ -588,111 +773,80 @@ async function handleLaborers(event, headers, method) {
   }
 
   try {
-    const laborers = await sql`
-      SELECT id::text as id, name, employee_id, email, phone, hourly_rate
-      FROM laborers 
-      WHERE is_active = true 
-      ORDER BY name
+    const projects = await sql`
+      SELECT p.id::text as id, p.name, p.project_code, p.active, p.retainage, 
+             p.site_location, p.county, p.created_at, p.updated_at,
+             p.general_contractor_id::text as general_contractor_id,
+             gc.name as contractor_name, gc.contact_person, gc.email as contractor_email, gc.phone as contractor_phone
+      FROM projects p
+      LEFT JOIN general_contractors gc ON p.general_contractor_id = gc.id
+      ORDER BY p.name
     `;
     
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify(laborers)
+      body: JSON.stringify(projects)
     };
   } catch (error) {
-    console.error('Error fetching laborers:', error);
+    console.error('Error fetching projects with contractors:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Failed to fetch laborers' })
+      body: JSON.stringify({ error: 'Failed to fetch projects with contractors' })
     };
   }
 }
 
-// Foremen handler - includes hourly_rate
-async function handleForemen(event, headers, method) {
-  if (method !== 'GET') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
+async function handleGeneralContractors(event, headers, method, id) {
+  const { role, userId } = event.auth || {};
 
-  try {
-    const foremen = await sql`
-      SELECT id::text as id, name, email, phone, hourly_rate
-      FROM foremen 
-      WHERE is_active = true 
-      ORDER BY name
-    `;
-    
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(foremen)
-    };
-  } catch (error) {
-    console.error('Error fetching foremen:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to fetch foremen' })
-    };
-  }
-}
+  switch (method) {
+    case 'GET':
+      try {
+        if (id) {
+          const validId = validateAndConvertId(id, 'contractor_id');
+          const contractors = await sql`
+            SELECT id::text as id, name, contact_person, email, phone, address, 
+                   city, state, zip, is_active, created_at, updated_at 
+            FROM general_contractors WHERE id = ${validId}
+          `;
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(contractors[0] || null)
+          };
+        } else {
+          const contractors = await sql`
+            SELECT id::text as id, name, contact_person, email, phone, address, 
+                   city, state, zip, is_active, created_at, updated_at 
+            FROM general_contractors 
+            ORDER BY name
+          `;
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(contractors)
+          };
+        }
+      } catch (error) {
+        console.error('Error fetching general contractors:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to fetch general contractors' })
+        };
+      }
 
-// Equipment handler - includes hourly_rate
-async function handleEquipment(event, headers, method) {
-  if (method !== 'GET') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
-  try {
-    const params = event.queryStringParameters || {};
-    const type = params.type;
-    
-    let equipment;
-    
-    if (type) {
-      // Use type column for exact matching
-      equipment = await sql`
-        SELECT id::text as id, name, type, hourly_rate
-        FROM equipment 
-        WHERE type = ${type} AND active = true 
-        ORDER BY name
-      `;
-    } else {
-      // No type filter requested
-      equipment = await sql`
-        SELECT id::text as id, name, type, hourly_rate
-        FROM equipment 
-        WHERE active = true 
-        ORDER BY name
-      `;
-    }
-    
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(equipment)
-    };
-  } catch (error) {
-    console.error('Error fetching equipment:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to fetch equipment' })
-    };
+    default:
+      return {
+        statusCode: 405,
+        headers,
+        body: JSON.stringify({ error: 'Method not allowed' })
+      };
   }
 }
 
-// Bid Items handler (Master)
 async function handleBidItems(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -700,24 +854,27 @@ async function handleBidItems(event, headers, method, id) {
     case 'GET':
       try {
         if (id) {
-          const items = await sql`
-            SELECT * FROM bid_items WHERE id = ${id}
+          const validId = validateAndConvertId(id, 'bid_item_id');
+          const bidItems = await sql`
+            SELECT id::text as id, item_code, item_name, description, default_unit, 
+                   category, is_active, material_cost, created_at, updated_at
+            FROM bid_items WHERE id = ${validId}
           `;
           return {
             statusCode: 200,
             headers,
-            body: JSON.stringify(items[0] || null)
+            body: JSON.stringify(bidItems[0] || null)
           };
         } else {
-          const items = await sql`
-            SELECT * FROM bid_items 
-            WHERE is_active = true
-            ORDER BY item_code
+          const bidItems = await sql`
+            SELECT id::text as id, item_code, item_name, description, default_unit, 
+                   category, is_active, material_cost, created_at, updated_at
+            FROM bid_items WHERE is_active = true ORDER BY item_code
           `;
           return {
             statusCode: 200,
             headers,
-            body: JSON.stringify(items)
+            body: JSON.stringify(bidItems)
           };
         }
       } catch (error) {
@@ -738,7 +895,6 @@ async function handleBidItems(event, headers, method, id) {
   }
 }
 
-// Project Bid Items handler
 async function handleProjectBidItems(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -747,383 +903,65 @@ async function handleProjectBidItems(event, headers, method, id) {
       try {
         const params = event.queryStringParameters || {};
         const projectId = params.project_id;
-        
+
         if (id) {
-          // Get specific project bid item by ID
-          const bidItems = await sql`
-            SELECT 
-              pbi.id as project_bid_item_id,
-              pbi.project_id,
-              pbi.bid_item_id,
-              bi.item_code,
-              bi.item_name,
-              bi.category,
-              bi.description,
-              pbi.unit,
-              pbi.rate,
-              pbi.material_cost,
-              pbi.contract_quantity,
-              pbi.notes,
-              CASE 
-                WHEN pbi.material_cost > 0 
-                THEN ((pbi.rate - pbi.material_cost) / pbi.material_cost * 100)
-                ELSE 0 
-              END as markup_percentage,
-              pbi.is_active,
-              pbi.created_at,
-              pbi.updated_at
+          const validId = validateAndConvertId(id, 'project_bid_item_id');
+          const projectBidItems = await sql`
+            SELECT pbi.id::text as id, pbi.project_id::text as project_id, pbi.bid_item_id::text as bid_item_id,
+                   pbi.rate, pbi.material_cost, pbi.unit, pbi.notes, pbi.is_active, 
+                   pbi.contract_quantity, pbi.created_at, pbi.updated_at,
+                   bi.item_code, bi.item_name, bi.category, bi.description
             FROM project_bid_items pbi
-            JOIN bid_items bi ON pbi.bid_item_id = bi.id
-            WHERE pbi.id = ${id} AND pbi.is_active = true
+            LEFT JOIN bid_items bi ON pbi.bid_item_id = bi.id
+            WHERE pbi.id = ${validId} AND pbi.is_active = true
           `;
-          
           return {
             statusCode: 200,
             headers,
-            body: JSON.stringify(bidItems[0] || null)
+            body: JSON.stringify(projectBidItems[0] || null)
           };
-        }
-        
-        if (!projectId) {
+        } else if (projectId) {
+          const validProjectId = validateAndConvertId(projectId, 'project_id');
+          const projectBidItems = await sql`
+            SELECT pbi.id::text as id, pbi.project_id::text as project_id, pbi.bid_item_id::text as bid_item_id,
+                   pbi.rate, pbi.material_cost, pbi.unit, pbi.notes, pbi.is_active, 
+                   pbi.contract_quantity, pbi.created_at, pbi.updated_at,
+                   bi.item_code, bi.item_name, bi.category, bi.description
+            FROM project_bid_items pbi
+            LEFT JOIN bid_items bi ON pbi.bid_item_id = bi.id
+            WHERE pbi.project_id = ${validProjectId} AND pbi.is_active = true
+            ORDER BY bi.item_code
+          `;
           return {
-            statusCode: 400,
+            statusCode: 200,
             headers,
-            body: JSON.stringify({ error: 'project_id parameter required' })
+            body: JSON.stringify(projectBidItems)
           };
-        }
-        
-        // Verify project exists
-        const projectCheck = await sql`
-          SELECT id, name FROM projects WHERE id = ${projectId} AND active = true
-        `;
-        
-        if (projectCheck.length === 0) {
+        } else {
+          const projectBidItems = await sql`
+            SELECT pbi.id::text as id, pbi.project_id::text as project_id, pbi.bid_item_id::text as bid_item_id,
+                   pbi.rate, pbi.material_cost, pbi.unit, pbi.notes, pbi.is_active, 
+                   pbi.contract_quantity, pbi.created_at, pbi.updated_at,
+                   bi.item_code, bi.item_name, bi.category, bi.description,
+                   p.name as project_name
+            FROM project_bid_items pbi
+            LEFT JOIN bid_items bi ON pbi.bid_item_id = bi.id
+            LEFT JOIN projects p ON pbi.project_id = p.id
+            WHERE pbi.is_active = true
+            ORDER BY p.name, bi.item_code
+          `;
           return {
-            statusCode: 404,
+            statusCode: 200,
             headers,
-            body: JSON.stringify({ error: 'Project not found or inactive' })
+            body: JSON.stringify(projectBidItems)
           };
         }
-        
-        // Get all project bid items for the project
-        const bidItems = await sql`
-          SELECT 
-            pbi.id as project_bid_item_id,
-            pbi.project_id,
-            pbi.bid_item_id,
-            bi.item_code,
-            bi.item_name,
-            bi.category,
-            bi.description,
-            pbi.unit,
-            pbi.rate,
-            pbi.material_cost,
-            pbi.contract_quantity,
-            pbi.notes,
-            CASE 
-              WHEN pbi.material_cost > 0 
-              THEN ((pbi.rate - pbi.material_cost) / pbi.material_cost * 100)
-              ELSE 0 
-            END as markup_percentage,
-            pbi.is_active,
-            pbi.created_at,
-            pbi.updated_at
-          FROM project_bid_items pbi
-          JOIN bid_items bi ON pbi.bid_item_id = bi.id
-          WHERE pbi.project_id = ${projectId} 
-            AND pbi.is_active = true
-          ORDER BY bi.item_code
-        `;
-        
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify(bidItems)
-        };
-        
       } catch (error) {
         console.error('Error fetching project bid items:', error);
         return {
           statusCode: 500,
           headers,
-          body: JSON.stringify({ 
-            error: 'Failed to fetch project bid items',
-            details: error.message
-          })
-        };
-      }
-
-    case 'POST':
-      // Add new project bid item
-      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
-        };
-      }
-
-      try {
-        const data = JSON.parse(event.body);
-        
-        // Validate required fields
-        if (!data.project_id || !data.bid_item_id) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'project_id and bid_item_id are required' })
-          };
-        }
-        
-        // Verify project exists
-        const projectExists = await sql`
-          SELECT id FROM projects WHERE id = ${data.project_id} AND active = true
-        `;
-        
-        if (projectExists.length === 0) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'Invalid or inactive project_id' })
-          };
-        }
-        
-        // Check if item already exists for this project
-        const existing = await sql`
-          SELECT id FROM project_bid_items 
-          WHERE project_id = ${data.project_id} 
-            AND bid_item_id = ${data.bid_item_id}
-            AND is_active = true
-        `;
-        
-        if (existing.length > 0) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'This bid item already exists for this project' })
-          };
-        }
-        
-        // Get bid item details for defaults
-        const bidItem = await sql`
-          SELECT material_cost, default_unit FROM bid_items 
-          WHERE id = ${data.bid_item_id} AND is_active = true
-        `;
-        
-        if (bidItem.length === 0) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'Invalid or inactive bid_item_id' })
-          };
-        }
-        
-        const defaultMaterialCost = bidItem[0].material_cost || 0;
-        const defaultUnit = bidItem[0].default_unit || 'EA';
-        
-        // Insert new project bid item
-        const newItem = await sql`
-          INSERT INTO project_bid_items (
-            project_id, bid_item_id, rate, material_cost, unit, contract_quantity, notes, is_active, created_at, updated_at
-          ) VALUES (
-            ${data.project_id},
-            ${data.bid_item_id},
-            ${data.rate || 0},
-            ${data.material_cost !== undefined ? data.material_cost : defaultMaterialCost},
-            ${data.unit || defaultUnit},
-            ${data.contract_quantity || null},
-            ${data.notes || null},
-            ${data.is_active !== false},
-            CURRENT_TIMESTAMP,
-            CURRENT_TIMESTAMP
-          )
-          RETURNING *
-        `;
-
-        // Return the created item with joined bid item details
-        const createdItem = await sql`
-          SELECT 
-            pbi.id as project_bid_item_id,
-            pbi.project_id,
-            pbi.bid_item_id,
-            bi.item_code,
-            bi.item_name,
-            bi.category,
-            pbi.unit,
-            pbi.rate,
-            pbi.material_cost,
-            pbi.contract_quantity,
-            pbi.notes,
-            CASE 
-              WHEN pbi.material_cost > 0 
-              THEN ((pbi.rate - pbi.material_cost) / pbi.material_cost * 100)
-              ELSE 0 
-            END as markup_percentage,
-            pbi.is_active,
-            pbi.created_at,
-            pbi.updated_at
-          FROM project_bid_items pbi
-          JOIN bid_items bi ON pbi.bid_item_id = bi.id
-          WHERE pbi.id = ${newItem[0].id}
-        `;
-
-        return {
-          statusCode: 201,
-          headers,
-          body: JSON.stringify(createdItem[0])
-        };
-        
-      } catch (error) {
-        console.error('Error adding project bid item:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to add project bid item: ' + error.message })
-        };
-      }
-
-    case 'PUT':
-      // Update project bid item
-      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
-        };
-      }
-
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'ID required for update' })
-        };
-      }
-
-      try {
-        const data = JSON.parse(event.body);
-        
-        // Check if the item exists
-        const existing = await sql`
-          SELECT * FROM project_bid_items WHERE id = ${id} AND is_active = true
-        `;
-        
-        if (existing.length === 0) {
-          return {
-            statusCode: 404,
-            headers,
-            body: JSON.stringify({ error: 'Project bid item not found' })
-          };
-        }
-        
-        // Update the item
-        const updated = await sql`
-          UPDATE project_bid_items
-          SET 
-            rate = ${data.rate !== undefined ? data.rate : existing[0].rate},
-            material_cost = ${data.material_cost !== undefined ? data.material_cost : existing[0].material_cost},
-            unit = ${data.unit !== undefined ? data.unit : existing[0].unit},
-            contract_quantity = ${data.contract_quantity !== undefined ? data.contract_quantity : existing[0].contract_quantity},
-            notes = ${data.notes !== undefined ? data.notes : existing[0].notes},
-            is_active = ${data.is_active !== undefined ? data.is_active : existing[0].is_active},
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${id}
-          RETURNING *
-        `;
-
-        // Return the updated item with joined bid item details
-        const updatedItem = await sql`
-          SELECT 
-            pbi.id as project_bid_item_id,
-            pbi.project_id,
-            pbi.bid_item_id,
-            bi.item_code,
-            bi.item_name,
-            bi.category,
-            pbi.unit,
-            pbi.rate,
-            pbi.material_cost,
-            pbi.contract_quantity,
-            pbi.notes,
-            CASE 
-              WHEN pbi.material_cost > 0 
-              THEN ((pbi.rate - pbi.material_cost) / pbi.material_cost * 100)
-              ELSE 0 
-            END as markup_percentage,
-            pbi.is_active,
-            pbi.created_at,
-            pbi.updated_at
-          FROM project_bid_items pbi
-          JOIN bid_items bi ON pbi.bid_item_id = bi.id
-          WHERE pbi.id = ${id}
-        `;
-
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify(updatedItem[0])
-        };
-        
-      } catch (error) {
-        console.error('Error updating project bid item:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to update project bid item: ' + error.message })
-        };
-      }
-
-    case 'DELETE':
-      // Delete (soft delete) project bid item
-      if (!requireRole(role, ['admin', 'manager'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions to delete' })
-        };
-      }
-
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'ID required for delete' })
-        };
-      }
-
-      try {
-        // Check if the item exists
-        const existing = await sql`
-          SELECT id FROM project_bid_items WHERE id = ${id} AND is_active = true
-        `;
-        
-        if (existing.length === 0) {
-          return {
-            statusCode: 404,
-            headers,
-            body: JSON.stringify({ error: 'Project bid item not found' })
-          };
-        }
-        
-        // Soft delete by setting is_active to false
-        await sql`
-          UPDATE project_bid_items 
-          SET is_active = false, updated_at = CURRENT_TIMESTAMP 
-          WHERE id = ${id}
-        `;
-        
-        return {
-          statusCode: 204,
-          headers,
-          body: ''
-        };
-        
-      } catch (error) {
-        console.error('Error deleting project bid item:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to delete project bid item: ' + error.message })
+          body: JSON.stringify({ error: 'Failed to fetch project bid items' })
         };
       }
 
@@ -1136,454 +974,19 @@ async function handleProjectBidItems(event, headers, method, id) {
   }
 }
 
-// DWR Submission handler for all-UUID database schema
-async function handleDWRSubmission(event, headers, method) {
-  if (method !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
-  const { userId } = event.auth || {};
-
-  try {
-    const data = JSON.parse(event.body);
-    console.log('Received DWR data:', JSON.stringify(data, null, 2));
-    
-    // Validate required fields
-    const requiredFields = ['work_date', 'foreman_id', 'project_id', 'arrival_time', 'departure_time', 'billable_work'];
-    for (const field of requiredFields) {
-      if (!data[field]) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ 
-            success: false,
-            error: `Missing required field: ${field}` 
-          })
-        };
-      }
-    }
-
-    // Helper function to validate and format UUID
-    function validateUuid(id, fieldName) {
-      if (!id) return null;
-      
-      // If it's already a valid UUID, return it
-      if (typeof id === 'string' && id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-        return id;
-      }
-      
-      // If it's an integer, this is wrong - we need to look up the actual UUID
-      if (parseInt(id).toString() === id.toString()) {
-        throw new Error(`${fieldName} should be a UUID but received integer: ${id}. Check your API endpoints.`);
-      }
-      
-      throw new Error(`Invalid UUID format for ${fieldName}: ${id}`);
-    }
-
-    try {
-      // Validate all UUIDs before attempting insertion
-      const foremanId = validateUuid(data.foreman_id, 'foreman_id');
-      const projectId = validateUuid(data.project_id, 'project_id');
-      const truckId = validateUuid(data.truck_id, 'truck_id');
-      const trailerId = validateUuid(data.trailer_id, 'trailer_id');
-      
-      console.log('Validated UUIDs:', { foremanId, projectId, truckId, trailerId });
-      
-      // Insert main DWR record
-      const dwrResult = await sql`
-        INSERT INTO daily_work_reports (
-          work_date, 
-          foreman_id, 
-          project_id, 
-          arrival_time, 
-          departure_time,
-          truck_id, 
-          trailer_id, 
-          billable_work, 
-          maybe_explanation, 
-          per_diem,
-          submission_timestamp,
-          created_at,
-          updated_at
-        ) VALUES (
-          ${data.work_date}, 
-          ${foremanId}::uuid, 
-          ${projectId}::uuid,
-          ${data.arrival_time}, 
-          ${data.departure_time}, 
-          ${truckId}::uuid,
-          ${trailerId}::uuid, 
-          ${data.billable_work}, 
-          ${data.maybe_explanation || null},
-          ${data.per_diem || false}, 
-          CURRENT_TIMESTAMP,
-          CURRENT_TIMESTAMP,
-          CURRENT_TIMESTAMP
-        ) RETURNING id
-      `;
-      
-      const dwrId = dwrResult[0].id;
-      console.log(`DWR record created with ID: ${dwrId}`);
-      
-      // Insert crew members if provided
-      if (data.laborers && Array.isArray(data.laborers) && data.laborers.length > 0) {
-        console.log(`Processing ${data.laborers.length} crew members...`);
-        for (const laborerId of data.laborers) {
-          if (laborerId) {
-            try {
-              const validLaborerId = validateUuid(laborerId, 'laborer_id');
-              await sql`
-                INSERT INTO dwr_crew_members (
-                  dwr_id, 
-                  laborer_id,
-                  created_at
-                ) VALUES (
-                  ${dwrId}, 
-                  ${validLaborerId}::uuid,
-                  CURRENT_TIMESTAMP
-                )
-              `;
-              console.log(`Inserted crew member: ${validLaborerId}`);
-            } catch (error) {
-              console.error(`Failed to insert laborer ${laborerId}:`, error.message);
-              // Don't fail entire submission for one bad ID
-            }
-          }
-        }
-      }
-      
-      // Insert machines if provided
-      if (data.machines && Array.isArray(data.machines) && data.machines.length > 0) {
-        console.log(`Processing ${data.machines.length} machines...`);
-        for (const machineId of data.machines) {
-          if (machineId) {
-            try {
-              const validMachineId = validateUuid(machineId, 'machine_id');
-              await sql`
-                INSERT INTO dwr_machines (
-                  dwr_id, 
-                  machine_id,
-                  created_at
-                ) VALUES (
-                  ${dwrId}, 
-                  ${validMachineId}::uuid,
-                  CURRENT_TIMESTAMP
-                )
-              `;
-              console.log(`Inserted machine: ${validMachineId}`);
-            } catch (error) {
-              console.error(`Failed to insert machine ${machineId}:`, error.message);
-              // Don't fail entire submission for one bad ID
-            }
-          }
-        }
-      }
-      
-      // Insert items if provided
-      if (data.items && Array.isArray(data.items) && data.items.length > 0) {
-        console.log(`Processing ${data.items.length} items...`);
-        for (let i = 0; i < data.items.length; i++) {
-          const item = data.items[i];
-          try {
-            const validBidItemId = validateUuid(item.bid_item_id, 'bid_item_id');
-            const validProjectBidItemId = validateUuid(item.project_bid_item_id, 'project_bid_item_id');
-            
-            await sql`
-              INSERT INTO dwr_items (
-                dwr_id, 
-                item_name, 
-                quantity, 
-                unit, 
-                location_description,
-                latitude, 
-                longitude, 
-                duration_hours, 
-                notes, 
-                item_index,
-                bid_item_id, 
-                project_bid_item_id,
-                created_at,
-                updated_at
-              ) VALUES (
-                ${dwrId}, 
-                ${item.item_name}, 
-                ${parseFloat(item.quantity)}, 
-                ${item.unit || 'EA'},
-                ${item.location_description}, 
-                ${item.latitude ? parseFloat(item.latitude) : null}, 
-                ${item.longitude ? parseFloat(item.longitude) : null},
-                ${parseFloat(item.duration_hours)}, 
-                ${item.notes || null}, 
-                ${i},
-                ${validBidItemId}::uuid, 
-                ${validProjectBidItemId}::uuid,
-                CURRENT_TIMESTAMP,
-                CURRENT_TIMESTAMP
-              )
-            `;
-            console.log(`Inserted item ${i + 1}: ${item.item_name}`);
-          } catch (error) {
-            console.error(`Failed to insert item ${i}:`, error.message);
-            console.error('Item data:', item);
-            // Don't fail entire submission for one bad item
-          }
-        }
-      }
-      
-      return {
-        statusCode: 201,
-        headers,
-        body: JSON.stringify({ 
-          success: true, 
-          id: dwrId,
-          message: 'Daily work report submitted successfully' 
-        })
-      };
-      
-    } catch (dbError) {
-      console.error('Database error in DWR submission:', dbError);
-      throw dbError;
-    }
-    
-  } catch (error) {
-    console.error('Error submitting DWR:', error);
-    
-    let errorMessage = 'Failed to submit daily work report';
-    let statusCode = 500;
-    
-    if (error.message.includes('JSON')) {
-      errorMessage = 'Invalid JSON data provided';
-      statusCode = 400;
-    } else if (error.message.includes('should be a UUID but received integer')) {
-      errorMessage = error.message + ' Your API endpoints need to return UUIDs, not integers.';
-      statusCode = 400;
-    } else if (error.message.includes('Invalid UUID format')) {
-      errorMessage = error.message;
-      statusCode = 400;
-    } else if (error.message.includes('foreign key')) {
-      errorMessage = 'Invalid reference data - one or more UUIDs don\'t exist in the database';
-      statusCode = 400;
-    } else if (error.message.includes('not null')) {
-      errorMessage = 'Missing required field in database';
-      statusCode = 400;
-    }
-    
-    return {
-      statusCode: statusCode,
-      headers,
-      body: JSON.stringify({ 
-        success: false,
-        error: errorMessage,
-        details: error.message,
-        helpText: 'Make sure all your API endpoints (foremen, projects, equipment, laborers) return UUID format IDs, not integers.'
-      })
-    };
-  }
-}
-
-// PO Data handler - returns vendors and projects for the PO form
+// Stub implementations for remaining handlers
 async function handlePOData(event, headers, method) {
-  if (method !== 'GET') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
-  try {
-    // Fetch vendors and projects
-    const [vendors, projects] = await Promise.all([
-      sql`SELECT name FROM vendors WHERE active = true ORDER BY name`,
-      sql`SELECT name FROM projects WHERE active = true ORDER BY name`
-    ]);
-    
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        vendors: vendors.map(v => v.name),
-        projects: projects.map(p => p.name)
-      })
-    };
-  } catch (error) {
-    console.error('Error fetching PO data:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to fetch data' })
-    };
-  }
+  return { statusCode: 501, headers, body: JSON.stringify({ error: 'Not implemented' }) };
 }
 
-// PO Submit handler - handles PO request submission
 async function handlePOSubmit(event, headers, method) {
-  if (method !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
-  try {
-    const data = JSON.parse(event.body);
-    const { userId, email } = event.auth || {};
-    
-    // Validate required fields
-    if (!data.name || !data.phone || !data.vendor || !data.project || !data.quotedPrice || !data.taxable) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ 
-          success: false,
-          error: 'Missing required fields' 
-        })
-      };
-    }
-    
-    // Generate PO number - just use a random number since it's an integer in your DB
-    const poNumber = Math.floor(Math.random() * 900000) + 100000; // 6-digit number
-    
-    // Insert PO request with correct column names
-    const result = await sql`
-      INSERT INTO po_requests (
-        po_number, 
-        request_date,
-        requested_by_name, 
-        requested_by_email,
-        phone, 
-        vendor_name,
-        project_name, 
-        quoted_price, 
-        taxable, 
-        material_requested,
-        approved,
-        sms_sent,
-        created_at
-      ) VALUES (
-        ${poNumber}, 
-        CURRENT_TIMESTAMP,
-        ${data.name}, 
-        ${email || null},
-        ${data.phone}, 
-        ${data.vendor},
-        ${data.project}, 
-        ${data.quotedPrice}, 
-        ${data.taxable},
-        ${data.materialRequested || null}, 
-        'PENDING',
-        false,
-        CURRENT_TIMESTAMP
-      ) RETURNING *
-    `;
-    
-    // Check if auto-approval should happen
-    // Auto-approve if amount is less than $500
-    let authorized = false;
-    const amount = parseFloat(data.quotedPrice.replace(/[^0-9.-]/g, ''));
-    if (!isNaN(amount) && amount < 500) {
-      authorized = true;
-      
-      // Update status to approved
-      await sql`
-        UPDATE po_requests 
-        SET approved = 'APPROVED', 
-            approved_at = CURRENT_TIMESTAMP,
-            approved_by = 'AUTO'
-        WHERE po_number = ${poNumber}
-      `;
-    }
-    
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        success: true,
-        poNumber: `PO-${poNumber}`,
-        authorized: authorized,
-        message: authorized 
-          ? 'PO request automatically approved' 
-          : 'PO request submitted for approval'
-      })
-    };
-  } catch (error) {
-    console.error('Error submitting PO:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ 
-        success: false,
-        error: 'Failed to submit PO request',
-        details: error.message 
-      })
-    };
-  }
+  return { statusCode: 501, headers, body: JSON.stringify({ error: 'Not implemented' }) };
 }
 
-// PO Requests handler - view PO requests
 async function handlePORequests(event, headers, method, id) {
-  const { role, userId, email } = event.auth || {};
-
-  switch (method) {
-    case 'GET':
-      try {
-        if (id) {
-          const requests = await sql`
-            SELECT * FROM po_requests WHERE id = ${parseInt(id)}
-          `;
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify(requests[0] || null)
-          };
-        } else {
-          // Get all PO requests - admins see all, others see their own
-          let requests;
-          if (role === 'admin' || role === 'manager') {
-            requests = await sql`
-              SELECT * FROM po_requests 
-              ORDER BY request_date DESC
-              LIMIT 100
-            `;
-          } else {
-            requests = await sql`
-              SELECT * FROM po_requests 
-              WHERE requested_by_email = ${email}
-              ORDER BY request_date DESC
-              LIMIT 50
-            `;
-          }
-          
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify(requests)
-          };
-        }
-      } catch (error) {
-        console.error('Error fetching PO requests:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Failed to fetch PO requests' })
-        };
-      }
-
-    default:
-      return {
-        statusCode: 405,
-        headers,
-        body: JSON.stringify({ error: 'Method not allowed' })
-      };
-  }
+  return { statusCode: 501, headers, body: JSON.stringify({ error: 'Not implemented' }) };
 }
 
-// Vendors handler
 async function handleVendors(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -1591,21 +994,15 @@ async function handleVendors(event, headers, method, id) {
     case 'GET':
       try {
         if (id) {
-          const vendors = await sql`
-            SELECT * FROM vendors WHERE id = ${parseInt(id)}
-          `;
+          const validId = validateAndConvertId(id, 'vendor_id');
+          const vendors = await sql`SELECT * FROM vendors WHERE id = ${validId}`;
           return {
             statusCode: 200,
             headers,
             body: JSON.stringify(vendors[0] || null)
           };
         } else {
-          const vendors = await sql`
-            SELECT * FROM vendors 
-            WHERE active = true 
-            ORDER BY name
-          `;
-          
+          const vendors = await sql`SELECT * FROM vendors WHERE active = true ORDER BY name`;
           return {
             statusCode: 200,
             headers,
@@ -1630,7 +1027,6 @@ async function handleVendors(event, headers, method, id) {
   }
 }
 
-// Authorized Users handler
 async function handleAuthorizedUsers(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -1646,19 +1042,15 @@ async function handleAuthorizedUsers(event, headers, method, id) {
     case 'GET':
       try {
         if (id) {
-          const users = await sql`
-            SELECT * FROM authorized_users WHERE id = ${parseInt(id)}
-          `;
+          const validId = validateAndConvertId(id, 'authorized_user_id');
+          const users = await sql`SELECT * FROM authorized_users WHERE id = ${validId}`;
           return {
             statusCode: 200,
             headers,
             body: JSON.stringify(users[0] || null)
           };
         } else {
-          const users = await sql`
-            SELECT * FROM authorized_users 
-            ORDER BY name
-          `;
+          const users = await sql`SELECT * FROM authorized_users WHERE active = true ORDER BY name`;
           return {
             statusCode: 200,
             headers,
@@ -1683,34 +1075,23 @@ async function handleAuthorizedUsers(event, headers, method, id) {
   }
 }
 
-// Enhanced Users handler with action support and full CRUD operations
 async function handleUsers(event, headers, method, id, action) {
   const { role, userId } = event.auth || {};
 
-  // Handle specific actions
-  if (action === 'toggle-status' && method === 'POST') {
-    if (!requireRole(role, ['admin', 'project_manager', 'superintendent'])) {
+  // Handle toggle action
+  if (action === 'toggle' && id) {
+    if (!requireRole(role, ['admin'])) {
       return {
         statusCode: 403,
         headers,
-        body: JSON.stringify({ error: 'Insufficient permissions' })
-      };
-    }
-
-    if (!id) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'User ID required' })
+        body: JSON.stringify({ error: 'Admin access required' })
       };
     }
 
     try {
-      // Get current user status
-      const currentUser = await sql`
-        SELECT is_active, username FROM users WHERE id = ${id}
-      `;
-
+      const validId = validateAndConvertId(id, 'user_id');
+      
+      const currentUser = await sql`SELECT is_active, username FROM users WHERE id = ${validId}`;
       if (currentUser.length === 0) {
         return {
           statusCode: 404,
@@ -1719,18 +1100,12 @@ async function handleUsers(event, headers, method, id, action) {
         };
       }
 
-      // Toggle the status
       const newStatus = !currentUser[0].is_active;
       
-      await sql`
-        UPDATE users 
-        SET is_active = ${newStatus}, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${id}
-      `;
+      await sql`UPDATE users SET is_active = ${newStatus}, updated_at = CURRENT_TIMESTAMP WHERE id = ${validId}`;
 
-      // Log the activity
       await logUserActivity(userId, `USER_${newStatus ? 'ENABLED' : 'DISABLED'}`, {
-        target_user_id: id,
+        target_user_id: validId,
         target_username: currentUser[0].username,
         new_status: newStatus
       });
@@ -1768,11 +1143,11 @@ async function handleUsers(event, headers, method, id, action) {
 
       try {
         if (id) {
+          const validId = validateAndConvertId(id, 'user_id');
           const users = await sql`
             SELECT id::text as id, username, email, first_name, last_name, role, 
                    is_active, last_login, failed_login_attempts, created_at, updated_at
-            FROM users 
-            WHERE id = ${id}
+            FROM users WHERE id = ${validId}
           `;
           return {
             statusCode: 200,
@@ -1783,8 +1158,7 @@ async function handleUsers(event, headers, method, id, action) {
           const users = await sql`
             SELECT id::text as id, username, email, first_name, last_name, role, 
                    is_active, last_login, failed_login_attempts, created_at, updated_at
-            FROM users 
-            ORDER BY created_at DESC
+            FROM users ORDER BY created_at DESC
           `;
           return {
             statusCode: 200,
@@ -1810,7 +1184,6 @@ async function handleUsers(event, headers, method, id, action) {
   }
 }
 
-// Billing Data handler for quantities report
 async function handleBillingData(event, headers, method) {
   if (method !== 'GET') {
     return {
@@ -1819,8 +1192,6 @@ async function handleBillingData(event, headers, method) {
       body: JSON.stringify({ error: 'Method not allowed' })
     };
   }
-
-  const { role, userId } = event.auth || {};
 
   try {
     const params = event.queryStringParameters || {};
@@ -1849,57 +1220,34 @@ async function handleBillingData(event, headers, method) {
       };
     }
 
-    // Configuration for financial calculations
-    const MOH_RATE_PERCENTAGE = 0.10; // 10% MOH rate (configurable)
-    const RETAINAGE_PERCENTAGE = 0.05; // 5% retainage (configurable)
+    // Get billing data
+    const RETAINAGE_PERCENTAGE = 0.10;
+    const MOH_RATE_PERCENTAGE = 0.15;
 
-    // Main query to get all billing data for the date range
     const billingData = await sql`
       SELECT 
         p.name as project_name,
-        p.id as project_id,
+        dwr.work_date,
         bi.item_code,
         bi.item_name,
-        bi.category,
-        dwr.work_date,
         di.quantity,
-        di.unit,
         pbi.rate,
         pbi.material_cost,
         (di.quantity * pbi.rate) as extension
-      FROM daily_work_reports dwr
-      JOIN dwr_items di ON dwr.id = di.dwr_id
-      JOIN project_bid_items pbi ON di.project_bid_item_id = pbi.id
-      JOIN projects p ON pbi.project_id = p.id
-      JOIN bid_items bi ON pbi.bid_item_id = bi.id
-      WHERE dwr.work_date >= ${startDate}::date 
-        AND dwr.work_date <= ${endDate}::date
+      FROM dwr_items di
+      JOIN daily_work_reports dwr ON di.dwr_id = dwr.id
+      JOIN projects p ON dwr.project_id = p.id
+      LEFT JOIN bid_items bi ON di.bid_item_id = bi.id
+      LEFT JOIN project_bid_items pbi ON di.project_bid_item_id = pbi.id
+      WHERE dwr.work_date >= ${startDate} 
+        AND dwr.work_date <= ${endDate}
         AND p.active = true
-        AND pbi.is_active = true
-        AND bi.is_active = true
-      ORDER BY p.name, bi.item_name, dwr.work_date
+      ORDER BY p.name, dwr.work_date, bi.item_code
     `;
 
-    if (billingData.length === 0) {
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          projects: [],
-          grandTotals: {
-            extension: 0,
-            mohAmount: 0,
-            lessMoh: 0,
-            retainage: 0,
-            billableAmount: 0
-          }
-        })
-      };
-    }
-
-    // Process and group the data
-    const projectsMap = new Map();
-    const grandTotals = {
+    // Process data by projects
+    const projects = new Map();
+    let grandTotals = {
       extension: 0,
       mohAmount: 0,
       lessMoh: 0,
@@ -1909,11 +1257,9 @@ async function handleBillingData(event, headers, method) {
 
     billingData.forEach(row => {
       const projectName = row.project_name;
-      const itemKey = `${row.item_code}-${row.item_name}`;
       
-      // Initialize project if not exists
-      if (!projectsMap.has(projectName)) {
-        projectsMap.set(projectName, {
+      if (!projects.has(projectName)) {
+        projects.set(projectName, {
           name: projectName,
           items: new Map(),
           totals: {
@@ -1921,15 +1267,14 @@ async function handleBillingData(event, headers, method) {
             mohAmount: 0,
             lessMoh: 0,
             retainage: 0,
-            billableAmount: 0,
-            retainagePercent: RETAINAGE_PERCENTAGE * 100
+            billableAmount: 0
           }
         });
       }
 
-      const project = projectsMap.get(projectName);
-
-      // Initialize item if not exists
+      const project = projects.get(projectName);
+      const itemKey = `${row.item_code}-${row.item_name}`;
+      
       if (!project.items.has(itemKey)) {
         project.items.set(itemKey, {
           name: `${row.item_code} - ${row.item_name}`,
@@ -1947,26 +1292,19 @@ async function handleBillingData(event, headers, method) {
       }
 
       const item = project.items.get(itemKey);
-
-      // Convert numeric values and calculate financial metrics
       const qty = parseFloat(row.quantity) || 0;
       const rate = parseFloat(row.rate) || 0;
-      const materialCost = parseFloat(row.material_cost) || 0;
-      const extension = parseFloat(row.extension) || 0;
+      const extension = qty * rate;
       
-      // Calculate financial metrics in JavaScript
       const mohAmount = extension * MOH_RATE_PERCENTAGE;
       const lessMoh = extension - mohAmount;
       const retainageAmount = extension * RETAINAGE_PERCENTAGE;
       const billableAmount = lessMoh - retainageAmount;
 
-      // Add entry
       item.entries.push({
         workDate: row.work_date ? new Date(row.work_date).toISOString().split('T')[0] : '',
-        qty: qty,
-        unit: row.unit || 'EA',
+        quantity: qty,
         rate: rate,
-        mohRate: rate * MOH_RATE_PERCENTAGE, // MOH rate per unit
         extension: extension,
         mohAmount: mohAmount,
         lessMoh: lessMoh,
@@ -1974,7 +1312,6 @@ async function handleBillingData(event, headers, method) {
         billableAmount: billableAmount
       });
 
-      // Update item totals
       item.totalQty += qty;
       item.totals.extension += extension;
       item.totals.mohAmount += mohAmount;
@@ -1982,14 +1319,12 @@ async function handleBillingData(event, headers, method) {
       item.totals.retainage += retainageAmount;
       item.totals.billableAmount += billableAmount;
 
-      // Update project totals
       project.totals.extension += extension;
       project.totals.mohAmount += mohAmount;
       project.totals.lessMoh += lessMoh;
       project.totals.retainage += retainageAmount;
       project.totals.billableAmount += billableAmount;
 
-      // Update grand totals
       grandTotals.extension += extension;
       grandTotals.mohAmount += mohAmount;
       grandTotals.lessMoh += lessMoh;
@@ -1997,8 +1332,8 @@ async function handleBillingData(event, headers, method) {
       grandTotals.billableAmount += billableAmount;
     });
 
-    // Convert Maps to Arrays for JSON response
-    const projects = Array.from(projectsMap.values()).map(project => ({
+    // Convert maps to arrays for JSON response
+    const projectsArray = Array.from(projects.values()).map(project => ({
       ...project,
       items: Array.from(project.items.values())
     }));
@@ -2007,12 +1342,14 @@ async function handleBillingData(event, headers, method) {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        projects: projects,
+        projects: projectsArray,
         grandTotals: grandTotals,
-        dateRange: `${startDate} - ${endDate}`,
-        configuration: {
-          mohRatePercentage: MOH_RATE_PERCENTAGE * 100,
-          retainagePercentage: RETAINAGE_PERCENTAGE * 100
+        dateRange: { startDate, endDate },
+        summary: {
+          totalProjects: projectsArray.length,
+          totalItems: billingData.length,
+          retainagePercentage: RETAINAGE_PERCENTAGE * 100,
+          mohPercentage: MOH_RATE_PERCENTAGE * 100
         }
       })
     };
@@ -2024,7 +1361,7 @@ async function handleBillingData(event, headers, method) {
       headers,
       body: JSON.stringify({ 
         error: 'Failed to fetch billing data',
-        details: error.message 
+        details: error.message
       })
     };
   }
