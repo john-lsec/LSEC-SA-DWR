@@ -291,7 +291,7 @@ async function handleInstalledQuantities(event, headers, method) {
       };
     }
 
-    // Get installed quantities by joining dwr_items with daily_work_reports
+    // Get installed quantities by finding dwr_items that reference project_bid_items for this project
     const installedQuantities = await sql`
       SELECT 
         dwr.work_date,
@@ -312,7 +312,7 @@ async function handleInstalledQuantities(event, headers, method) {
       JOIN daily_work_reports dwr ON di.dwr_id = dwr.id
       JOIN project_bid_items pbi ON di.project_bid_item_id = pbi.id
       JOIN bid_items bi ON pbi.bid_item_id = bi.id
-      WHERE dwr.project_id = ${projectId}
+      WHERE pbi.project_id = ${projectId}
         AND pbi.is_active = true
         AND bi.is_active = true
       ORDER BY dwr.work_date DESC, bi.item_code
