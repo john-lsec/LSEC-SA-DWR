@@ -1,10 +1,10 @@
-// netlify/functions/auth.js - Fixed version
+// netlify/functions/auth.js - COMPLETE FIXED VERSION
 const { neon } = require('@neondatabase/serverless');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
-// Environment variables - DON'T initialize SQL here!
+// Environment variables
 const JWT_SECRET = process.env.JWT_SECRET || '416cf56a29ba481816ab028346c8dcdc169b2241187b10e9b274192da564523234ad0aec4f6dd567e1896c6e52c10f7e8494d6d15938afab7ef11db09630fd8fa8005';
 const TOKEN_EXPIRY = '24h';
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -46,6 +46,31 @@ function verifyJWT(token) {
   }
 }
 
+// FIXED: Enhanced UUID validation for auth system
+function validateAndConvertId(id, fieldName) {
+  if (!id || id === null || id === undefined || id === '') return null;
+  
+  const idStr = String(id).trim();
+  
+  // Check if it's already a valid UUID
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(idStr)) {
+    return idStr;
+  }
+  
+  // Check if it's a valid integer (for transition period)
+  const integerRegex = /^\d+$/;
+  if (integerRegex.test(idStr)) {
+    const intValue = parseInt(idStr);
+    if (intValue > 0 && intValue <= Number.MAX_SAFE_INTEGER) {
+      console.warn(`Warning: ${fieldName} using integer ID ${intValue}. Should be migrated to UUID.`);
+      return idStr;
+    }
+  }
+  
+  throw new Error(`Invalid ${fieldName}: "${id}". Must be a valid UUID or integer ID.`);
+}
+
 // Main handler - MUST be named 'handler' and exported
 exports.handler = async (event, context) => {
   console.log('Auth function called');
@@ -65,6 +90,9 @@ exports.handler = async (event, context) => {
     return { statusCode: 200, headers, body: '' };
   }
 
+  // Get database connection
+  const sql = getDb();
+
   // Parse the path - handle different URL patterns
   let endpoint = '';
   
@@ -81,104 +109,93 @@ exports.handler = async (event, context) => {
   }
   
   // Remove any trailing slashes or query parameters
-  endpoint = endpoint.split('?')[0].replace(/\/$/, '');
+  endpoint = endpoint.split('?')[0].split('/')[0];
   
   console.log('Parsed endpoint:', endpoint);
-  console.log('Method:', event.httpMethod);
-
-  // Get database connection inside handler
-  let sql;
-  try {
-    sql = getDb();
-  } catch (error) {
-    console.error('Database connection error:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ 
-        error: 'Database configuration error',
-        message: error.message 
-      })
-    };
-  }
 
   try {
-    // Route based on endpoint and method
-    const route = `${event.httpMethod}:${endpoint}`;
-    console.log('Route:', route);
-    
-    switch (route) {
-      case 'POST:login':
+    switch (endpoint) {
+      case 'login':
         return await handleLogin(event, headers, sql);
       
-      case 'POST:logout':
+      case 'logout':
         return await handleLogout(event, headers, sql);
       
-      case 'GET:verify':
+      case 'verify':
         return await handleVerify(event, headers, sql);
       
-      case 'POST:register':
+      case 'register':
         return await handleRegister(event, headers, sql);
       
-      case 'PUT:password':
-        return await handlePasswordChange(event, headers, sql);
-        
+      case 'change-password':
+        return await handleChangePassword(event, headers, sql);
+      
+      case 'forgot-password':
+        return await handleForgotPassword(event, headers, sql);
+      
+      case 'reset-password':
+        return await handleResetPassword(event, headers, sql);
+      
       default:
-        console.log('Unknown route:', route);
         return {
           statusCode: 404,
           headers,
           body: JSON.stringify({ 
-            error: 'Auth endpoint not found',
+            error: 'Authentication endpoint not found',
             endpoint: endpoint,
-            method: event.httpMethod,
-            path: event.path
+            availableEndpoints: ['login', 'logout', 'verify', 'register', 'change-password', 'forgot-password', 'reset-password']
           })
         };
     }
   } catch (error) {
-    console.error('Auth error:', error);
+    console.error('Auth handler error:', error);
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
         error: 'Internal server error',
-        message: error.message 
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       })
     };
   }
 };
 
-// Handle login - pass sql as parameter
+// FIXED: Enhanced login handler with proper error handling
 async function handleLogin(event, headers, sql) {
-  console.log('handleLogin called');
-  
-  const body = JSON.parse(event.body || '{}');
-  const { username, password } = body;
-
-  if (!username || !password) {
+  if (event.httpMethod !== 'POST') {
     return {
-      statusCode: 400,
+      statusCode: 405,
       headers,
-      body: JSON.stringify({ error: 'Username and password required' })
+      body: JSON.stringify({ error: 'Method not allowed' })
     };
   }
 
   try {
-    console.log('Attempting login for:', username);
+    const { username, email, password } = JSON.parse(event.body || '{}');
+    const loginIdentifier = username || email;
     
+    if (!loginIdentifier || !password) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Username/email and password are required' })
+      };
+    }
+
+    console.log('Login attempt for:', loginIdentifier);
+
     // Find user by username or email
     const users = await sql`
-      SELECT id, username, email, password_hash, first_name, last_name, 
-             role, is_active, failed_login_attempts, locked_until
+      SELECT id, username, email, password_hash, first_name, last_name, role, 
+             is_active, failed_login_attempts, locked_until
       FROM users 
-      WHERE (username = ${username} OR email = ${username})
+      WHERE (username = ${loginIdentifier} OR email = ${loginIdentifier})
+        AND is_active = true
       LIMIT 1
     `;
 
-    console.log('Users found:', users.length);
-
     if (users.length === 0) {
+      console.log('User not found:', loginIdentifier);
       return {
         statusCode: 401,
         headers,
@@ -187,160 +204,191 @@ async function handleLogin(event, headers, sql) {
     }
 
     const user = users[0];
+    const userId = user.id;
 
     // Check if account is locked
     if (user.locked_until && new Date(user.locked_until) > new Date()) {
-      const minutesLeft = Math.ceil((new Date(user.locked_until) - new Date()) / 60000);
+      const lockoutEnd = new Date(user.locked_until);
       return {
-        statusCode: 401,
+        statusCode: 423,
         headers,
         body: JSON.stringify({ 
-          error: 'Account locked',
-          minutesLeft 
+          error: 'Account is temporarily locked due to multiple failed login attempts',
+          lockout_until: lockoutEnd.toISOString()
         })
       };
     }
 
-    // Check if account is active
-    if (!user.is_active) {
-      return {
-        statusCode: 401,
-        headers,
-        body: JSON.stringify({ error: 'Account inactive' })
-      };
-    }
-
     // Verify password
-    console.log('Verifying password...');
-    const validPassword = await verifyPassword(password, user.password_hash);
+    const isValidPassword = await verifyPassword(password, user.password_hash);
     
-    if (!validPassword) {
-      // Increment failed attempts
-      const newAttempts = (user.failed_login_attempts || 0) + 1;
-      let lockedUntil = null;
+    if (!isValidPassword) {
+      console.log('Invalid password for user:', loginIdentifier);
       
-      if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
-        // Lock account
-        const lockTime = new Date();
-        lockTime.setMinutes(lockTime.getMinutes() + LOCKOUT_DURATION);
-        lockedUntil = lockTime.toISOString();
+      // Increment failed login attempts
+      const newFailedAttempts = (user.failed_login_attempts || 0) + 1;
+      let lockoutUntil = null;
+      
+      if (newFailedAttempts >= MAX_LOGIN_ATTEMPTS) {
+        lockoutUntil = new Date(Date.now() + LOCKOUT_DURATION * 60 * 1000);
+        console.log(`Locking account ${loginIdentifier} until ${lockoutUntil}`);
       }
-
+      
       await sql`
         UPDATE users 
-        SET failed_login_attempts = ${newAttempts},
-            locked_until = ${lockedUntil}
-        WHERE id = ${user.id}
+        SET failed_login_attempts = ${newFailedAttempts},
+            locked_until = ${lockoutUntil}
+        WHERE id = ${userId}
       `;
-
+      
       return {
         statusCode: 401,
         headers,
         body: JSON.stringify({ 
           error: 'Invalid credentials',
-          attemptsLeft: Math.max(0, MAX_LOGIN_ATTEMPTS - newAttempts)
+          attempts_remaining: newFailedAttempts >= MAX_LOGIN_ATTEMPTS ? 0 : MAX_LOGIN_ATTEMPTS - newFailedAttempts
         })
       };
     }
 
-    console.log('Password valid, creating session...');
+    console.log('Successful login for user:', loginIdentifier);
 
-    // Successful login - reset failed attempts and update last login
+    // Reset failed login attempts and update last login
     await sql`
       UPDATE users 
-      SET failed_login_attempts = 0,
+      SET failed_login_attempts = 0, 
           locked_until = NULL,
           last_login = CURRENT_TIMESTAMP
-      WHERE id = ${user.id}
+      WHERE id = ${userId}
     `;
 
-    // Create session
-    const sessionToken = crypto.randomBytes(32).toString('hex');
-    const jwtToken = createJWT(user.id, user.role);
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 24);
+    // Create JWT token
+    const token = createJWT(userId, user.role);
+    
+    // Create user session
+    const sessionToken = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    // Store session in database
     await sql`
       INSERT INTO user_sessions (user_id, session_token, ip_address, user_agent, expires_at)
-      VALUES (${user.id}, ${sessionToken}, ${event.headers['client-ip'] || 'unknown'}, 
-              ${event.headers['user-agent'] || 'unknown'}, ${expiresAt.toISOString()})
+      VALUES (
+        ${userId}, 
+        ${sessionToken}, 
+        ${event.headers['x-forwarded-for'] || event.headers['x-real-ip'] || 'unknown'},
+        ${event.headers['user-agent'] || 'unknown'},
+        ${expiresAt}
+      )
     `;
 
-    // Log the login
+    // Log successful login
     await sql`
-      INSERT INTO audit_log (user_id, action, ip_address)
-      VALUES (${user.id}, 'login', ${event.headers['client-ip'] || 'unknown'})
+      INSERT INTO audit_log (user_id, action, table_name, new_values, ip_address, created_at)
+      VALUES (
+        ${userId}, 
+        'LOGIN', 
+        'users', 
+        ${JSON.stringify({ login_method: username ? 'username' : 'email' })},
+        ${event.headers['x-forwarded-for'] || event.headers['x-real-ip'] || 'unknown'},
+        CURRENT_TIMESTAMP
+      )
     `;
-
-    console.log('Login successful for:', user.username);
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        token: jwtToken,
-        sessionToken,
-        userId: user.id,
-        name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username,
-        role: user.role,
-        email: user.email
+        success: true,
+        token: token,
+        user: {
+          id: userId,
+          username: user.username,
+          email: user.email,
+          firstName: user.first_name,
+          lastName: user.last_name,
+          role: user.role,
+          name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username
+        }
       })
     };
 
   } catch (error) {
     console.error('Login error:', error);
+    
+    if (error.message.includes('JSON')) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid JSON in request body' })
+      };
+    }
+    
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
-        error: 'Login failed',
-        message: error.message 
-      })
+      body: JSON.stringify({ error: 'Login failed due to server error' })
     };
   }
 }
 
-// Handle logout - pass sql as parameter
+// FIXED: Enhanced logout handler
 async function handleLogout(event, headers, sql) {
-  const authHeader = event.headers.authorization || event.headers.Authorization;
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (event.httpMethod !== 'POST') {
     return {
-      statusCode: 401,
+      statusCode: 405,
       headers,
-      body: JSON.stringify({ error: 'No token provided' })
-    };
-  }
-
-  const token = authHeader.substring(7);
-  const decoded = verifyJWT(token);
-
-  if (!decoded) {
-    return {
-      statusCode: 401,
-      headers,
-      body: JSON.stringify({ error: 'Invalid token' })
+      body: JSON.stringify({ error: 'Method not allowed' })
     };
   }
 
   try {
-    // Delete all sessions for this user
+    const authHeader = event.headers.authorization || event.headers.Authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'No token provided' })
+      };
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = verifyJWT(token);
+
+    if (!decoded) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Invalid token' })
+      };
+    }
+
+    const userId = decoded.userId;
+
+    // Invalidate all user sessions
     await sql`
       DELETE FROM user_sessions 
-      WHERE user_id = ${decoded.userId}
+      WHERE user_id = ${userId}
     `;
 
-    // Log the logout
+    // Log logout
     await sql`
-      INSERT INTO audit_log (user_id, action, ip_address)
-      VALUES (${decoded.userId}, 'logout', ${event.headers['client-ip'] || 'unknown'})
+      INSERT INTO audit_log (user_id, action, table_name, ip_address, created_at)
+      VALUES (
+        ${userId}, 
+        'LOGOUT', 
+        'users', 
+        ${event.headers['x-forwarded-for'] || event.headers['x-real-ip'] || 'unknown'},
+        CURRENT_TIMESTAMP
+      )
     `;
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ message: 'Logged out successfully' })
+      body: JSON.stringify({ 
+        success: true,
+        message: 'Logged out successfully' 
+      })
     };
 
   } catch (error) {
@@ -348,38 +396,52 @@ async function handleLogout(event, headers, sql) {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Logout failed' })
+      body: JSON.stringify({ error: 'Logout failed due to server error' })
     };
   }
 }
 
-// Handle session verification - pass sql as parameter
+// FIXED: Enhanced verify handler
 async function handleVerify(event, headers, sql) {
-  const authHeader = event.headers.authorization || event.headers.Authorization;
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (event.httpMethod !== 'GET') {
     return {
-      statusCode: 401,
+      statusCode: 405,
       headers,
-      body: JSON.stringify({ error: 'No token provided' })
-    };
-  }
-
-  const token = authHeader.substring(7);
-  const decoded = verifyJWT(token);
-
-  if (!decoded) {
-    return {
-      statusCode: 401,
-      headers,
-      body: JSON.stringify({ error: 'Invalid token' })
+      body: JSON.stringify({ error: 'Method not allowed' })
     };
   }
 
   try {
-    // Check if session exists and is valid
+    const authHeader = event.headers.authorization || event.headers.Authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ 
+          valid: false,
+          error: 'No token provided' 
+        })
+      };
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = verifyJWT(token);
+
+    if (!decoded) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ 
+          valid: false,
+          error: 'Invalid token' 
+        })
+      };
+    }
+
+    // Check if session is still valid
     const sessions = await sql`
-      SELECT s.*, u.username, u.email, u.first_name, u.last_name, u.role, u.is_active
+      SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.role, u.is_active
       FROM user_sessions s
       JOIN users u ON s.user_id = u.id
       WHERE s.user_id = ${decoded.userId}
@@ -392,21 +454,29 @@ async function handleVerify(event, headers, sql) {
       return {
         statusCode: 401,
         headers,
-        body: JSON.stringify({ error: 'Session expired or invalid' })
+        body: JSON.stringify({ 
+          valid: false,
+          error: 'Session expired or user inactive' 
+        })
       };
     }
 
-    const session = sessions[0];
+    const user = sessions[0];
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         valid: true,
-        userId: decoded.userId,
-        name: `${session.first_name || ''} ${session.last_name || ''}`.trim() || session.username,
-        role: session.role,
-        email: session.email
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          firstName: user.first_name,
+          lastName: user.last_name,
+          role: user.role,
+          name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username
+        }
       })
     };
 
@@ -415,81 +485,279 @@ async function handleVerify(event, headers, sql) {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Verification failed' })
+      body: JSON.stringify({ 
+        valid: false,
+        error: 'Token verification failed due to server error' 
+      })
     };
   }
 }
 
-// Handle user registration (admin only) - simplified for now
+// FIXED: Enhanced register handler
 async function handleRegister(event, headers, sql) {
-  return {
-    statusCode: 501,
-    headers,
-    body: JSON.stringify({ error: 'Registration not implemented yet' })
-  };
-}
-
-// Handle password change - simplified for now
-async function handlePasswordChange(event, headers, sql) {
-  return {
-    statusCode: 501,
-    headers,
-    body: JSON.stringify({ error: 'Password change not implemented yet' })
-  };
-}
-
-// Middleware to check authentication for protected routes
-async function requireAuth(event) {
-  const authHeader = event.headers.authorization || event.headers.Authorization;
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return { authorized: false, error: 'No token provided' };
-  }
-
-  const token = authHeader.substring(7);
-  const decoded = verifyJWT(token);
-
-  if (!decoded) {
-    return { authorized: false, error: 'Invalid token' };
+  if (event.httpMethod !== 'POST') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
   }
 
   try {
-    const sql = getDb();
+    const { username, email, password, firstName, lastName, role = 'viewer' } = JSON.parse(event.body || '{}');
     
-    // Verify session is still valid
-    const sessions = await sql`
-      SELECT u.id, u.role, u.is_active
-      FROM user_sessions s
-      JOIN users u ON s.user_id = u.id
-      WHERE s.user_id = ${decoded.userId}
-        AND s.expires_at > CURRENT_TIMESTAMP
-        AND u.is_active = true
+    // Validate required fields
+    if (!username || !email || !password) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Username, email, and password are required' })
+      };
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid email format' })
+      };
+    }
+
+    // Validate password strength
+    if (password.length < 8) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Password must be at least 8 characters long' })
+      };
+    }
+
+    // Check if username or email already exists
+    const existingUsers = await sql`
+      SELECT id, username, email 
+      FROM users 
+      WHERE username = ${username} OR email = ${email}
       LIMIT 1
     `;
 
-    if (sessions.length === 0) {
-      return { authorized: false, error: 'Session expired' };
+    if (existingUsers.length > 0) {
+      const existing = existingUsers[0];
+      const field = existing.username === username ? 'username' : 'email';
+      return {
+        statusCode: 409,
+        headers,
+        body: JSON.stringify({ error: `User with this ${field} already exists` })
+      };
     }
 
-    return { 
-      authorized: true, 
-      userId: decoded.userId, 
-      role: sessions[0].role 
+    // Hash password
+    const passwordHash = await hashPassword(password);
+
+    // Create user
+    const newUsers = await sql`
+      INSERT INTO users (username, email, password_hash, first_name, last_name, role, is_active, created_at, updated_at)
+      VALUES (${username}, ${email}, ${passwordHash}, ${firstName || null}, ${lastName || null}, ${role}, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      RETURNING id, username, email, first_name, last_name, role
+    `;
+
+    const newUser = newUsers[0];
+
+    // Log user creation
+    await sql`
+      INSERT INTO audit_log (user_id, action, table_name, new_values, ip_address, created_at)
+      VALUES (
+        ${newUser.id}, 
+        'USER_CREATED', 
+        'users', 
+        ${JSON.stringify({ username, email, role })},
+        ${event.headers['x-forwarded-for'] || event.headers['x-real-ip'] || 'unknown'},
+        CURRENT_TIMESTAMP
+      )
+    `;
+
+    return {
+      statusCode: 201,
+      headers,
+      body: JSON.stringify({
+        success: true,
+        message: 'User created successfully',
+        user: {
+          id: newUser.id,
+          username: newUser.username,
+          email: newUser.email,
+          firstName: newUser.first_name,
+          lastName: newUser.last_name,
+          role: newUser.role,
+          name: `${newUser.first_name || ''} ${newUser.last_name || ''}`.trim() || newUser.username
+        }
+      })
     };
 
   } catch (error) {
-    console.error('Auth check error:', error);
-    return { authorized: false, error: 'Authorization failed' };
+    console.error('Registration error:', error);
+    
+    if (error.message.includes('JSON')) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid JSON in request body' })
+      };
+    }
+    
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Registration failed due to server error' })
+    };
   }
 }
 
-// Middleware to check specific role permissions
-function requireRole(userRole, requiredRoles) {
-  return requiredRoles.includes(userRole);
+// FIXED: Change password handler
+async function handleChangePassword(event, headers, sql) {
+  if (event.httpMethod !== 'POST') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  try {
+    const authHeader = event.headers.authorization || event.headers.Authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'No token provided' })
+      };
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = verifyJWT(token);
+
+    if (!decoded) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Invalid token' })
+      };
+    }
+
+    const { currentPassword, newPassword } = JSON.parse(event.body || '{}');
+    
+    if (!currentPassword || !newPassword) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Current password and new password are required' })
+      };
+    }
+
+    if (newPassword.length < 8) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'New password must be at least 8 characters long' })
+      };
+    }
+
+    const userId = decoded.userId;
+
+    // Get current user
+    const users = await sql`
+      SELECT id, username, password_hash 
+      FROM users 
+      WHERE id = ${userId} AND is_active = true
+      LIMIT 1
+    `;
+
+    if (users.length === 0) {
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({ error: 'User not found' })
+      };
+    }
+
+    const user = users[0];
+
+    // Verify current password
+    const isValidPassword = await verifyPassword(currentPassword, user.password_hash);
+    
+    if (!isValidPassword) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Current password is incorrect' })
+      };
+    }
+
+    // Hash new password
+    const newPasswordHash = await hashPassword(newPassword);
+
+    // Update password
+    await sql`
+      UPDATE users 
+      SET password_hash = ${newPasswordHash}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${userId}
+    `;
+
+    // Log password change
+    await sql`
+      INSERT INTO audit_log (user_id, action, table_name, ip_address, created_at)
+      VALUES (
+        ${userId}, 
+        'PASSWORD_CHANGED', 
+        'users', 
+        ${event.headers['x-forwarded-for'] || event.headers['x-real-ip'] || 'unknown'},
+        CURRENT_TIMESTAMP
+      )
+    `;
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        success: true,
+        message: 'Password changed successfully'
+      })
+    };
+
+  } catch (error) {
+    console.error('Change password error:', error);
+    
+    if (error.message.includes('JSON')) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid JSON in request body' })
+      };
+    }
+    
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Password change failed due to server error' })
+    };
+  }
 }
 
-// CRITICAL FIX: Export additional functions WITHOUT overwriting exports.handler
-module.exports.requireAuth = requireAuth;
-module.exports.requireRole = requireRole;
-module.exports.verifyJWT = verifyJWT;
-module.exports.hashPassword = hashPassword;
+// Placeholder handlers for forgot/reset password
+async function handleForgotPassword(event, headers, sql) {
+  return {
+    statusCode: 501,
+    headers,
+    body: JSON.stringify({ error: 'Forgot password functionality not yet implemented' })
+  };
+}
+
+async function handleResetPassword(event, headers, sql) {
+  return {
+    statusCode: 501,
+    headers,
+    body: JSON.stringify({ error: 'Reset password functionality not yet implemented' })
+  };
+}
