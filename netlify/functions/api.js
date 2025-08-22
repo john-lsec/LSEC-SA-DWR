@@ -305,7 +305,9 @@ async function handleInstalledQuantities(event, headers, method) {
         di.duration_hours,
         di.notes,
         di.latitude,
-        di.longitude
+        di.longitude,
+        di.project_bid_item_id,
+        pbi.id as project_bid_item_uuid
       FROM dwr_items di
       JOIN daily_work_reports dwr ON di.dwr_id = dwr.id
       JOIN project_bid_items pbi ON di.project_bid_item_id = pbi.id
@@ -329,7 +331,9 @@ async function handleInstalledQuantities(event, headers, method) {
       duration_hours: parseFloat(item.duration_hours) || 0,
       notes: item.notes || '',
       latitude: item.latitude ? parseFloat(item.latitude) : null,
-      longitude: item.longitude ? parseFloat(item.longitude) : null
+      longitude: item.longitude ? parseFloat(item.longitude) : null,
+      project_bid_item_id: item.project_bid_item_id,
+      project_bid_item_uuid: item.project_bid_item_uuid
     }));
 
     return {
