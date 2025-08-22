@@ -875,46 +875,22 @@
             }
         }
         
-        // Load installed quantities
+        // FIXED: Load installed quantities using the new endpoint
         async function loadInstalledQuantities(projectId) {
             if (!projectId) return;
             try {
-                // Get installed quantities from DWR items
-                const response = await AuthHelper.apiCall(`billing-data?start_date=2020-01-01&end_date=2030-12-31`);
-                const projectData = response.projects.find(p => p.name === getProjectName(projectId));
-                
-                installedQuantities = [];
-                if (projectData) {
-                    projectData.items.forEach(item => {
-                        item.entries.forEach(entry => {
-                            installedQuantities.push({
-                                work_date: entry.workDate,
-                                item_code: item.name.split(' - ')[0],
-                                item_name: item.name.split(' - ').slice(1).join(' - '),
-                                quantity: entry.qty,
-                                unit: entry.unit,
-                                rate: entry.rate,
-                                extension: entry.extension,
-                                location_description: entry.location || 'N/A',
-                                duration_hours: entry.duration || 0
-                            });
-                        });
-                    });
-                }
+                // Use the new installed-quantities endpoint for direct and efficient data retrieval
+                installedQuantities = await AuthHelper.apiCall(`installed-quantities?project_id=${projectId}`);
                 
                 renderInstalledQuantitiesTable();
                 updateInstalledQuantitiesStats();
             } catch (error) {
                 console.error('Error loading installed quantities:', error);
                 installedQuantities = [];
+                renderInstalledQuantitiesTable();
+                updateInstalledQuantitiesStats();
+                showMessage('Error loading installed quantities: ' + error.message, 'error');
             }
-        }
-        
-        // Helper to get project name by ID
-        function getProjectName(projectId) {
-            const select = document.getElementById('project');
-            const option = select.querySelector(`option[value="${projectId}"]`);
-            return option ? option.textContent : '';
         }
         
         // Tab switching functionality
@@ -1057,19 +1033,19 @@
             document.getElementById('avgMarkup').textContent = (validMarkups > 0 ? (totalMarkup / validMarkups).toFixed(2) : '0.00') + '%';
         }
         
-        // Installed Quantities Tab Functions
+        // FIXED: Installed Quantities Tab Functions
         function renderInstalledQuantitiesTable() {
             const tableBody = document.getElementById('installedQuantitiesTableBody');
             const searchTerm = document.getElementById('installedSearchInput').value.toLowerCase();
             const dateFrom = document.getElementById('dateFromFilter').value;
             const dateTo = document.getElementById('dateToFilter').value;
             
-            let filteredItems = installedQuantities;
+            let filteredItems = [...installedQuantities]; // Create a copy
             
             if (searchTerm) {
                 filteredItems = filteredItems.filter(item => 
-                    item.item_code.toLowerCase().includes(searchTerm) ||
-                    item.item_name.toLowerCase().includes(searchTerm)
+                    (item.item_code && item.item_code.toLowerCase().includes(searchTerm)) ||
+                    (item.item_name && item.item_name.toLowerCase().includes(searchTerm))
                 );
             }
             
@@ -1090,15 +1066,15 @@
             filteredItems.forEach(item => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${item.work_date}</td>
-                    <td>${item.item_code}</td>
-                    <td>${item.item_name}</td>
-                    <td>${Number(item.quantity).toFixed(2)}</td>
-                    <td>${item.unit}</td>
-                    <td>$${Number(item.rate).toFixed(2)}</td>
-                    <td>$${Number(item.extension).toFixed(2)}</td>
-                    <td>${item.location_description}</td>
-                    <td>${Number(item.duration_hours).toFixed(1)}h</td>
+                    <td>${item.work_date || 'N/A'}</td>
+                    <td>${item.item_code || 'N/A'}</td>
+                    <td>${item.item_name || 'N/A'}</td>
+                    <td>${Number(item.quantity || 0).toFixed(2)}</td>
+                    <td>${item.unit || 'EA'}</td>
+                    <td>$${Number(item.rate || 0).toFixed(2)}</td>
+                    <td>$${Number(item.extension || 0).toFixed(2)}</td>
+                    <td>${item.location_description || 'N/A'}</td>
+                    <td>${Number(item.duration_hours || 0).toFixed(1)}h</td>
                 `;
                 tableBody.appendChild(row);
             });
@@ -1106,8 +1082,8 @@
         
         function updateInstalledQuantitiesStats() {
             const totalEntries = installedQuantities.length;
-            const totalValue = installedQuantities.reduce((sum, item) => sum + Number(item.extension), 0);
-            const uniqueDates = [...new Set(installedQuantities.map(item => item.work_date))];
+            const totalValue = installedQuantities.reduce((sum, item) => sum + Number(item.extension || 0), 0);
+            const uniqueDates = [...new Set(installedQuantities.map(item => item.work_date).filter(date => date))];
             const lastDate = uniqueDates.sort().pop() || '-';
             
             document.getElementById('totalInstalled').textContent = totalEntries;
@@ -1255,7 +1231,7 @@
         function getInstalledQuantityForItem(itemCode) {
             return installedQuantities
                 .filter(item => item.item_code === itemCode)
-                .reduce((sum, item) => sum + Number(item.quantity), 0);
+                .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
         }
         
         // Modal and form functions
