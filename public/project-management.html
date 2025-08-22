@@ -1162,7 +1162,7 @@
             projectBidItems.forEach(item => {
                 const rate = Number(item.rate);
                 const contractQty = Number(item.contract_quantity) || 0;
-                const installedQty = getInstalledQuantityForItem(item.item_code);
+                const installedQty = getInstalledQuantityForItem(item.project_bid_item_id);
                 const percentComplete = contractQty > 0 ? (installedQty / contractQty * 100) : 0;
                 const contractValue = contractQty * rate;
                 const installedValue = installedQty * rate;
@@ -1214,7 +1214,7 @@
             }, 0);
             
             const totalInstalled = projectBidItems.reduce((sum, item) => {
-                const installedQty = getInstalledQuantityForItem(item.item_code);
+                const installedQty = getInstalledQuantityForItem(item.project_bid_item_id);
                 const rate = Number(item.rate) || 0;
                 return sum + (installedQty * rate);
             }, 0);
@@ -1228,9 +1228,9 @@
             document.getElementById('payAppBalance').textContent = '$' + balance.toFixed(2);
         }
         
-        function getInstalledQuantityForItem(itemCode) {
+        function getInstalledQuantityForItem(projectBidItemId) {
             return installedQuantities
-                .filter(item => item.item_code === itemCode)
+                .filter(item => item.project_bid_item_id === projectBidItemId)
                 .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
         }
         
