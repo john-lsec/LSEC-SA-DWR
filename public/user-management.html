@@ -298,13 +298,13 @@
         }
         
         .password-requirement.met::before {
-            content: "✓";
+            content: "âœ“";
             color: #28a745;
             font-weight: bold;
         }
         
         .password-requirement:not(.met)::before {
-            content: "✗";
+            content: "âœ—";
             color: #dc3545;
             font-weight: bold;
         }
@@ -674,7 +674,7 @@
                 <!-- Submit Section -->
                 <div class="form-group">
                     <button type="submit" id="submitBtn" class="btn btn-success btn-block">
-                        ➕ Create User Account
+                        âž• Create User Account
                     </button>
                     <div id="submitLoader" class="loading hidden">Creating user account</div>
                 </div>
@@ -688,7 +688,7 @@
         <div id="view-users-tab" class="tab-content">
             <!-- Search and Filter Controls -->
             <div class="search-filters">
-                <h3>🔍 Search & Filter Users</h3>
+                <h3>ðŸ” Search & Filter Users</h3>
                 <div class="filter-row">
                     <div class="form-group">
                         <label for="userSearch">Search Users</label>
@@ -720,7 +720,7 @@
 
             <div class="section">
                 <div class="section-header">
-                    <span class="section-number">📋</span>
+                    <span class="section-number">ðŸ“‹</span>
                     All Users
                 </div>
 
@@ -1227,17 +1227,17 @@
                                 <td>
                                     <div class="action-buttons">
                                         <button class="btn btn-secondary btn-small" onclick="editUser('${user.id}')" title="Edit user details">
-                                            ✏️ Edit
+                                            âœï¸ Edit
                                         </button>
                                         <button class="btn ${user.is_active ? 'btn-danger' : 'btn-success'} btn-small" 
                                                 onclick="toggleUserStatus('${user.id}', ${user.is_active})"
                                                 title="${user.is_active ? 'Disable' : 'Enable'} user account">
-                                            ${user.is_active ? '🚫 Disable' : '✅ Enable'}
+                                            ${user.is_active ? 'ðŸš« Disable' : 'âœ… Enable'}
                                         </button>
                                         <button class="btn btn-secondary btn-small" 
                                                 onclick="resetUserPassword('${user.id}', '${user.username}')"
                                                 title="Reset user password">
-                                            🔑 Reset
+                                            ðŸ”‘ Reset
                                         </button>
                                     </div>
                                 </td>
@@ -1288,14 +1288,14 @@
                                 statusBadge.className = 'status-badge inactive';
                                 statusBadge.textContent = 'Inactive';
                                 toggleBtn.className = 'btn btn-success btn-small';
-                                toggleBtn.innerHTML = '✅ Enable';
+                                toggleBtn.innerHTML = 'âœ… Enable';
                                 toggleBtn.onclick = () => toggleUserStatus(userId, false);
                             } else {
                                 // Enabling user
                                 statusBadge.className = 'status-badge active';
                                 statusBadge.textContent = 'Active';
                                 toggleBtn.className = 'btn btn-danger btn-small';
-                                toggleBtn.innerHTML = '🚫 Disable';
+                                toggleBtn.innerHTML = 'ðŸš« Disable';
                                 toggleBtn.onclick = () => toggleUserStatus(userId, true);
                             }
                         }
