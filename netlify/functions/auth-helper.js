@@ -55,8 +55,11 @@ const AuthHelper = {
             }
         } catch (error) {
             console.error('Auth verification failed:', error);
-            // Allow user to continue for now
-            return true;
+            // CRITICAL FIX: Deny access on network/verification errors
+            this.clearAuth();
+            this.storeIntendedPage();
+            this.redirectToLogin();
+            return false;
         }
     },
     
@@ -147,6 +150,7 @@ const AuthHelper = {
                 });
             } catch (error) {
                 console.error('Logout error:', error);
+                // Continue with logout even if server call fails
             }
         }
         
@@ -263,14 +267,19 @@ const AuthHelper = {
                     });
                     
                     if (response.ok) {
-                        // Already logged in, redirect to intended page or dashboard
-                        this.redirectToIntendedOrDashboard();
+                        const data = await response.json();
+                        if (data.valid) {
+                            // Already logged in, redirect to intended page or dashboard
+                            this.redirectToIntendedOrDashboard();
+                        }
                     }
                 } catch (error) {
                     console.error('Session check failed:', error);
+                    // Clear invalid session
+                    this.clearAuth();
                 }
             }
-            return;
+            return true; // Allow login page to load
         }
         
         // Check authentication for protected pages
@@ -284,7 +293,8 @@ const AuthHelper = {
     }
 };
 
-// Auto-initialize on DOM load for non-login pages
+// Only auto-initialize on DOM load for non-login pages
+// Removed duplicate initialization to prevent double event listeners
 if (!window.location.pathname.includes('login')) {
     document.addEventListener('DOMContentLoaded', function() {
         AuthHelper.init({
