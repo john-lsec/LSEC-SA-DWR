@@ -8,15 +8,9 @@
   # No build command needed for static files
   command = "echo 'No build required'"
 
-[build.environment]
-  # Node.js version
-  NODE_VERSION = "18"
-
 [functions]
   # Node bundler for better performance
   node_bundler = "esbuild"
-  # Include node_modules in functions
-  included_files = ["node_modules/**"]
 
 [dev]
   # Local development settings
@@ -24,23 +18,19 @@
   # Enable auto-reload
   autoLaunch = false
 
-# API redirects - these are critical for proper function routing
+# Redirects for cleaner URLs (optional)
 [[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/api/:splat"
+  from = "/"
+  to = "/dashboard.html"
   status = 200
+  conditions = {Role = ["user"]}
 
-[[redirects]]
-  from = "/auth/*"
-  to = "/.netlify/functions/auth/:splat"
-  status = 200
-
-# Page redirects
 [[redirects]]
   from = "/"
   to = "/login.html"
   status = 200
 
+# Redirect common routes to HTML files
 [[redirects]]
   from = "/login"
   to = "/login.html"
@@ -57,11 +47,6 @@
   status = 200
 
 [[redirects]]
-  from = "/project-management"
-  to = "/project-management.html"
-  status = 200
-
-[[redirects]]
   from = "/bid-items"
   to = "/bid-items.html"
   status = 200
@@ -71,14 +56,7 @@
   to = "/bid-items-management.html"
   status = 200
 
-# Fallback for SPA routing
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-  conditions = {Role = ["app"]}
-
-# Security headers
+# Headers for security
 [[headers]]
   for = "/*"
   [headers.values]
@@ -86,19 +64,5 @@
     X-XSS-Protection = "1; mode=block"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    # Content Security Policy allowing necessary resources
-    Content-Security-Policy = """
-      default-src 'self' 'unsafe-inline' 'unsafe-eval' 
-      https://*.googleapis.com https://*.gstatic.com https://*.google.com;
-      img-src 'self' data: https:;
-      connect-src 'self' https://*.googleapis.com https://*.netlify.app https://*.netlify.com;
-      font-src 'self' https://fonts.gstatic.com;
-    """
-
-# Function-specific headers
-[[headers]]
-  for = "/.netlify/functions/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "*"
-    Access-Control-Allow-Headers = "Content-Type, Authorization"
-    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+    # Allow Google Maps if using
+    Content-Security-Policy = "default-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://*.gstatic.com https://*.google.com; img-src 'self' data: https:; connect-src 'self' https://*.googleapis.com"
