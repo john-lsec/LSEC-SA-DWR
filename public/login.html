@@ -339,7 +339,8 @@
                     throw new Error('Please enter both username and password');
                 }
                 
-                const result = await AuthHelper.login(credentials);
+                // 🔧 FIXED: Pass username and password as separate parameters
+                const result = await AuthHelper.login(credentials.username, credentials.password);
                 
                 if (result.success) {
                     showMessage('Login successful! Redirecting...', 'success');
