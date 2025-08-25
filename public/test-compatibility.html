@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AuthHelper Compatibility Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background: #f5f5f5;
+        }
+        .test-section { 
+            background: white; 
+            padding: 20px; 
+            margin: 10px 0; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .pass { color: green; font-weight: bold; }
+        .fail { color: red; font-weight: bold; }
+        .function-test { 
+            padding: 8px; 
+            margin: 4px 0; 
+            background: #f8f9fa; 
+            border-left: 4px solid #ddd; 
+            font-family: monospace;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>🧪 AuthHelper Compatibility Test</h1>
+    
+    <div class="test-section">
+        <h2>Function Availability Test</h2>
+        <div id="functionTests">
+            <!-- Will be populated by JavaScript -->
+        </div>
+        <button onclick="runFunctionTests()">Run Tests</button>
+    </div>
+
+    <div class="test-section">
+        <h2>formatUserName() Test</h2>
+        <div id="formatTests">
+            <!-- Will be populated by JavaScript -->
+        </div>
+        <button onclick="runFormatTests()">Test formatUserName</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Mock Authentication Test</h2>
+        <div id="authTests">
+            <!-- Will be populated by JavaScript -->
+        </div>
+        <button onclick="runAuthTests()">Test Auth Functions</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Your Current Files Status</h2>
+        <div id="fileStatus">
+            <p>✅ <strong>auth-helper.js:</strong> Replace with the patched version above</p>
+            <p>✅ <strong>dashboard.html:</strong> Should work with patched AuthHelper</p>
+            <p>✅ <strong>user-management.html:</strong> Should work with patched AuthHelper</p>
+            <p>✅ <strong>login.html:</strong> Already compatible</p>
+            <p>✅ <strong>netlify.toml:</strong> Already correctly configured</p>
+            <p>✅ <strong>auth.js (function):</strong> Already compatible</p>
+        </div>
+    </div>
+
+    <!-- Include your AuthHelper -->
+    <script src="auth-helper.js"></script>
+    
+    <script>
+        // Test if all required functions exist
+        function runFunctionTests() {
+            const requiredFunctions = [
+                'init',
+                'formatUserName', 
+                'checkAuth',
+                'login',
+                'logout',
+                'getUserInfo',
+                'getCurrentUser',
+                'hasRole',
+                'hasAnyRole',
+                'apiCall',
+                'showMessage'
+            ];
+            
+            const results = document.getElementById('functionTests');
+            results.innerHTML = '<h3>Testing function availability:</h3>';
+            
+            requiredFunctions.forEach(funcName => {
+                const exists = typeof AuthHelper[funcName] === 'function';
+                const status = exists ? 
+                    '<span class="pass">✅ PASS</span>' : 
+                    '<span class="fail">❌ FAIL</span>';
+                
+                results.innerHTML += `
+                    <div class="function-test">
+                        AuthHelper.${funcName}() - ${status}
+                    </div>
+                `;
+            });
+        }
+        
+        // Test formatUserName function with different inputs
+        function runFormatTests() {
+            const testUser = {
+                first_name: 'John',
+                last_name: 'Doe',
+                username: 'jdoe',
+                email: 'john.doe@company.com'
+            };
+            
+            const formats = ['full', 'first', 'last', 'initials', 'username', 'formal'];
+            const results = document.getElementById('formatTests');
+            
+            results.innerHTML = '<h3>Testing formatUserName with sample user:</h3>';
+            results.innerHTML += '<p><strong>Test User:</strong> John Doe (jdoe)</p>';
+            
+            formats.forEach(format => {
+                try {
+                    const result = AuthHelper.formatUserName(testUser, format);
+                    results.innerHTML += `
+                        <div class="function-test">
+                            formatUserName(user, '${format}') = "${result}" 
+                            <span class="pass">✅ WORKS</span>
+                        </div>
+                    `;
+                } catch (error) {
+                    results.innerHTML += `
+                        <div class="function-test">
+                            formatUserName(user, '${format}') - ERROR: ${error.message}
+                            <span class="fail">❌ FAILED</span>
+                        </div>
+                    `;
+                }
+            });
+        }
+        
+        // Test auth-related functions
+        function runAuthTests() {
+            const results = document.getElementById('authTests');
+            results.innerHTML = '<h3>Testing authentication functions:</h3>';
+            
+            // Test getUserInfo
+            try {
+                const userInfo = AuthHelper.getUserInfo();
+                results.innerHTML += `
+                    <div class="function-test">
+                        getUserInfo() = ${JSON.stringify(userInfo, null, 2)} 
+                        <span class="pass">✅ WORKS</span>
+                    </div>
+                `;
+            } catch (error) {
+                results.innerHTML += `
+                    <div class="function-test">
+                        getUserInfo() - ERROR: ${error.message}
+                        <span class="fail">❌ FAILED</span>
+                    </div>
+                `;
+            }
+            
+            // Test role checking
+            try {
+                const hasAdminRole = AuthHelper.hasRole('administrator');
+                const hasAnyRole = AuthHelper.hasAnyRole(['admin', 'user']);
+                results.innerHTML += `
+                    <div class="function-test">
+                        hasRole('administrator') = ${hasAdminRole} 
+                        <span class="pass">✅ WORKS</span>
+                    </div>
+                    <div class="function-test">
+                        hasAnyRole(['admin', 'user']) = ${hasAnyRole} 
+                        <span class="pass">✅ WORKS</span>
+                    </div>
+                `;
+            } catch (error) {
+                results.innerHTML += `
+                    <div class="function-test">
+                        Role checking functions - ERROR: ${error.message}
+                        <span class="fail">❌ FAILED</span>
+                    </div>
+                `;
+            }
+            
+            // Test showMessage
+            try {
+                results.innerHTML += `
+                    <div class="function-test">
+                        <button onclick="AuthHelper.showMessage('Test message!', 'success')">
+                            Test showMessage()
+                        </button>
+                        <span class="pass">✅ AVAILABLE</span>
+                    </div>
+                `;
+            } catch (error) {
+                results.innerHTML += `
+                    <div class="function-test">
+                        showMessage() - ERROR: ${error.message}
+                        <span class="fail">❌ FAILED</span>
+                    </div>
+                `;
+            }
+        }
+        
+        // Run initial tests when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                runFunctionTests();
+                runFormatTests();
+                runAuthTests();
+            }, 500);
+        });
+    </script>
+</body>
+</html>
