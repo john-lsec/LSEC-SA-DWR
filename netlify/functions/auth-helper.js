@@ -353,6 +353,46 @@ const AuthHelper = {
         return roles.includes(userInfo.role);
     },
     
+    // ✅ NEW: Specific role checking functions (FIXES isAdmin ERROR)
+    isAdmin: function() {
+        const userInfo = this.getUserInfo();
+        return userInfo.role === 'admin' || userInfo.role === 'administrator';
+    },
+    
+    isManager: function() {
+        const userInfo = this.getUserInfo();
+        return ['admin', 'administrator', 'project_manager', 'manager'].includes(userInfo.role);
+    },
+    
+    isSuperintendent: function() {
+        const userInfo = this.getUserInfo();
+        return ['admin', 'administrator', 'project_manager', 'superintendent'].includes(userInfo.role);
+    },
+    
+    isEditor: function() {
+        const userInfo = this.getUserInfo();
+        return ['admin', 'administrator', 'project_manager', 'manager', 'editor'].includes(userInfo.role);
+    },
+    
+    isViewer: function() {
+        const userInfo = this.getUserInfo();
+        // Everyone with any role can at least view
+        return userInfo.role ? true : false;
+    },
+    
+    // ✅ NEW: Permission checking based on common patterns in your code
+    canManageUsers: function() {
+        return this.isAdmin();
+    },
+    
+    canEditProjects: function() {
+        return this.isManager();
+    },
+    
+    canViewReports: function() {
+        return this.isViewer();
+    },
+    
     // ✅ NEW: Show message function (for compatibility)
     showMessage: function(message, type = 'info', duration = 5000) {
         // Create or get message container
