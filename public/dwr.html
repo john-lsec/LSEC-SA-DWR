@@ -940,7 +940,7 @@
                 </div>
                 
                 <button type="button" id="addItemBtn" class="btn btn-secondary">
-                    ➕ Add Another Item
+                    âž• Add Another Item
                 </button>
             </div>
 
@@ -1039,7 +1039,7 @@
             <!-- Submit Section -->
             <div class="form-group">
                 <button type="submit" id="submitBtn" class="btn btn-success btn-block">
-                    📋 Submit Daily Work Report
+                    ðŸ“‹ Submit Daily Work Report
                 </button>
                 <div id="submitLoader" class="loading hidden">Submitting report</div>
             </div>
@@ -1513,7 +1513,7 @@
                 display.innerHTML = Array.from(selectedSet).map(item => 
                     `<span class="selected-tag">
                         ${item.name}
-                        <button type="button" class="remove" onclick="removeSelected('${type}', '${item.id}')">×</button>
+                        <button type="button" class="remove" onclick="removeSelected('${type}', '${item.id}')">Ã—</button>
                     </span>`
                 ).join('');
             }
@@ -1665,7 +1665,7 @@
                 <div class="item-header">
                     <div class="item-title">Item #${currentItemCount}</div>
                     <button type="button" class="btn btn-danger" onclick="removeItemSection(${currentItemCount})">
-                        🗑️ Remove
+                        ðŸ—‘ï¸ Remove
                     </button>
                 </div>
                 
@@ -1701,10 +1701,10 @@
                         <input type="text" id="location_${currentItemCount}" required placeholder="Enter location, address, or coordinates">
                         <div class="location-buttons">
                             <button type="button" class="map-btn" onclick="openMapModal(${currentItemCount})">
-                                📍 Map
+                                ðŸ“ Map
                             </button>
                             <button type="button" class="location-btn" onclick="getCurrentLocation(${currentItemCount})">
-                                📱 GPS
+                                ðŸ“± GPS
                             </button>
                         </div>
                     </div>
@@ -2144,24 +2144,24 @@
                             locationInfo.innerHTML = `
                                 <strong>GPS Location:</strong> ${results[0].formatted_address}<br>
                                 <strong>Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>
-                                <strong>Accuracy:</strong> ±${Math.round(position.coords.accuracy)}m
+                                <strong>Accuracy:</strong> Â±${Math.round(position.coords.accuracy)}m
                             `;
                         } else {
                             locationInfo.innerHTML = `
                                 <strong>GPS Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>
-                                <strong>Accuracy:</strong> ±${Math.round(position.coords.accuracy)}m
+                                <strong>Accuracy:</strong> Â±${Math.round(position.coords.accuracy)}m
                             `;
                         }
                     } catch (geocodeError) {
                         locationInfo.innerHTML = `
                             <strong>GPS Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>
-                            <strong>Accuracy:</strong> ±${Math.round(position.coords.accuracy)}m
+                            <strong>Accuracy:</strong> Â±${Math.round(position.coords.accuracy)}m
                         `;
                     }
                 } else {
                     locationInfo.innerHTML = `
                         <strong>GPS Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>
-                        <strong>Accuracy:</strong> ±${Math.round(position.coords.accuracy)}m
+                        <strong>Accuracy:</strong> Â±${Math.round(position.coords.accuracy)}m
                     `;
                 }
                 
