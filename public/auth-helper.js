@@ -98,7 +98,11 @@ const AuthHelper = {
             name: localStorage.getItem(AUTH_CONFIG.USER_KEY) || 'User',
             role: localStorage.getItem(AUTH_CONFIG.ROLE_KEY) || 'Employee',
             userId: localStorage.getItem(AUTH_CONFIG.USER_ID_KEY),
-            email: localStorage.getItem(AUTH_CONFIG.EMAIL_KEY)
+            email: localStorage.getItem(AUTH_CONFIG.EMAIL_KEY),
+            // Add additional properties for compatibility
+            first_name: localStorage.getItem(AUTH_CONFIG.USER_KEY) ? localStorage.getItem(AUTH_CONFIG.USER_KEY).split(' ')[0] : '',
+            last_name: localStorage.getItem(AUTH_CONFIG.USER_KEY) ? localStorage.getItem(AUTH_CONFIG.USER_KEY).split(' ').slice(1).join(' ') : '',
+            username: localStorage.getItem(AUTH_CONFIG.USER_KEY) || 'User'
         };
     },
     
@@ -146,52 +150,42 @@ const AuthHelper = {
                     }
                 });
             } catch (error) {
-                console.error('Logout error:', error);
+                console.error('Logout API call failed:', error);
             }
         }
         
         this.clearAuth();
-        // Clear any stored redirect when logging out
-        localStorage.removeItem(AUTH_CONFIG.REDIRECT_KEY);
         this.redirectToLogin();
     },
     
-    // API call helper with authentication
+    // Make API calls with authentication
     apiCall: async function(endpoint, options = {}) {
         const token = this.getToken();
         
-        if (!token && !options.skipAuth) {
-            this.storeIntendedPage();
-            this.redirectToLogin();
-            throw new Error('No authentication token');
+        if (!token) {
+            throw new Error('No authentication token available');
         }
         
-        try {
-            const headers = {
-                'Content-Type': 'application/json',
+        const url = endpoint.startsWith('http') ? endpoint : AUTH_CONFIG.API_BASE + endpoint;
+        
+        const defaultHeaders = {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        };
+        
+        const finalOptions = {
+            ...options,
+            headers: {
+                ...defaultHeaders,
                 ...options.headers
-            };
-            
-            if (token && !options.skipAuth) {
-                headers['Authorization'] = `Bearer ${token}`;
             }
-            
-            const response = await fetch(AUTH_CONFIG.API_BASE + 'api/' + endpoint, {
-                ...options,
-                headers: headers
-            });
-            
-            // Handle authentication errors
-            if (response.status === 401) {
-                this.clearAuth();
-                this.storeIntendedPage();
-                this.redirectToLogin();
-                throw new Error('Authentication expired');
-            }
+        };
+        
+        try {
+            const response = await fetch(url, finalOptions);
             
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
             
             // Handle empty responses (204 No Content)
@@ -247,7 +241,65 @@ const AuthHelper = {
         }
     },
     
-    // Initialize authentication on page load
+    // ✅ NEW: Format user name for display (FIXES YOUR ERROR)
+    formatUserName: function(user, format = 'full') {
+        if (!user) {
+            return 'Unknown User';
+        }
+
+        // Handle string input (username)
+        if (typeof user === 'string') {
+            return user;
+        }
+
+        const firstName = user.first_name || user.firstName || '';
+        const lastName = user.last_name || user.lastName || '';
+        const username = user.username || user.name || user.email || '';
+
+        switch (format.toLowerCase()) {
+            case 'full':
+                if (firstName && lastName) {
+                    return `${firstName} ${lastName}`;
+                } else if (firstName) {
+                    return firstName;
+                } else if (lastName) {
+                    return lastName;
+                } else {
+                    return username;
+                }
+                
+            case 'first':
+                return firstName || username;
+                
+            case 'last':
+                return lastName || username;
+                
+            case 'initials':
+                if (firstName && lastName) {
+                    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+                } else if (firstName) {
+                    return firstName.charAt(0).toUpperCase();
+                } else if (username) {
+                    return username.charAt(0).toUpperCase();
+                }
+                return 'U';
+                
+            case 'username':
+                return username;
+                
+            case 'formal':
+                if (firstName && lastName) {
+                    return `${lastName}, ${firstName}`;
+                } else {
+                    return this.formatUserName(user, 'full');
+                }
+                
+            default:
+                return this.formatUserName(user, 'full');
+        }
+    },
+    
+    // ✅ NEW: Initialize authentication on page load (FIXES COMPATIBILITY)
     init: async function(options = {}) {
         // Check if we're on the login page
         if (window.location.pathname.includes('login')) {
@@ -265,26 +317,104 @@ const AuthHelper = {
                     if (response.ok) {
                         // Already logged in, redirect to intended page or dashboard
                         this.redirectToIntendedOrDashboard();
+                        return true;
                     }
                 } catch (error) {
                     console.error('Session check failed:', error);
                 }
             }
-            return;
+            return false;
         }
         
         // Check authentication for protected pages
         const isAuthenticated = await this.checkAuth();
         
         if (isAuthenticated && options.onAuthenticated) {
-            options.onAuthenticated(this.getUserInfo());
+            const userInfo = this.getUserInfo();
+            options.onAuthenticated(userInfo);
         }
         
         return isAuthenticated;
+    },
+    
+    // ✅ NEW: Get current user (for compatibility)
+    getCurrentUser: function() {
+        return this.getUserInfo();
+    },
+    
+    // ✅ NEW: Role checking functions (for compatibility)
+    hasRole: function(role) {
+        const userInfo = this.getUserInfo();
+        return userInfo.role === role;
+    },
+    
+    hasAnyRole: function(roles) {
+        const userInfo = this.getUserInfo();
+        return roles.includes(userInfo.role);
+    },
+    
+    // ✅ NEW: Show message function (for compatibility)
+    showMessage: function(message, type = 'info', duration = 5000) {
+        // Create or get message container
+        let messageContainer = document.getElementById('message-container');
+        if (!messageContainer) {
+            messageContainer = document.createElement('div');
+            messageContainer.id = 'message-container';
+            messageContainer.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 10000;
+                max-width: 400px;
+            `;
+            document.body.appendChild(messageContainer);
+        }
+
+        // Create message element
+        const messageElement = document.createElement('div');
+        messageElement.style.cssText = `
+            background: ${type === 'error' ? '#f8d7da' : type === 'success' ? '#d4edda' : '#d1ecf1'};
+            color: ${type === 'error' ? '#721c24' : type === 'success' ? '#155724' : '#0c5460'};
+            border: 1px solid ${type === 'error' ? '#f5c6cb' : type === 'success' ? '#c3e6cb' : '#bee5eb'};
+            border-radius: 4px;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+        `;
+        messageElement.textContent = message;
+
+        // Add close button
+        const closeButton = document.createElement('button');
+        closeButton.innerHTML = '×';
+        closeButton.style.cssText = `
+            position: absolute;
+            top: 8px;
+            right: 12px;
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: inherit;
+        `;
+        closeButton.onclick = () => messageElement.remove();
+        messageElement.appendChild(closeButton);
+
+        // Add to container
+        messageContainer.appendChild(messageElement);
+
+        // Auto-hide after duration
+        if (duration > 0) {
+            setTimeout(() => {
+                if (messageElement.parentNode) {
+                    messageElement.remove();
+                }
+            }, duration);
+        }
     }
 };
 
-// Auto-initialize on DOM load for non-login pages
+// Auto-initialize on DOM load for non-login pages (MAINTAINS YOUR EXISTING BEHAVIOR)
 if (!window.location.pathname.includes('login')) {
     document.addEventListener('DOMContentLoaded', function() {
         AuthHelper.init({
