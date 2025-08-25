@@ -61,6 +61,12 @@
 
     <div class="test-section">
         <h2>Mock Authentication Test</h2>
+        <div>
+            <button onclick="setMockAdmin()">Set Mock Admin User</button>
+            <button onclick="setMockManager()">Set Mock Manager User</button>
+            <button onclick="setMockUser()">Set Mock Regular User</button>
+            <button onclick="clearMockUser()">Clear User Data</button>
+        </div>
         <div id="authTests">
             <!-- Will be populated by JavaScript -->
         </div>
@@ -95,6 +101,14 @@
                 'getCurrentUser',
                 'hasRole',
                 'hasAnyRole',
+                'isAdmin',
+                'isManager', 
+                'isSuperintendent',
+                'isEditor',
+                'isViewer',
+                'canManageUsers',
+                'canEditProjects',
+                'canViewReports',
                 'apiCall',
                 'showMessage'
             ];
@@ -174,10 +188,14 @@
                 `;
             }
             
-            // Test role checking
+            // Test role checking functions
             try {
                 const hasAdminRole = AuthHelper.hasRole('administrator');
                 const hasAnyRole = AuthHelper.hasAnyRole(['admin', 'user']);
+                const isAdmin = AuthHelper.isAdmin();
+                const isManager = AuthHelper.isManager();
+                const canManageUsers = AuthHelper.canManageUsers();
+                
                 results.innerHTML += `
                     <div class="function-test">
                         hasRole('administrator') = ${hasAdminRole} 
@@ -185,6 +203,18 @@
                     </div>
                     <div class="function-test">
                         hasAnyRole(['admin', 'user']) = ${hasAnyRole} 
+                        <span class="pass">✅ WORKS</span>
+                    </div>
+                    <div class="function-test">
+                        isAdmin() = ${isAdmin} 
+                        <span class="pass">✅ WORKS</span>
+                    </div>
+                    <div class="function-test">
+                        isManager() = ${isManager} 
+                        <span class="pass">✅ WORKS</span>
+                    </div>
+                    <div class="function-test">
+                        canManageUsers() = ${canManageUsers} 
                         <span class="pass">✅ WORKS</span>
                     </div>
                 `;
@@ -215,6 +245,43 @@
                     </div>
                 `;
             }
+        }
+        
+        // Mock user functions for testing
+        function setMockAdmin() {
+            localStorage.setItem('jwtToken', 'mock-admin-token');
+            localStorage.setItem('userName', 'Admin User');
+            localStorage.setItem('userRole', 'admin');
+            localStorage.setItem('userId', 'mock-admin-id');
+            localStorage.setItem('userEmail', 'admin@test.com');
+            AuthHelper.showMessage('Mock admin user set!', 'success');
+            runAuthTests();
+        }
+        
+        function setMockManager() {
+            localStorage.setItem('jwtToken', 'mock-manager-token');
+            localStorage.setItem('userName', 'Project Manager');
+            localStorage.setItem('userRole', 'project_manager');
+            localStorage.setItem('userId', 'mock-manager-id');
+            localStorage.setItem('userEmail', 'manager@test.com');
+            AuthHelper.showMessage('Mock manager user set!', 'success');
+            runAuthTests();
+        }
+        
+        function setMockUser() {
+            localStorage.setItem('jwtToken', 'mock-user-token');
+            localStorage.setItem('userName', 'Regular User');
+            localStorage.setItem('userRole', 'viewer');
+            localStorage.setItem('userId', 'mock-user-id');
+            localStorage.setItem('userEmail', 'user@test.com');
+            AuthHelper.showMessage('Mock regular user set!', 'success');
+            runAuthTests();
+        }
+        
+        function clearMockUser() {
+            AuthHelper.clearAuth();
+            AuthHelper.showMessage('User data cleared!', 'info');
+            runAuthTests();
         }
         
         // Run initial tests when page loads
