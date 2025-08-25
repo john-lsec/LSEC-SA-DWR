@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 Login Debug Tool</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f7fa;
+            line-height: 1.6;
+        }
+        .card {
+            background: white;
+            padding: 25px;
+            margin: 20px 0;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+        }
+        .form-group {
+            margin: 15px 0;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #374151;
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        button:hover:not(:disabled) { background: #2563eb; }
+        button:disabled { background: #9ca3af; cursor: not-allowed; }
+        .log-output {
+            background: #1f2937;
+            color: #f3f4f6;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin: 10px 0;
+        }
+        .status {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+        .status.success { background: #d4f4dd; color: #047857; }
+        .status.error { background: #fecaca; color: #dc2626; }
+        .status.warning { background: #fef3c7; color: #d97706; }
+        .status.info { background: #dbeafe; color: #2563eb; }
+        .test-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🔍 Login Debug Tool</h1>
+        <p>This tool helps debug login issues by showing exactly what requests are being sent and what responses are received.</p>
+    </div>
+
+    <div class="card">
+        <h2>🔐 Test Login</h2>
+        
+        <div class="form-group">
+            <label for="username">Username or Email:</label>
+            <input type="text" id="username" value="admin" placeholder="Enter username">
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Password:</label>
+            <input type="password" id="password" value="Admin123!" placeholder="Enter password">
+        </div>
+        
+        <div class="test-buttons">
+            <button onclick="testDirectAuth()" id="directAuthBtn">🚀 Test Direct Auth Function</button>
+            <button onclick="testAuthLogin()" id="authLoginBtn">🔑 Test /auth/login Endpoint</button>
+            <button onclick="testAuthHelper()" id="authHelperBtn">🛠️ Test AuthHelper.login()</button>
+            <button onclick="testEndpointExists()" id="endpointBtn">📡 Test Endpoint Exists</button>
+        </div>
+        
+        <div id="status" class="status info">
+            Ready to test. Click a button above to start debugging.
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📝 Debug Log</h2>
+        <button onclick="clearLog()">Clear Log</button>
+        <div class="log-output" id="debugLog">
+            === Login Debug Tool Started ===
+            Ready to help debug your login issues!
+            
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🔧 Quick Fixes</h2>
+        <p>If tests show issues, try these:</p>
+        <div class="test-buttons">
+            <button onclick="openDiagnosticTool()">🔍 Open User Diagnostic Tool</button>
+            <button onclick="showLoginUrl()">🔗 Show Login Page URL</button>
+            <button onclick="showCommonPasswords()">🗝️ Try Common Passwords</button>
+            <button onclick="checkNetworkTab()">📊 Check Network Tab</button>
+        </div>
+    </div>
+
+    <!-- Include your AuthHelper -->
+    <script src="auth-helper.js"></script>
+
+    <script>
+        const API_BASE = '/.netlify/functions/';
+
+        // Logging function
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('debugLog');
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+            logElement.textContent += `[${timestamp}] ${prefix} ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('debugLog').textContent = '=== Debug Log Cleared ===\n';
+        }
+
+        function setStatus(message, type) {
+            const statusElement = document.getElementById('status');
+            statusElement.className = `status ${type}`;
+            statusElement.textContent = message;
+        }
+
+        // Test 1: Direct auth function call
+        async function testDirectAuth() {
+            const btn = document.getElementById('directAuthBtn');
+            btn.disabled = true;
+            btn.textContent = '🔄 Testing...';
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            log(`=== Test 1: Direct Auth Function Call ===`);
+            log(`Username: "${username}"`);
+            log(`Password: "${password}"`);
+
+            try {
+                const url = `${API_BASE}auth`;
+                log(`URL: ${url}`);
+
+                const requestBody = { username, password };
+                log(`Request Body: ${JSON.stringify(requestBody)}`);
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                log(`Response Status: ${response.status} ${response.statusText}`);
+                log(`Response Headers: ${JSON.stringify(Object.fromEntries(response.headers))}`);
+
+                const responseText = await response.text();
+                log(`Raw Response: ${responseText}`);
+
+                if (response.ok) {
+                    setStatus('✅ Direct auth function works!', 'success');
+                    try {
+                        const data = JSON.parse(responseText);
+                        if (data.token) {
+                            log(`✅ Login successful! Token received.`, 'success');
+                        }
+                    } catch (e) {
+                        log(`Response is not JSON: ${responseText}`, 'warning');
+                    }
+                } else {
+                    setStatus(`❌ Direct auth failed: ${response.status}`, 'error');
+                    
+                    try {
+                        const errorData = JSON.parse(responseText);
+                        log(`Error Details: ${JSON.stringify(errorData, null, 2)}`, 'error');
+                    } catch (e) {
+                        log(`Error Response (not JSON): ${responseText}`, 'error');
+                    }
+                }
+
+            } catch (error) {
+                log(`Network Error: ${error.message}`, 'error');
+                setStatus(`❌ Network error: ${error.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🚀 Test Direct Auth Function';
+            }
+        }
+
+        // Test 2: /auth/login endpoint
+        async function testAuthLogin() {
+            const btn = document.getElementById('authLoginBtn');
+            btn.disabled = true;
+            btn.textContent = '🔄 Testing...';
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            log(`=== Test 2: /auth/login Endpoint ===`);
+            log(`Username: "${username}"`);
+            log(`Password: "${password}"`);
+
+            try {
+                const url = `${API_BASE}auth/login`;
+                log(`URL: ${url}`);
+
+                const requestBody = { username, password };
+                log(`Request Body: ${JSON.stringify(requestBody)}`);
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                log(`Response Status: ${response.status} ${response.statusText}`);
+                
+                const responseText = await response.text();
+                log(`Raw Response: ${responseText}`);
+
+                if (response.ok) {
+                    setStatus('✅ Auth/login endpoint works!', 'success');
+                } else {
+                    setStatus(`❌ Auth/login failed: ${response.status}`, 'error');
+                    
+                    try {
+                        const errorData = JSON.parse(responseText);
+                        log(`Error Details: ${JSON.stringify(errorData, null, 2)}`, 'error');
+                        
+                        if (errorData.received) {
+                            log(`Server received: ${JSON.stringify(errorData.received)}`, 'info');
+                        }
+                    } catch (e) {
+                        log(`Error Response (not JSON): ${responseText}`, 'error');
+                    }
+                }
+
+            } catch (error) {
+                log(`Network Error: ${error.message}`, 'error');
+                setStatus(`❌ Network error: ${error.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔑 Test /auth/login Endpoint';
+            }
+        }
+
+        // Test 3: AuthHelper.login()
+        async function testAuthHelper() {
+            const btn = document.getElementById('authHelperBtn');
+            btn.disabled = true;
+            btn.textContent = '🔄 Testing...';
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            log(`=== Test 3: AuthHelper.login() ===`);
+            log(`Username: "${username}"`);
+            log(`Password: "${password}"`);
+
+            try {
+                if (typeof AuthHelper === 'undefined') {
+                    throw new Error('AuthHelper is not loaded');
+                }
+
+                log(`AuthHelper loaded successfully`);
+                log(`AuthHelper.login function exists: ${typeof AuthHelper.login === 'function'}`);
+
+                const result = await AuthHelper.login(username, password);
+                log(`AuthHelper result: ${JSON.stringify(result, null, 2)}`);
+
+                if (result.success) {
+                    setStatus('✅ AuthHelper.login() works!', 'success');
+                } else {
+                    setStatus(`❌ AuthHelper.login() failed: ${result.error}`, 'error');
+                }
+
+            } catch (error) {
+                log(`AuthHelper Error: ${error.message}`, 'error');
+                log(`Error Stack: ${error.stack}`, 'error');
+                setStatus(`❌ AuthHelper error: ${error.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🛠️ Test AuthHelper.login()';
+            }
+        }
+
+        // Test 4: Check if endpoint exists
+        async function testEndpointExists() {
+            const btn = document.getElementById('endpointBtn');
+            btn.disabled = true;
+            btn.textContent = '🔄 Testing...';
+
+            log(`=== Test 4: Endpoint Existence Check ===`);
+
+            const endpoints = [
+                `${API_BASE}auth`,
+                `${API_BASE}auth/login`,
+                `${API_BASE}auth/verify`,
+                `${API_BASE}users`,
+                `${API_BASE}db-test`
+            ];
+
+            for (const endpoint of endpoints) {
+                try {
+                    log(`Testing: ${endpoint}`);
+                    
+                    // Try OPTIONS first
+                    const optionsResponse = await fetch(endpoint, { method: 'OPTIONS' });
+                    log(`  OPTIONS ${endpoint}: ${optionsResponse.status}`);
+                    
+                    // Try GET
+                    const getResponse = await fetch(endpoint, { method: 'GET' });
+                    log(`  GET ${endpoint}: ${getResponse.status}`);
+                    
+                } catch (error) {
+                    log(`  ERROR ${endpoint}: ${error.message}`, 'error');
+                }
+            }
+
+            setStatus('✅ Endpoint tests complete', 'info');
+            btn.disabled = false;
+            btn.textContent = '📡 Test Endpoint Exists';
+        }
+
+        // Quick fix functions
+        function openDiagnosticTool() {
+            const currentDomain = window.location.origin;
+            const diagnosticUrl = `${currentDomain}/user-diagnostic.html`;
+            log(`Opening diagnostic tool: ${diagnosticUrl}`);
+            window.open(diagnosticUrl, '_blank');
+        }
+
+        function showLoginUrl() {
+            const currentDomain = window.location.origin;
+            const loginUrl = `${currentDomain}/login.html`;
+            log(`Login page URL: ${loginUrl}`);
+            alert(`Your login page URL: ${loginUrl}`);
+        }
+
+        function showCommonPasswords() {
+            const passwords = [
+                'Admin123!',
+                'admin123',
+                'admin',
+                'password',
+                'Password123!',
+                'Admin@123',
+                '123456'
+            ];
+            
+            log(`=== Common Passwords to Try ===`);
+            passwords.forEach(pwd => log(`  "${pwd}"`));
+            
+            alert('Check the debug log for common passwords to try.');
+        }
+
+        function checkNetworkTab() {
+            alert('To check Network Tab:\n\n1. Open browser DevTools (F12)\n2. Go to Network tab\n3. Clear network log\n4. Try login again\n5. Look for auth/login request\n6. Check request/response details');
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            log('Debug tool initialized');
+            log('Current domain: ' + window.location.origin);
+            log('AuthHelper available: ' + (typeof AuthHelper !== 'undefined'));
+        });
+    </script>
+</body>
+</html>
