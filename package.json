@@ -1,32 +1,34 @@
 {
-  "name": "dwr-app",
+  "name": "project-management-app",
   "version": "1.0.0",
-  "description": "LSEC SA Daily Work Report System",
+  "description": "LSEC SA Project Management System",
   "main": "index.html",
+  "engines": {
+    "node": "18"
+  },
   "dependencies": {
-    "@neondatabase/serverless": "^0.9.0",
+    "@neondatabase/serverless": "^0.9.4",
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2"
   },
-  "engines": {
-    "node": "18"
+  "devDependencies": {
+    "netlify-cli": "^17.10.1"
   },
   "scripts": {
     "build": "echo 'No build step required'",
     "dev": "netlify dev",
-    "deploy": "netlify deploy --prod"
-  },
-  "devDependencies": {
-    "netlify-cli": "^17.0.0"
+    "deploy": "netlify deploy --prod",
+    "test": "node test/api-test.js"
   },
   "keywords": [
-    "daily-work-report",
+    "project-management",
     "construction",
     "netlify",
     "neon",
     "postgresql",
     "authentication",
-    "jwt"
+    "jwt",
+    "daily-work-report"
   ],
   "author": "LSEC SA",
   "license": "ISC",
