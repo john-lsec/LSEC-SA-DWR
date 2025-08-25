@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 User Database Diagnostic & Reset Tool</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f7fa;
+            line-height: 1.6;
+        }
+        .card {
+            background: white;
+            padding: 25px;
+            margin: 20px 0;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+        }
+        .card h2 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .status.success { background: #d4f4dd; color: #047857; }
+        .status.error { background: #fecaca; color: #dc2626; }
+        .status.warning { background: #fef3c7; color: #d97706; }
+        .status.info { background: #dbeafe; color: #2563eb; }
+        
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            margin: 5px;
+            transition: background-color 0.2s;
+        }
+        button:hover { background: #2563eb; }
+        button:disabled { background: #9ca3af; cursor: not-allowed; }
+        .danger-btn { background: #dc2626; }
+        .danger-btn:hover { background: #b91c1c; }
+        .success-btn { background: #059669; }
+        .success-btn:hover { background: #047857; }
+        
+        input[type="text"], input[type="password"], input[type="email"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            margin: 5px 0;
+            box-sizing: border-box;
+        }
+        input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .users-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+        .users-table th, .users-table td {
+            padding: 12px 8px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+            word-break: break-word;
+        }
+        .users-table th {
+            background: #f1f5f9;
+            font-weight: 600;
+            color: #475569;
+            position: sticky;
+            top: 0;
+        }
+        .users-table td {
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .log-output {
+            background: #1f2937;
+            color: #f3f4f6;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 13px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin: 10px 0;
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 15px 0;
+        }
+        
+        .form-group {
+            margin: 10px 0;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #374151;
+        }
+        
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .action-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .action-card h4 {
+            margin-bottom: 10px;
+            color: #374151;
+        }
+        
+        .hidden { display: none; }
+        
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        
+        .password-hash {
+            font-family: monospace;
+            font-size: 11px;
+            color: #6b7280;
+            word-break: break-all;
+        }
+        
+        .role-badge {
+            background: #e5e7eb;
+            color: #374151;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .role-badge.admin { background: #fee2e2; color: #dc2626; }
+        .role-badge.manager { background: #fef3c7; color: #d97706; }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        
+        .status-indicator.active { background: #10b981; }
+        .status-indicator.inactive { background: #ef4444; }
+        .status-indicator.locked { background: #f59e0b; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>🔧 User Database Diagnostic & Reset Tool</h2>
+        <p><strong>Problem:</strong> Can't log in with your password</p>
+        <p><strong>Database:</strong> Users table with bcrypt hashed passwords</p>
+        
+        <div id="connectionStatus" class="status info">
+            🔄 Checking connection...
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📊 Current Users in Database</h2>
+        <p>Let's see what users currently exist in your database:</p>
+        
+        <button onclick="loadUsers()" id="loadUsersBtn">🔍 Load Users from Database</button>
+        <button onclick="refreshUsers()" id="refreshBtn" class="hidden">🔄 Refresh</button>
+        
+        <div id="usersContainer" class="hidden">
+            <div style="overflow-x: auto;">
+                <table class="users-table" id="usersTable">
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Name</th>
+                            <th>Role</th>
+                            <th>Last Login</th>
+                            <th>Failed Attempts</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div id="usersError" class="hidden">
+            <div class="status error">Error loading users</div>
+            <div class="log-output" id="usersErrorLog"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🚀 Quick Fixes</h2>
+        
+        <div class="quick-actions">
+            <div class="action-card">
+                <h4>🔓 Unlock All Accounts</h4>
+                <p>Remove all account locks</p>
+                <button onclick="unlockAllAccounts()" class="success-btn">Unlock All</button>
+            </div>
+            
+            <div class="action-card">
+                <h4>🗑️ Reset Failed Attempts</h4>
+                <p>Clear all failed login attempts</p>
+                <button onclick="resetFailedAttempts()" class="success-btn">Reset Attempts</button>
+            </div>
+            
+            <div class="action-card">
+                <h4>👤 Create/Reset Admin</h4>
+                <p>Ensure admin user exists</p>
+                <button onclick="showCreateAdminForm()" class="success-btn">Manage Admin</button>
+            </div>
+            
+            <div class="action-card">
+                <h4>🔑 Test Login</h4>
+                <p>Test credentials manually</p>
+                <button onclick="showLoginTest()" class="info">Test Login</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create/Update Admin Form -->
+    <div class="card hidden" id="adminForm">
+        <h2>👤 Create/Update Admin User</h2>
+        <p>Create a new admin user or update existing one with new password:</p>
+        
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="adminUsername">Username:</label>
+                <input type="text" id="adminUsername" value="admin" placeholder="admin">
+            </div>
+            <div class="form-group">
+                <label for="adminEmail">Email:</label>
+                <input type="email" id="adminEmail" value="admin@company.com" placeholder="admin@company.com">
+            </div>
+        </div>
+        
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="adminFirstName">First Name:</label>
+                <input type="text" id="adminFirstName" value="System" placeholder="System">
+            </div>
+            <div class="form-group">
+                <label for="adminLastName">Last Name:</label>
+                <input type="text" id="adminLastName" value="Administrator" placeholder="Administrator">
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="adminPassword">New Password:</label>
+            <input type="password" id="adminPassword" value="Admin123!" placeholder="Enter secure password">
+            <small style="color: #6b7280;">Minimum 8 characters, include uppercase, lowercase, number, and special character</small>
+        </div>
+        
+        <button onclick="createOrUpdateAdmin()" class="success-btn" id="createAdminBtn">
+            🔑 Create/Update Admin User
+        </button>
+        <button onclick="hideCreateAdminForm()">Cancel</button>
+        
+        <div id="adminFormResult" class="hidden">
+            <div class="log-output" id="adminFormLog"></div>
+        </div>
+    </div>
+
+    <!-- Login Test Form -->
+    <div class="card hidden" id="loginTestForm">
+        <h2>🔑 Manual Login Test</h2>
+        <p>Test login with specific credentials:</p>
+        
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="testUsername">Username or Email:</label>
+                <input type="text" id="testUsername" value="admin" placeholder="Enter username">
+            </div>
+            <div class="form-group">
+                <label for="testPassword">Password:</label>
+                <input type="password" id="testPassword" value="Admin123!" placeholder="Enter password">
+            </div>
+        </div>
+        
+        <button onclick="testLogin()" class="success-btn" id="testLoginBtn">
+            🧪 Test Login
+        </button>
+        <button onclick="hideLoginTest()">Cancel</button>
+        
+        <div id="loginTestResult" class="hidden">
+            <div class="log-output" id="loginTestLog"></div>
+        </div>
+    </div>
+
+    <!-- Activity Log -->
+    <div class="card">
+        <h2>📝 Activity Log</h2>
+        <div class="log-output" id="activityLog">
+            🔄 Initializing diagnostic tool...\n
+        </div>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <script>
+        // Global variables
+        let currentUsers = [];
+        
+        // Logging functions
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('activityLog');
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+            logElement.textContent += `[${timestamp}] ${prefix} ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('activityLog').textContent = '📝 Activity log cleared.\n';
+        }
+        
+        // API helper function
+        async function apiCall(endpoint, options = {}) {
+            try {
+                log(`Making API call to: ${endpoint}`);
+                const response = await fetch(`/.netlify/functions/${endpoint}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+                
+                log(`Response status: ${response.status} ${response.statusText}`);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                log(`API call failed: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+        
+        // Load users from database
+        async function loadUsers() {
+            const btn = document.getElementById('loadUsersBtn');
+            btn.disabled = true;
+            btn.textContent = '🔄 Loading...';
+            
+            try {
+                log('Loading users from database...');
+                
+                // Try different API endpoints that might work
+                let users = null;
+                const endpoints = ['users', 'api/users', 'auth/users'];
+                
+                for (const endpoint of endpoints) {
+                    try {
+                        users = await apiCall(endpoint);
+                        log(`Successfully loaded ${users.length} users from ${endpoint}`, 'success');
+                        break;
+                    } catch (error) {
+                        log(`Failed to load from ${endpoint}: ${error.message}`, 'warning');
+                    }
+                }
+                
+                if (!users) {
+                    throw new Error('No working API endpoint found for loading users');
+                }
+                
+                currentUsers = users;
+                displayUsers(users);
+                
+                document.getElementById('usersContainer').classList.remove('hidden');
+                document.getElementById('refreshBtn').classList.remove('hidden');
+                document.getElementById('usersError').classList.add('hidden');
+                
+            } catch (error) {
+                log(`Error loading users: ${error.message}`, 'error');
+                document.getElementById('usersError').classList.remove('hidden');
+                document.getElementById('usersErrorLog').textContent = error.message;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔍 Load Users from Database';
+            }
+        }
+        
+        // Display users in table
+        function displayUsers(users) {
+            const tbody = document.getElementById('usersTableBody');
+            tbody.innerHTML = '';
+            
+            if (users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px; color: #6b7280;">No users found in database</td></tr>';
+                return;
+            }
+            
+            users.forEach(user => {
+                const row = document.createElement('tr');
+                
+                // Status indicator
+                let statusIndicator = '';
+                let statusText = '';
+                if (user.locked_until && new Date(user.locked_until) > new Date()) {
+                    statusIndicator = '<span class="status-indicator locked"></span>';
+                    statusText = 'Locked';
+                } else if (user.is_active) {
+                    statusIndicator = '<span class="status-indicator active"></span>';
+                    statusText = 'Active';
+                } else {
+                    statusIndicator = '<span class="status-indicator inactive"></span>';
+                    statusText = 'Inactive';
+                }
+                
+                // Role badge
+                const roleClass = user.role === 'admin' || user.role === 'administrator' ? 'admin' : 
+                                 user.role === 'project_manager' || user.role === 'manager' ? 'manager' : '';
+                const roleBadge = `<span class="role-badge ${roleClass}">${user.role}</span>`;
+                
+                // Format dates
+                const lastLogin = user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never';
+                const failedAttempts = user.failed_login_attempts || 0;
+                
+                row.innerHTML = `
+                    <td>${statusIndicator}${statusText}</td>
+                    <td><strong>${user.username}</strong></td>
+                    <td>${user.email}</td>
+                    <td>${(user.first_name || '') + ' ' + (user.last_name || '')}</td>
+                    <td>${roleBadge}</td>
+                    <td>${lastLogin}</td>
+                    <td>${failedAttempts}</td>
+                    <td>
+                        <button onclick="unlockUser('${user.id}')" style="font-size: 12px; padding: 4px 8px;">Unlock</button>
+                        <button onclick="resetUserPassword('${user.id}', '${user.username}')" style="font-size: 12px; padding: 4px 8px;" class="danger-btn">Reset Pwd</button>
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+        // Refresh users
+        async function refreshUsers() {
+            await loadUsers();
+        }
+        
+        // Unlock all accounts
+        async function unlockAllAccounts() {
+            if (!confirm('Are you sure you want to unlock all user accounts?')) return;
+            
+            try {
+                log('Unlocking all user accounts...');
+                
+                // Try to call API to unlock accounts
+                await apiCall('users/unlock-all', {
+                    method: 'POST'
+                });
+                
+                log('All accounts unlocked successfully', 'success');
+                await refreshUsers();
+                
+            } catch (error) {
+                log(`Failed to unlock accounts via API: ${error.message}`, 'error');
+                log('You may need to do this directly in your database', 'warning');
+            }
+        }
+        
+        // Reset failed attempts
+        async function resetFailedAttempts() {
+            if (!confirm('Are you sure you want to reset all failed login attempts?')) return;
+            
+            try {
+                log('Resetting all failed login attempts...');
+                
+                await apiCall('users/reset-attempts', {
+                    method: 'POST'
+                });
+                
+                log('All failed attempts reset successfully', 'success');
+                await refreshUsers();
+                
+            } catch (error) {
+                log(`Failed to reset attempts via API: ${error.message}`, 'error');
+                log('You may need to do this directly in your database', 'warning');
+            }
+        }
+        
+        // Show create admin form
+        function showCreateAdminForm() {
+            document.getElementById('adminForm').classList.remove('hidden');
+        }
+        
+        // Hide create admin form
+        function hideCreateAdminForm() {
+            document.getElementById('adminForm').classList.add('hidden');
+            document.getElementById('adminFormResult').classList.add('hidden');
+        }
+        
+        // Create or update admin user
+        async function createOrUpdateAdmin() {
+            const btn = document.getElementById('createAdminBtn');
+            btn.disabled = true;
+            btn.textContent = '🔄 Creating/Updating...';
+            
+            const username = document.getElementById('adminUsername').value.trim();
+            const email = document.getElementById('adminEmail').value.trim();
+            const firstName = document.getElementById('adminFirstName').value.trim();
+            const lastName = document.getElementById('adminLastName').value.trim();
+            const password = document.getElementById('adminPassword').value;
+            
+            if (!username || !email || !password) {
+                alert('Please fill in all required fields');
+                btn.disabled = false;
+                btn.textContent = '🔑 Create/Update Admin User';
+                return;
+            }
+            
+            try {
+                log(`Creating/updating admin user: ${username}`);
+                
+                const userData = {
+                    username,
+                    email,
+                    first_name: firstName,
+                    last_name: lastName,
+                    password,
+                    role: 'admin',
+                    is_active: true
+                };
+                
+                // Try to create/update user
+                const result = await apiCall('users/create-admin', {
+                    method: 'POST',
+                    body: JSON.stringify(userData)
+                });
+                
+                log('Admin user created/updated successfully!', 'success');
+                
+                // Show result
+                document.getElementById('adminFormResult').classList.remove('hidden');
+                document.getElementById('adminFormLog').textContent = JSON.stringify(result, null, 2);
+                
+                // Refresh users table
+                await refreshUsers();
+                
+            } catch (error) {
+                log(`Failed to create/update admin: ${error.message}`, 'error');
+                alert(`Error: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔑 Create/Update Admin User';
+            }
+        }
+        
+        // Show login test form
+        function showLoginTest() {
+            document.getElementById('loginTestForm').classList.remove('hidden');
+        }
+        
+        // Hide login test form
+        function hideLoginTest() {
+            document.getElementById('loginTestForm').classList.add('hidden');
+            document.getElementById('loginTestResult').classList.add('hidden');
+        }
+        
+        // Test login
+        async function testLogin() {
+            const btn = document.getElementById('testLoginBtn');
+            btn.disabled = true;
+            btn.textContent = '🧪 Testing...';
+            
+            const username = document.getElementById('testUsername').value.trim();
+            const password = document.getElementById('testPassword').value;
+            
+            if (!username || !password) {
+                alert('Please enter both username and password');
+                btn.disabled = false;
+                btn.textContent = '🧪 Test Login';
+                return;
+            }
+            
+            try {
+                log(`Testing login for: ${username}`);
+                
+                const result = await apiCall('auth/login', {
+                    method: 'POST',
+                    body: JSON.stringify({ username, password })
+                });
+                
+                log('Login test successful!', 'success');
+                
+                // Show result
+                document.getElementById('loginTestResult').classList.remove('hidden');
+                document.getElementById('loginTestLog').textContent = 
+                    `LOGIN SUCCESSFUL!\n\n` +
+                    `Token: ${result.token}\n\n` +
+                    `User Data: ${JSON.stringify(result.user || result, null, 2)}`;
+                
+            } catch (error) {
+                log(`Login test failed: ${error.message}`, 'error');
+                document.getElementById('loginTestResult').classList.remove('hidden');
+                document.getElementById('loginTestLog').textContent = 
+                    `LOGIN FAILED!\n\n` +
+                    `Error: ${error.message}\n\n` +
+                    `This could mean:\n` +
+                    `- Wrong username/password\n` +
+                    `- Account is locked\n` +
+                    `- Account is inactive\n` +
+                    `- Database connection issue`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🧪 Test Login';
+            }
+        }
+        
+        // Unlock specific user
+        async function unlockUser(userId) {
+            try {
+                log(`Unlocking user: ${userId}`);
+                
+                await apiCall(`users/${userId}/unlock`, {
+                    method: 'POST'
+                });
+                
+                log('User unlocked successfully', 'success');
+                await refreshUsers();
+                
+            } catch (error) {
+                log(`Failed to unlock user: ${error.message}`, 'error');
+            }
+        }
+        
+        // Reset user password
+        async function resetUserPassword(userId, username) {
+            const newPassword = prompt(`Enter new password for ${username}:`);
+            if (!newPassword) return;
+            
+            try {
+                log(`Resetting password for user: ${username}`);
+                
+                await apiCall(`users/${userId}/reset-password`, {
+                    method: 'POST',
+                    body: JSON.stringify({ password: newPassword })
+                });
+                
+                log('Password reset successfully', 'success');
+                alert(`Password for ${username} has been reset to: ${newPassword}`);
+                
+            } catch (error) {
+                log(`Failed to reset password: ${error.message}`, 'error');
+                alert(`Error: ${error.message}`);
+            }
+        }
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            log('Diagnostic tool initialized');
+            log('Click "Load Users from Database" to start diagnosing');
+        });
+    </script>
+</body>
+</html>
