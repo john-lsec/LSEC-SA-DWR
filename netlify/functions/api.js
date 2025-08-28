@@ -692,7 +692,7 @@ async function handleEquipment(event, headers, method) {
   }
 }
 
-// PAGINATED VERSION - Handles your 44K+ items safely
+// FIXED PAGINATED VERSION - Replace handleBidItems with this
 async function handleBidItems(event, headers, method, id) {
   console.log('handleBidItems called:', { method, id });
   
@@ -730,53 +730,136 @@ async function handleBidItems(event, headers, method, id) {
             // Get pagination parameters
             const params = event.queryStringParameters || {};
             const page = parseInt(params.page) || 1;
-            const limit = parseInt(params.limit) || 100; // Default to 100 items per page
-            const search = params.search || '';
-            const category = params.category || '';
+            const limit = Math.min(parseInt(params.limit) || 100, 500); // Cap at 500 items
+            const search = (params.search || '').trim();
+            const category = (params.category || '').trim();
             
             const offset = (page - 1) * limit;
             
             console.log('Pagination params:', { page, limit, offset, search, category });
             
-            // Build WHERE clause
-            let whereClause = 'COALESCE(is_active, true) = true';
-            const queryParams = [];
+            // Build queries based on filters - using template literals instead of sql.unsafe
+            let totalQuery, itemsQuery;
             
-            if (search) {
-              whereClause += ` AND (item_code ILIKE $${queryParams.length + 1} OR item_name ILIKE $${queryParams.length + 1})`;
-              queryParams.push(`%${search}%`);
+            if (search && category) {
+              // Both search and category
+              console.log('Filtering by search and category');
+              totalQuery = sql`
+                SELECT COUNT(*) as total 
+                FROM bid_items 
+                WHERE COALESCE(is_active, true) = true
+                  AND category = ${category}
+                  AND (item_code ILIKE ${`%${search}%`} OR item_name ILIKE ${`%${search}%`})
+              `;
+              
+              itemsQuery = sql`
+                SELECT 
+                  id::text as id,
+                  item_code, 
+                  item_name, 
+                  category, 
+                  default_unit, 
+                  COALESCE(material_cost, 0)::numeric as material_cost, 
+                  description, 
+                  COALESCE(is_active, true) as is_active
+                FROM bid_items 
+                WHERE COALESCE(is_active, true) = true
+                  AND category = ${category}
+                  AND (item_code ILIKE ${`%${search}%`} OR item_name ILIKE ${`%${search}%`})
+                ORDER BY item_code
+                LIMIT ${limit} OFFSET ${offset}
+              `;
+              
+            } else if (search) {
+              // Search only
+              console.log('Filtering by search only');
+              totalQuery = sql`
+                SELECT COUNT(*) as total 
+                FROM bid_items 
+                WHERE COALESCE(is_active, true) = true
+                  AND (item_code ILIKE ${`%${search}%`} OR item_name ILIKE ${`%${search}%`})
+              `;
+              
+              itemsQuery = sql`
+                SELECT 
+                  id::text as id,
+                  item_code, 
+                  item_name, 
+                  category, 
+                  default_unit, 
+                  COALESCE(material_cost, 0)::numeric as material_cost, 
+                  description, 
+                  COALESCE(is_active, true) as is_active
+                FROM bid_items 
+                WHERE COALESCE(is_active, true) = true
+                  AND (item_code ILIKE ${`%${search}%`} OR item_name ILIKE ${`%${search}%`})
+                ORDER BY item_code
+                LIMIT ${limit} OFFSET ${offset}
+              `;
+              
+            } else if (category) {
+              // Category only
+              console.log('Filtering by category only');
+              totalQuery = sql`
+                SELECT COUNT(*) as total 
+                FROM bid_items 
+                WHERE COALESCE(is_active, true) = true
+                  AND category = ${category}
+              `;
+              
+              itemsQuery = sql`
+                SELECT 
+                  id::text as id,
+                  item_code, 
+                  item_name, 
+                  category, 
+                  default_unit, 
+                  COALESCE(material_cost, 0)::numeric as material_cost, 
+                  description, 
+                  COALESCE(is_active, true) as is_active
+                FROM bid_items 
+                WHERE COALESCE(is_active, true) = true
+                  AND category = ${category}
+                ORDER BY item_code
+                LIMIT ${limit} OFFSET ${offset}
+              `;
+              
+            } else {
+              // No filters - all active items
+              console.log('No filters - all active items');
+              totalQuery = sql`
+                SELECT COUNT(*) as total 
+                FROM bid_items 
+                WHERE COALESCE(is_active, true) = true
+              `;
+              
+              itemsQuery = sql`
+                SELECT 
+                  id::text as id,
+                  item_code, 
+                  item_name, 
+                  category, 
+                  default_unit, 
+                  COALESCE(material_cost, 0)::numeric as material_cost, 
+                  description, 
+                  COALESCE(is_active, true) as is_active
+                FROM bid_items 
+                WHERE COALESCE(is_active, true) = true
+                ORDER BY item_code
+                LIMIT ${limit} OFFSET ${offset}
+              `;
             }
             
-            if (category) {
-              whereClause += ` AND category = $${queryParams.length + 1}`;
-              queryParams.push(category);
-            }
+            // Execute queries
+            const [totalResult, items] = await Promise.all([
+              totalQuery,
+              itemsQuery
+            ]);
             
-            // Get total count for pagination info
-            const totalQuery = `SELECT COUNT(*) as total FROM bid_items WHERE ${whereClause}`;
-            const totalResult = await sql.unsafe(totalQuery, queryParams);
             const totalItems = parseInt(totalResult[0].total);
+            const totalPages = Math.ceil(totalItems / limit);
             
-            // Get paginated items
-            const itemsQuery = `
-              SELECT 
-                id::text as id,
-                item_code, 
-                item_name, 
-                category, 
-                default_unit, 
-                COALESCE(material_cost, 0)::numeric as material_cost, 
-                description, 
-                COALESCE(is_active, true) as is_active
-              FROM bid_items 
-              WHERE ${whereClause}
-              ORDER BY item_code
-              LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
-            `;
-            
-            const items = await sql.unsafe(itemsQuery, [...queryParams, limit, offset]);
-            
-            console.log(`Found ${items.length} items (page ${page} of ${Math.ceil(totalItems / limit)})`);
+            console.log(`Found ${items.length} items (page ${page} of ${totalPages}, total: ${totalItems})`);
             
             // Clean the data
             const cleanItems = items.map(item => ({
@@ -800,9 +883,13 @@ async function handleBidItems(event, headers, method, id) {
                   page: page,
                   limit: limit,
                   total: totalItems,
-                  totalPages: Math.ceil(totalItems / limit),
-                  hasNext: page < Math.ceil(totalItems / limit),
+                  totalPages: totalPages,
+                  hasNext: page < totalPages,
                   hasPrev: page > 1
+                },
+                filters: {
+                  search: search,
+                  category: category
                 }
               })
             };
@@ -912,13 +999,159 @@ async function handleBidItems(event, headers, method, id) {
         }
 
       case 'PUT':
+        // Update bid item
+        if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+          return {
+            statusCode: 403,
+            headers,
+            body: JSON.stringify({ error: 'Insufficient permissions' })
+          };
+        }
+
+        if (!id) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'ID required for update' })
+          };
+        }
+
+        try {
+          const data = JSON.parse(event.body);
+          console.log('Updating bid item:', id);
+          
+          // Check if item exists
+          const existing = await sql`
+            SELECT * FROM bid_items WHERE id = ${id}::uuid
+          `;
+
+          if (existing.length === 0) {
+            return {
+              statusCode: 404,
+              headers,
+              body: JSON.stringify({ error: 'Bid item not found' })
+            };
+          }
+
+          const currentItem = existing[0];
+          const updatedItem = await sql`
+            UPDATE bid_items
+            SET 
+              item_code = ${data.item_code !== undefined ? data.item_code.trim() : currentItem.item_code},
+              item_name = ${data.item_name !== undefined ? data.item_name.trim() : currentItem.item_name},
+              category = ${data.category !== undefined ? data.category : currentItem.category},
+              default_unit = ${data.default_unit !== undefined ? data.default_unit : currentItem.default_unit},
+              material_cost = ${data.material_cost !== undefined ? parseFloat(data.material_cost) : currentItem.material_cost},
+              description = ${data.description !== undefined ? data.description : currentItem.description},
+              is_active = ${data.is_active !== undefined ? data.is_active : currentItem.is_active},
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = ${id}::uuid
+            RETURNING 
+              id::text as id,
+              item_code, item_name, category, default_unit, 
+              material_cost, description, is_active
+          `;
+
+          const cleanItem = {
+            id: String(updatedItem[0].id),
+            item_code: String(updatedItem[0].item_code),
+            item_name: String(updatedItem[0].item_name),
+            category: updatedItem[0].category ? String(updatedItem[0].category) : null,
+            default_unit: String(updatedItem[0].default_unit),
+            material_cost: parseFloat(updatedItem[0].material_cost) || 0,
+            description: updatedItem[0].description ? String(updatedItem[0].description) : null,
+            is_active: Boolean(updatedItem[0].is_active)
+          };
+
+          if (typeof logUserActivity === 'function') {
+            await logUserActivity(userId, 'BID_ITEM_UPDATED', {
+              item_id: id,
+              item_code: updatedItem[0].item_code
+            });
+          }
+
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(cleanItem)
+          };
+          
+        } catch (error) {
+          console.error('Error updating bid item:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ 
+              error: 'Failed to update bid item: ' + error.message 
+            })
+          };
+        }
+
       case 'DELETE':
-        // Same as before - these handle single items so no size issues
-        return {
-          statusCode: 501,
-          headers,
-          body: JSON.stringify({ error: 'PUT/DELETE not implemented in paginated version yet' })
-        };
+        // Delete (soft delete) bid item
+        if (!requireRole(role, ['admin', 'manager'])) {
+          return {
+            statusCode: 403,
+            headers,
+            body: JSON.stringify({ error: 'Insufficient permissions to delete' })
+          };
+        }
+
+        if (!id) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'ID required for delete' })
+          };
+        }
+
+        try {
+          console.log('Deleting bid item:', id);
+          
+          // Check if item exists
+          const existing = await sql`
+            SELECT item_code, item_name FROM bid_items WHERE id = ${id}::uuid
+          `;
+
+          if (existing.length === 0) {
+            return {
+              statusCode: 404,
+              headers,
+              body: JSON.stringify({ error: 'Bid item not found' })
+            };
+          }
+
+          // Soft delete by setting is_active to false
+          await sql`
+            UPDATE bid_items 
+            SET is_active = false, updated_at = CURRENT_TIMESTAMP 
+            WHERE id = ${id}::uuid
+          `;
+
+          if (typeof logUserActivity === 'function') {
+            await logUserActivity(userId, 'BID_ITEM_DELETED', {
+              item_id: id,
+              item_code: existing[0].item_code,
+              item_name: existing[0].item_name
+            });
+          }
+
+          return {
+            statusCode: 204,
+            headers,
+            body: ''
+          };
+          
+        } catch (error) {
+          console.error('Error deleting bid item:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ 
+              error: 'Failed to delete bid item: ' + error.message 
+            })
+          };
+        }
 
       default:
         return {
