@@ -692,7 +692,7 @@ async function handleEquipment(event, headers, method) {
   }
 }
 
-// Bid Items handler (Master)
+// Complete handleBidItems function to replace the existing one in api.js
 async function handleBidItems(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -726,6 +726,250 @@ async function handleBidItems(event, headers, method, id) {
           statusCode: 500,
           headers,
           body: JSON.stringify({ error: 'Failed to fetch bid items' })
+        };
+      }
+
+    case 'POST':
+      // Create new bid item
+      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions' })
+        };
+      }
+
+      try {
+        const data = JSON.parse(event.body);
+        
+        // Validate required fields
+        if (!data.item_code || !data.item_name || !data.category || !data.default_unit) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ 
+              error: 'Missing required fields: item_code, item_name, category, default_unit' 
+            })
+          };
+        }
+
+        // Check if item_code already exists
+        const existing = await sql`
+          SELECT id FROM bid_items WHERE item_code = ${data.item_code}
+        `;
+
+        if (existing.length > 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'Item code already exists' })
+          };
+        }
+
+        const newItem = await sql`
+          INSERT INTO bid_items (
+            item_code, item_name, category, default_unit, material_cost, 
+            description, is_active, created_at, updated_at
+          ) VALUES (
+            ${data.item_code.trim()},
+            ${data.item_name.trim()},
+            ${data.category},
+            ${data.default_unit},
+            ${parseFloat(data.material_cost) || 0},
+            ${data.description || null},
+            ${data.is_active !== false},
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+          )
+          RETURNING *
+        `;
+
+        await logUserActivity(userId, 'BID_ITEM_CREATED', {
+          item_code: data.item_code,
+          item_name: data.item_name
+        });
+
+        return {
+          statusCode: 201,
+          headers,
+          body: JSON.stringify(newItem[0])
+        };
+        
+      } catch (error) {
+        console.error('Error creating bid item:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ 
+            error: 'Failed to create bid item: ' + error.message 
+          })
+        };
+      }
+
+    case 'PUT':
+      // Update bid item
+      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions' })
+        };
+      }
+
+      if (!id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'ID required for update' })
+        };
+      }
+
+      try {
+        const data = JSON.parse(event.body);
+        
+        // Check if item exists
+        const existing = await sql`
+          SELECT * FROM bid_items WHERE id = ${id}
+        `;
+
+        if (existing.length === 0) {
+          return {
+            statusCode: 404,
+            headers,
+            body: JSON.stringify({ error: 'Bid item not found' })
+          };
+        }
+
+        // Check for duplicate item_code (excluding current item)
+        if (data.item_code) {
+          const duplicate = await sql`
+            SELECT id FROM bid_items 
+            WHERE item_code = ${data.item_code} AND id != ${id}
+          `;
+
+          if (duplicate.length > 0) {
+            return {
+              statusCode: 400,
+              headers,
+              body: JSON.stringify({ error: 'Item code already exists' })
+            };
+          }
+        }
+
+        const currentItem = existing[0];
+        const updatedItem = await sql`
+          UPDATE bid_items
+          SET 
+            item_code = ${data.item_code !== undefined ? data.item_code.trim() : currentItem.item_code},
+            item_name = ${data.item_name !== undefined ? data.item_name.trim() : currentItem.item_name},
+            category = ${data.category !== undefined ? data.category : currentItem.category},
+            default_unit = ${data.default_unit !== undefined ? data.default_unit : currentItem.default_unit},
+            material_cost = ${data.material_cost !== undefined ? parseFloat(data.material_cost) : currentItem.material_cost},
+            description = ${data.description !== undefined ? data.description : currentItem.description},
+            is_active = ${data.is_active !== undefined ? data.is_active : currentItem.is_active},
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${id}
+          RETURNING *
+        `;
+
+        await logUserActivity(userId, 'BID_ITEM_UPDATED', {
+          item_id: id,
+          item_code: updatedItem[0].item_code,
+          changes: data
+        });
+
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(updatedItem[0])
+        };
+        
+      } catch (error) {
+        console.error('Error updating bid item:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ 
+            error: 'Failed to update bid item: ' + error.message 
+          })
+        };
+      }
+
+    case 'DELETE':
+      // Delete (soft delete) bid item
+      if (!requireRole(role, ['admin', 'manager'])) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Insufficient permissions to delete' })
+        };
+      }
+
+      if (!id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'ID required for delete' })
+        };
+      }
+
+      try {
+        // Check if item exists
+        const existing = await sql`
+          SELECT * FROM bid_items WHERE id = ${id}
+        `;
+
+        if (existing.length === 0) {
+          return {
+            statusCode: 404,
+            headers,
+            body: JSON.stringify({ error: 'Bid item not found' })
+          };
+        }
+
+        // Check if item is used in any projects
+        const usage = await sql`
+          SELECT COUNT(*) as count FROM project_bid_items 
+          WHERE bid_item_id = ${id} AND is_active = true
+        `;
+
+        if (usage[0].count > 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ 
+              error: `Cannot delete: item is used in ${usage[0].count} project(s)` 
+            })
+          };
+        }
+
+        // Soft delete by setting is_active to false
+        await sql`
+          UPDATE bid_items 
+          SET is_active = false, updated_at = CURRENT_TIMESTAMP 
+          WHERE id = ${id}
+        `;
+
+        await logUserActivity(userId, 'BID_ITEM_DELETED', {
+          item_id: id,
+          item_code: existing[0].item_code,
+          item_name: existing[0].item_name
+        });
+
+        return {
+          statusCode: 204,
+          headers,
+          body: ''
+        };
+        
+      } catch (error) {
+        console.error('Error deleting bid item:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ 
+            error: 'Failed to delete bid item: ' + error.message 
+          })
         };
       }
 
