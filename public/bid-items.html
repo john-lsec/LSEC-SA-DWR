@@ -675,12 +675,12 @@
             }
         });
         
-        // Load bid items using AuthHelper
+        // Load bid items using AuthHelper - FIXED API PATH
         async function loadBidItems() {
             try {
                 document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" class="loading">Loading bid items</td></tr>';
                 
-                bidItems = await AuthHelper.apiCall('master-bid-items');
+                bidItems = await AuthHelper.apiCall('api/master-bid-items'); // FIXED: added api/ prefix
                 
                 // Store original data for comparison
                 bidItems.forEach(item => {
@@ -994,7 +994,7 @@
             }
         }
         
-        // Save all changes using AuthHelper
+        // Save all changes using AuthHelper - FIXED API PATH
         async function saveAllChanges() {
             const saveButton = event.target;
             saveButton.disabled = true;
@@ -1015,7 +1015,7 @@
                         is_active: changes.is_active !== undefined ? changes.is_active : item.is_active
                     };
                     
-                    updates.push(AuthHelper.apiCall('master-bid-items/' + itemId, {
+                    updates.push(AuthHelper.apiCall('api/master-bid-items/' + itemId, { // FIXED: added api/ prefix
                         method: 'PUT',
                         body: JSON.stringify(updateData)
                     }));
@@ -1086,7 +1086,7 @@
             document.getElementById('itemModal').classList.add('show');
         }
         
-        // Save new item using AuthHelper
+        // Save new item using AuthHelper - FIXED API PATH
         async function saveNewItem(e) {
             e.preventDefault();
             
@@ -1101,7 +1101,7 @@
             };
             
             try {
-                await AuthHelper.apiCall('master-bid-items', {
+                await AuthHelper.apiCall('api/master-bid-items', { // FIXED: added api/ prefix
                     method: 'POST',
                     body: JSON.stringify(data)
                 });
@@ -1126,12 +1126,12 @@
             document.getElementById('deleteModal').classList.add('show');
         }
         
-        // Confirm delete using AuthHelper
+        // Confirm delete using AuthHelper - FIXED API PATH
         async function confirmDelete() {
             if (!itemToDelete) return;
             
             try {
-                await AuthHelper.apiCall('master-bid-items/' + itemToDelete, {
+                await AuthHelper.apiCall('api/master-bid-items/' + itemToDelete, { // FIXED: added api/ prefix
                     method: 'DELETE'
                 });
                 
