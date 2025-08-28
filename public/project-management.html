@@ -683,14 +683,28 @@
                     
                     <div class="form-group">
                         <label for="itemMaterialCost">Material Cost ($):</label>
-                        <input type="text" id="itemMaterialCost" placeholder="Select an item" readonly tabindex="-1">
-                        <small>From master bid item</small>
+                        <input type="number" id="itemMaterialCost" min="0" step="0.01" placeholder="0.00">
+                        <small>Override master bid item cost</small>
                     </div>
                     
                     <div class="form-group">
                         <label for="itemUnit">Unit:</label>
-                        <input type="text" id="itemUnit" placeholder="Select an item" readonly tabindex="-1">
-                        <small>From master bid item</small>
+                        <select id="itemUnit" required>
+                            <option value="">Select Unit</option>
+                            <option value="EA">Each (EA)</option>
+                            <option value="LF">Linear Feet (LF)</option>
+                            <option value="SF">Square Feet (SF)</option>
+                            <option value="SY">Square Yard (SY)</option>
+                            <option value="CY">Cubic Yard (CY)</option>
+                            <option value="TON">Ton (TON)</option>
+                            <option value="GAL">Gallon (GAL)</option>
+                            <option value="HR">Hour (HR)</option>
+                            <option value="DAY">Day (DAY)</option>
+                            <option value="MO">Month (MO)</option>
+                            <option value="LS">Lump Sum (LS)</option>
+                            <option value="AC">Acre (AC)</option>
+                        </select>
+                        <small>Override master bid item unit</small>
                     </div>
                 </div>
                 
@@ -735,7 +749,7 @@
                 <div class="form-group">
                     <label for="contractValue">Contract Value:</label>
                     <input type="text" id="contractValue" readonly>
-                    <small>Auto-calculated: Quantity Ã— Rate</small>
+                    <small>Auto-calculated: Quantity × Rate</small>
                 </div>
                 
                 <div style="margin-top: 20px;">
@@ -926,6 +940,7 @@
             document.getElementById('bidItemForm').addEventListener('submit', saveBidItem);
             document.getElementById('contractQtyForm').addEventListener('submit', saveContractQuantity);
             document.getElementById('itemRate').addEventListener('input', calculateMarkup);
+            document.getElementById('itemMaterialCost').addEventListener('input', calculateMarkup); // NEW EVENT LISTENER
             document.getElementById('contractQuantity').addEventListener('input', calculateContractValue);
             document.getElementById('confirmDeleteBtn').addEventListener('click', deleteBidItem);
         }
@@ -1289,7 +1304,7 @@
             }
         }
         
-        // Keep all existing bid item modal functions
+        // UPDATED: Bid item autocomplete - allows editing but populates defaults
         function setupBidItemAutocomplete() {
             const input = document.getElementById('bidItem');
             const hiddenInput = document.getElementById('bidItemId');
@@ -1299,9 +1314,20 @@
             function selectBidItem(item, displayText) {
                 input.value = displayText;
                 hiddenInput.value = item.id;
+                
+                // Populate with default values but allow editing
                 const materialCost = parseFloat(item.material_cost) || 0;
-                document.getElementById('itemMaterialCost').value = '$' + materialCost.toFixed(2);
-                document.getElementById('itemUnit').value = item.default_unit || 'EA';
+                const materialCostField = document.getElementById('itemMaterialCost');
+                const unitField = document.getElementById('itemUnit');
+                
+                // Only set defaults if fields are empty (for new items)
+                if (!materialCostField.value) {
+                    materialCostField.value = materialCost.toFixed(2);
+                }
+                if (!unitField.value) {
+                    unitField.value = item.default_unit || 'EA';
+                }
+                
                 calculateMarkup();
                 autocompleteDiv.innerHTML = '';
                 autocompleteDiv.style.display = 'none';
@@ -1314,9 +1340,6 @@
                 currentFocus = -1;
                 
                 if (!value) {
-                    document.getElementById('itemMaterialCost').value = '';
-                    document.getElementById('itemUnit').value = '';
-                    document.getElementById('itemMarkup').value = 'N/A';
                     autocompleteDiv.style.display = 'none';
                     return;
                 }
@@ -1361,10 +1384,10 @@
             });
         }
         
+        // UPDATED: Calculate markup using current material cost value
         function calculateMarkup() {
             const rate = parseFloat(document.getElementById('itemRate').value) || 0;
-            const materialCostStr = document.getElementById('itemMaterialCost').value.replace('$', '');
-            const materialCost = parseFloat(materialCostStr) || 0;
+            const materialCost = parseFloat(document.getElementById('itemMaterialCost').value) || 0;
             
             let markup = 'N/A';
             if (materialCost > 0) {
@@ -1373,15 +1396,22 @@
             document.getElementById('itemMarkup').value = markup;
         }
         
+        // UPDATED: Show add modal - clear fields properly
         function showAddBidItemModal() {
             document.getElementById('modalTitle').textContent = 'Add Bid Item';
             document.getElementById('projectBidItemId').value = '';
             document.getElementById('bidItemForm').reset();
             document.getElementById('bidItem').disabled = false;
             document.getElementById('itemMarkup').value = 'N/A';
+            
+            // Clear the material cost and unit fields for new items
+            document.getElementById('itemMaterialCost').value = '';
+            document.getElementById('itemUnit').value = '';
+            
             document.getElementById('bidItemModal').classList.add('show');
         }
         
+        // UPDATED: Edit bid item - populate all editable fields
         function editBidItem(id) {
             const item = projectBidItems.find(item => item.project_bid_item_id == id);
             if (!item) {
@@ -1394,9 +1424,12 @@
             document.getElementById('bidItem').value = item.item_code + ' - ' + item.item_name;
             document.getElementById('bidItemId').value = item.bid_item_id;
             document.getElementById('bidItem').disabled = true;
+            
+            // Populate all editable fields
             document.getElementById('itemRate').value = item.rate;
-            document.getElementById('itemMaterialCost').value = '$' + parseFloat(item.material_cost).toFixed(2);
+            document.getElementById('itemMaterialCost').value = parseFloat(item.material_cost).toFixed(2);
             document.getElementById('itemUnit').value = item.unit;
+            
             calculateMarkup();
             document.getElementById('bidItemModal').classList.add('show');
         }
@@ -1410,21 +1443,25 @@
             itemToDeleteId = null;
         }
         
+        // UPDATED: Save bid item - include material cost and unit
         async function saveBidItem(event) {
             event.preventDefault();
             
             const projectBidItemId = document.getElementById('projectBidItemId').value;
             const bidItemId = document.getElementById('bidItemId').value;
             const rate = parseFloat(document.getElementById('itemRate').value);
+            const materialCost = parseFloat(document.getElementById('itemMaterialCost').value) || 0;
+            const unit = document.getElementById('itemUnit').value;
             
             if (!bidItemId) {
                 showMessage('Please select a bid item.', 'error');
                 return;
             }
             
-            const selectedBidItem = bidItemsLookup[bidItemId];
-            const materialCost = selectedBidItem.material_cost || 0;
-            const unit = selectedBidItem.default_unit || 'EA';
+            if (!unit) {
+                showMessage('Please select a unit.', 'error');
+                return;
+            }
             
             try {
                 const itemData = {
