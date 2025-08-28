@@ -809,7 +809,7 @@
         // Load projects using AuthHelper
         async function loadProjects() {
             try {
-                const projects = await AuthHelper.apiCall('projects');
+                const projects = await AuthHelper.apiCall('api/projects');
                 const select = document.getElementById('project');
                 projects.forEach(project => {
                     const option = document.createElement('option');
@@ -850,7 +850,7 @@
         // Load all bid items using AuthHelper
         async function loadAllBidItems() {
             try {
-                allBidItems = await AuthHelper.apiCall('bid-items');
+                allBidItems = await AuthHelper.apiCall('api/bid-items');
                 bidItemsLookup = {};
                 allBidItems.forEach(item => {
                     bidItemsLookup[item.id] = item;
@@ -867,7 +867,7 @@
         async function loadProjectBidItems(projectId) {
             if (!projectId) return;
             try {
-                projectBidItems = await AuthHelper.apiCall('project-bid-items?project_id=' + projectId);
+                projectBidItems = await AuthHelper.apiCall('api/project-bid-items?project_id=' + projectId);
                 renderBidItemsTable();
                 updateBidItemsStats();
             } catch (error) {
@@ -880,7 +880,7 @@
             if (!projectId) return;
             try {
                 // Use the new installed-quantities endpoint for direct and efficient data retrieval
-                installedQuantities = await AuthHelper.apiCall(`installed-quantities?project_id=${projectId}`);
+                installedQuantities = await AuthHelper.apiCall(`api/installed-quantities?project_id=${projectId}`);
                 
                 renderInstalledQuantitiesTable();
                 updateInstalledQuantitiesStats();
@@ -1273,7 +1273,7 @@
             const quantity = parseFloat(document.getElementById('contractQuantity').value) || 0;
             
             try {
-                await AuthHelper.apiCall('project-bid-items/' + projectBidItemId, {
+                await AuthHelper.apiCall('api/project-bid-items/' + projectBidItemId, {
                     method: 'PUT',
                     body: JSON.stringify({
                         contract_quantity: quantity
@@ -1436,7 +1436,7 @@
                 };
                 
                 if (projectBidItemId) {
-                    await AuthHelper.apiCall('project-bid-items/' + projectBidItemId, {
+                    await AuthHelper.apiCall('api/project-bid-items/' + projectBidItemId, {
                         method: 'PUT',
                         body: JSON.stringify(itemData)
                     });
@@ -1448,7 +1448,7 @@
                         return;
                     }
                     
-                    await AuthHelper.apiCall('project-bid-items', {
+                    await AuthHelper.apiCall('api/project-bid-items', {
                         method: 'POST',
                         body: JSON.stringify(itemData)
                     });
@@ -1473,7 +1473,7 @@
             if (!itemToDeleteId) return;
             
             try {
-                await AuthHelper.apiCall('project-bid-items/' + itemToDeleteId, { 
+                await AuthHelper.apiCall('api/project-bid-items/' + itemToDeleteId, { 
                     method: 'DELETE' 
                 });
                 showMessage('Bid item removed successfully.', 'success');
