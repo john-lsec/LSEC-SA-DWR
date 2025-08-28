@@ -692,7 +692,7 @@ async function handleEquipment(event, headers, method) {
   }
 }
 
-// Complete handleBidItems function to replace the existing one in api.js
+// REPLACE your existing handleBidItems function in api.js with this complete version
 async function handleBidItems(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -725,7 +725,10 @@ async function handleBidItems(event, headers, method, id) {
         return {
           statusCode: 500,
           headers,
-          body: JSON.stringify({ error: 'Failed to fetch bid items' })
+          body: JSON.stringify({ 
+            error: 'Failed to fetch bid items',
+            details: error.message 
+          })
         };
       }
 
@@ -927,7 +930,9 @@ async function handleBidItems(event, headers, method, id) {
           };
         }
 
-        // Check if item is used in any projects
+        // Check if item is used in any projects (if you have this relationship)
+        // Uncomment if you have project_bid_items table:
+        /*
         const usage = await sql`
           SELECT COUNT(*) as count FROM project_bid_items 
           WHERE bid_item_id = ${id} AND is_active = true
@@ -942,6 +947,7 @@ async function handleBidItems(event, headers, method, id) {
             })
           };
         }
+        */
 
         // Soft delete by setting is_active to false
         await sql`
