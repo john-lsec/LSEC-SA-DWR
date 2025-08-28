@@ -598,7 +598,7 @@
         // Load contractors
         async function loadContractors() {
             try {
-                allContractors = await AuthHelper.apiCall('general-contractors');
+                allContractors = await AuthHelper.apiCall('api/general-contractors');
                 renderContractorsTable();
             } catch (error) {
                 showMessage('Error loading contractors.', 'error');
@@ -608,7 +608,7 @@
         // Load projects
         async function loadProjects() {
             try {
-                allProjects = await AuthHelper.apiCall('projects-with-contractors');
+                allProjects = await AuthHelper.apiCall('api/projects-with-contractors');
                 populateContractorFilters();
                 renderProjectsTable();
             } catch (error) {
