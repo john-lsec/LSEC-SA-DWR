@@ -1166,7 +1166,7 @@
             try {
                 // Check if we can get the API key from the server
                 console.log('Initializing Google Maps...');
-                const apiKeyResponse = await AuthHelper.apiCall('google-maps-config');
+                const apiKeyResponse = await AuthHelper.apiCall('api/google-maps-config');
                 
                 if (apiKeyResponse && apiKeyResponse.apiKey) {
                     console.log('Google Maps API key received, loading API...');
@@ -1303,7 +1303,7 @@
             try {
                 loader.classList.remove('hidden');
                 
-                const foremen = await AuthHelper.apiCall('foremen');
+                const foremen = await AuthHelper.apiCall('api/foremen');
 
                 foremen.forEach(foreman => {
                     const option = document.createElement('option');
@@ -1328,7 +1328,7 @@
             const container = document.getElementById('laborersContainer');
             
             try {
-                const laborers = await AuthHelper.apiCall('laborers');
+                const laborers = await AuthHelper.apiCall('api/laborers');
 
                 container.innerHTML = '';
                 laborers.forEach(laborer => {
@@ -1352,7 +1352,7 @@
             try {
                 loader.classList.remove('hidden');
                 
-                const projects = await AuthHelper.apiCall('projects');
+                const projects = await AuthHelper.apiCall('api/projects');
 
                 projects.forEach(project => {
                     const option = document.createElement('option');
@@ -1388,7 +1388,7 @@
             try {
                 loader.classList.remove('hidden');
                 
-                const equipment = await AuthHelper.apiCall(`equipment?type=${encodeURIComponent(type)}`);
+                const equipment = await AuthHelper.apiCall(`api/equipment?type=${encodeURIComponent(type)}`);
 
                 equipment.forEach(item => {
                     const option = document.createElement('option');
@@ -1411,7 +1411,7 @@
             const container = document.getElementById('machinesContainer');
             
             try {
-                const machines = await AuthHelper.apiCall('equipment?type=MACHINE');
+                const machines = await AuthHelper.apiCall('api/equipment?type=MACHINE');
 
                 container.innerHTML = '';
                 machines.forEach(machine => {
@@ -1437,7 +1437,7 @@
             
             try {
                 console.log(`Loading project bid items for project: ${projectId}`);
-                projectBidItems = await AuthHelper.apiCall('project-bid-items?project_id=' + projectId);
+                projectBidItems = await AuthHelper.apiCall('api/project-bid-items?project_id=' + projectId);
                 console.log(`Loaded ${projectBidItems.length} project bid items:`, projectBidItems);
                 
                 // Update all item dropdowns with the new data
@@ -2328,7 +2328,7 @@
                 }
                 
                 // Submit to API via AuthHelper - this will route to handleDWRSubmission in api.js
-                const result = await AuthHelper.apiCall('submit-dwr', {
+                const result = await AuthHelper.apiCall('api/submit-dwr', {
                     method: 'POST',
                     body: JSON.stringify(formData)
                 });
