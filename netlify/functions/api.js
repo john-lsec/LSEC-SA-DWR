@@ -692,299 +692,115 @@ async function handleEquipment(event, headers, method) {
   }
 }
 
-// REPLACE your existing handleBidItems function in api.js with this complete version
+// TEMPORARY DEBUG VERSION - Replace your handleBidItems function with this first
 async function handleBidItems(event, headers, method, id) {
+  console.log('handleBidItems called:', { method, id, path: event.path });
+  
   const { role, userId } = event.auth || {};
+  console.log('Auth info:', { role, userId });
 
-  switch (method) {
-    case 'GET':
-      try {
-        if (id) {
-          const items = await sql`
-            SELECT * FROM bid_items WHERE id = ${id}
-          `;
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify(items[0] || null)
-          };
-        } else {
-          const items = await sql`
-            SELECT * FROM bid_items 
-            WHERE is_active = true
-            ORDER BY item_code
-          `;
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify(items)
-          };
-        }
-      } catch (error) {
-        console.error('Error fetching bid items:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ 
-            error: 'Failed to fetch bid items',
-            details: error.message 
-          })
-        };
-      }
-
-    case 'POST':
-      // Create new bid item
-      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
-        };
-      }
-
-      try {
-        const data = JSON.parse(event.body);
+  try {
+    switch (method) {
+      case 'GET':
+        console.log('GET request for bid items');
         
-        // Validate required fields
-        if (!data.item_code || !data.item_name || !data.category || !data.default_unit) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ 
-              error: 'Missing required fields: item_code, item_name, category, default_unit' 
-            })
-          };
-        }
-
-        // Check if item_code already exists
-        const existing = await sql`
-          SELECT id FROM bid_items WHERE item_code = ${data.item_code}
-        `;
-
-        if (existing.length > 0) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'Item code already exists' })
-          };
-        }
-
-        const newItem = await sql`
-          INSERT INTO bid_items (
-            item_code, item_name, category, default_unit, material_cost, 
-            description, is_active, created_at, updated_at
-          ) VALUES (
-            ${data.item_code.trim()},
-            ${data.item_name.trim()},
-            ${data.category},
-            ${data.default_unit},
-            ${parseFloat(data.material_cost) || 0},
-            ${data.description || null},
-            ${data.is_active !== false},
-            CURRENT_TIMESTAMP,
-            CURRENT_TIMESTAMP
-          )
-          RETURNING *
-        `;
-
-        await logUserActivity(userId, 'BID_ITEM_CREATED', {
-          item_code: data.item_code,
-          item_name: data.item_name
-        });
-
-        return {
-          statusCode: 201,
-          headers,
-          body: JSON.stringify(newItem[0])
-        };
-        
-      } catch (error) {
-        console.error('Error creating bid item:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ 
-            error: 'Failed to create bid item: ' + error.message 
-          })
-        };
-      }
-
-    case 'PUT':
-      // Update bid item
-      if (!requireRole(role, ['admin', 'manager', 'editor'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions' })
-        };
-      }
-
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'ID required for update' })
-        };
-      }
-
-      try {
-        const data = JSON.parse(event.body);
-        
-        // Check if item exists
-        const existing = await sql`
-          SELECT * FROM bid_items WHERE id = ${id}
-        `;
-
-        if (existing.length === 0) {
-          return {
-            statusCode: 404,
-            headers,
-            body: JSON.stringify({ error: 'Bid item not found' })
-          };
-        }
-
-        // Check for duplicate item_code (excluding current item)
-        if (data.item_code) {
-          const duplicate = await sql`
-            SELECT id FROM bid_items 
-            WHERE item_code = ${data.item_code} AND id != ${id}
+        try {
+          console.log('Testing database connection...');
+          
+          // Test simple query first
+          const testQuery = await sql`SELECT 1 as test`;
+          console.log('Database connection OK:', testQuery);
+          
+          // Check if table exists
+          const tableCheck = await sql`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables 
+              WHERE table_name = 'bid_items'
+            )
           `;
-
-          if (duplicate.length > 0) {
+          console.log('Table exists:', tableCheck);
+          
+          if (id) {
+            console.log('Fetching single item with id:', id);
+            const items = await sql`
+              SELECT * FROM bid_items WHERE id = ${id}
+            `;
+            console.log('Single item result:', items);
             return {
-              statusCode: 400,
+              statusCode: 200,
               headers,
-              body: JSON.stringify({ error: 'Item code already exists' })
+              body: JSON.stringify(items[0] || null)
+            };
+          } else {
+            console.log('Fetching all active items...');
+            
+            // Try without WHERE clause first
+            const allItems = await sql`SELECT * FROM bid_items LIMIT 5`;
+            console.log('Sample items (no filter):', allItems);
+            
+            // Now try with WHERE clause
+            const items = await sql`
+              SELECT * FROM bid_items 
+              WHERE is_active = true
+              ORDER BY item_code
+              LIMIT 10
+            `;
+            console.log('Filtered items result:', items.length, 'items');
+            
+            return {
+              statusCode: 200,
+              headers,
+              body: JSON.stringify({
+                success: true,
+                count: items.length,
+                items: items,
+                debug: {
+                  allItemsCount: allItems.length,
+                  method: method,
+                  path: event.path,
+                  auth: { role, userId }
+                }
+              })
             };
           }
-        }
-
-        const currentItem = existing[0];
-        const updatedItem = await sql`
-          UPDATE bid_items
-          SET 
-            item_code = ${data.item_code !== undefined ? data.item_code.trim() : currentItem.item_code},
-            item_name = ${data.item_name !== undefined ? data.item_name.trim() : currentItem.item_name},
-            category = ${data.category !== undefined ? data.category : currentItem.category},
-            default_unit = ${data.default_unit !== undefined ? data.default_unit : currentItem.default_unit},
-            material_cost = ${data.material_cost !== undefined ? parseFloat(data.material_cost) : currentItem.material_cost},
-            description = ${data.description !== undefined ? data.description : currentItem.description},
-            is_active = ${data.is_active !== undefined ? data.is_active : currentItem.is_active},
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${id}
-          RETURNING *
-        `;
-
-        await logUserActivity(userId, 'BID_ITEM_UPDATED', {
-          item_id: id,
-          item_code: updatedItem[0].item_code,
-          changes: data
-        });
-
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify(updatedItem[0])
-        };
-        
-      } catch (error) {
-        console.error('Error updating bid item:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ 
-            error: 'Failed to update bid item: ' + error.message 
-          })
-        };
-      }
-
-    case 'DELETE':
-      // Delete (soft delete) bid item
-      if (!requireRole(role, ['admin', 'manager'])) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Insufficient permissions to delete' })
-        };
-      }
-
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'ID required for delete' })
-        };
-      }
-
-      try {
-        // Check if item exists
-        const existing = await sql`
-          SELECT * FROM bid_items WHERE id = ${id}
-        `;
-
-        if (existing.length === 0) {
+          
+        } catch (dbError) {
+          console.error('Database error:', dbError);
           return {
-            statusCode: 404,
-            headers,
-            body: JSON.stringify({ error: 'Bid item not found' })
-          };
-        }
-
-        // Check if item is used in any projects (if you have this relationship)
-        // Uncomment if you have project_bid_items table:
-        /*
-        const usage = await sql`
-          SELECT COUNT(*) as count FROM project_bid_items 
-          WHERE bid_item_id = ${id} AND is_active = true
-        `;
-
-        if (usage[0].count > 0) {
-          return {
-            statusCode: 400,
+            statusCode: 500,
             headers,
             body: JSON.stringify({ 
-              error: `Cannot delete: item is used in ${usage[0].count} project(s)` 
+              error: 'Database error',
+              details: dbError.message,
+              stack: dbError.stack
             })
           };
         }
-        */
 
-        // Soft delete by setting is_active to false
-        await sql`
-          UPDATE bid_items 
-          SET is_active = false, updated_at = CURRENT_TIMESTAMP 
-          WHERE id = ${id}
-        `;
-
-        await logUserActivity(userId, 'BID_ITEM_DELETED', {
-          item_id: id,
-          item_code: existing[0].item_code,
-          item_name: existing[0].item_name
-        });
-
+      default:
+        console.log('Method not allowed:', method);
         return {
-          statusCode: 204,
-          headers,
-          body: ''
-        };
-        
-      } catch (error) {
-        console.error('Error deleting bid item:', error);
-        return {
-          statusCode: 500,
+          statusCode: 405,
           headers,
           body: JSON.stringify({ 
-            error: 'Failed to delete bid item: ' + error.message 
+            error: 'Method not allowed',
+            method: method,
+            allowedMethods: ['GET']
           })
         };
-      }
-
-    default:
-      return {
-        statusCode: 405,
-        headers,
-        body: JSON.stringify({ error: 'Method not allowed' })
-      };
+    }
+    
+  } catch (error) {
+    console.error('Function error:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ 
+        error: 'Function execution error',
+        details: error.message,
+        stack: error.stack
+      })
+    };
   }
 }
 
