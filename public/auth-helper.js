@@ -2,7 +2,7 @@
 // Include this script in all HTML pages that need authentication
 
 const AUTH_CONFIG = {
-    API_BASE: '/.netlify/functions/',
+    API_BASE: '/.netlify/functions/api/',
     LOGIN_PAGE: '/login.html',
     DASHBOARD_PAGE: '/dashboard.html',
     TOKEN_KEY: 'jwtToken',
