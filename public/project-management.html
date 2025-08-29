@@ -872,8 +872,8 @@
                 setupBidItemAutocomplete();
                 const categories = [...new Set(allBidItems.map(item => item.category))].sort();
                 populateCategoryFilter(categories);
-            } catch (error);
             }
+           }
         }
         
         // Load project bid items
