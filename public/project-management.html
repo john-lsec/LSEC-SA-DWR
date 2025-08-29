@@ -85,6 +85,36 @@
             font-size: 1.5rem;
             color: #e0e0e0;
         }
+
+        /* Save Bar */
+        .save-bar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: linear-gradient(135deg, #1e3d29 0%, #2d5a41 100%);
+            padding: 15px 20px;
+            margin: -25px -25px 20px -25px;
+            border-radius: 12px 12px 0 0;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            border: 1px solid #16a34a;
+        }
+        
+        .save-bar.show {
+            display: flex;
+        }
+        
+        .save-bar-text {
+            color: #4ade80;
+            font-weight: 600;
+        }
+        
+        .save-bar-buttons {
+            display: flex;
+            gap: 10px;
+        }
         
         /* Tab Navigation */
         .tab-navigation {
@@ -163,48 +193,37 @@
             cursor: not-allowed;
         }
         
-        .autocomplete-container {
-            position: relative;
+        /* Editable Fields */
+        .editable {
+            background: transparent;
+            border: 1px solid transparent;
+            padding: 4px 8px;
+            border-radius: 4px;
             width: 100%;
-        }
-        
-        .autocomplete-items {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            max-height: 300px;
-            overflow-y: auto;
-            background: #2a2a2a;
-            border: 2px solid #404040;
-            border-top: none;
-            border-radius: 0 0 8px 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-            z-index: 1000;
-            display: none;
-        }
-        
-        .autocomplete-item {
-            padding: 12px 16px;
-            cursor: pointer;
-            border-bottom: 1px solid #333;
             color: #e0e0e0;
+            transition: all 0.2s ease;
+            font-size: 13px;
         }
         
-        .autocomplete-item:hover,
-        .autocomplete-item.autocomplete-active {
+        .editable:hover {
+            background: #2a2a2a;
+            border-color: #404040;
+        }
+        
+        .editable:focus {
             background: #333;
-            color: #4a9eff;
+            border-color: #4a9eff;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
         }
         
-        .autocomplete-category {
-            padding: 8px 16px;
-            background: #1a1a1a;
-            color: #888;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            border-bottom: 1px solid #333;
+        .editable.changed {
+            background: rgba(74, 158, 255, 0.1);
+            border-color: #4a9eff;
+        }
+        
+        select.editable {
+            cursor: pointer;
         }
         
         .btn {
@@ -228,6 +247,10 @@
         
         .btn-success {
             background: linear-gradient(135deg, #28a745 0%, #20924c 100%);
+        }
+        
+        .btn-success:hover {
+            background: linear-gradient(135deg, #218838 0%, #1e7e34 100%);
         }
         
         .btn-secondary {
@@ -266,6 +289,15 @@
         
         table td {
             font-size: 13px;
+        }
+        
+        table tr:hover {
+            background: #242424;
+        }
+        
+        table tr.modified {
+            background: rgba(74, 158, 255, 0.1);
+            border-left: 3px solid #4a9eff;
         }
         
         .modal {
@@ -378,6 +410,8 @@
         .table-container {
             overflow-x: auto;
             margin-top: 20px;
+            border-radius: 8px;
+            border: 1px solid #404040;
         }
         
         .percentage-bar {
@@ -425,6 +459,82 @@
             color: #fbbf24;
             font-weight: bold;
         }
+        
+        /* Autocomplete styling */
+        .autocomplete-container {
+            position: relative;
+            width: 100%;
+        }
+        
+        .autocomplete-items {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 300px;
+            overflow-y: auto;
+            background: #2a2a2a;
+            border: 2px solid #404040;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            z-index: 1000;
+            display: none;
+        }
+        
+        .autocomplete-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid #333;
+            color: #e0e0e0;
+        }
+        
+        .autocomplete-item:hover,
+        .autocomplete-item.autocomplete-active {
+            background: #333;
+            color: #4a9eff;
+        }
+        
+        .actions-cell {
+            white-space: nowrap;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #888;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+        }
+        
+        .close-btn:hover {
+            color: #e0e0e0;
+            background: #333;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #404040;
+        }
+        
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #e0e0e0;
+            margin: 0;
+        }
     </style>
 </head>
 <body>
@@ -449,6 +559,17 @@
         </div>
         
         <div id="mainContentSection" class="section hidden">
+            <!-- Save Bar -->
+            <div id="saveBar" class="save-bar">
+                <div class="save-bar-text">
+                    <span id="changeCount">0</span> unsaved changes
+                </div>
+                <div class="save-bar-buttons">
+                    <button class="btn" onclick="discardChanges()">Discard Changes</button>
+                    <button class="btn btn-success" onclick="saveAllChanges()">Save All Changes</button>
+                </div>
+            </div>
+            
             <div class="section-header">Project Management</div>
             
             <!-- Tab Navigation -->
@@ -494,14 +615,14 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>Item Code</th>
-                                <th>Item Name</th>
-                                <th>Category</th>
-                                <th>Unit</th>
-                                <th>Rate</th>
-                                <th>Material Cost</th>
-                                <th>Markup</th>
-                                <th>Actions</th>
+                                <th style="width: 120px;">Item Code</th>
+                                <th style="width: 250px;">Item Name</th>
+                                <th style="width: 120px;">Category</th>
+                                <th style="width: 80px;">Unit</th>
+                                <th style="width: 100px;">Rate</th>
+                                <th style="width: 120px;">Material Cost</th>
+                                <th style="width: 100px;">Markup</th>
+                                <th style="width: 100px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="bidItemsTableBody">
@@ -658,14 +779,15 @@
         <div id="resultMessage"></div>
     </div>
     
-    <!-- Modals -->
+    <!-- Add Bid Item Modal -->
     <div id="bidItemModal" class="modal">
         <div class="modal-content">
-            <h3 id="modalTitle">Add Bid Item</h3>
+            <div class="modal-header">
+                <h3 class="modal-title">Add Bid Item</h3>
+                <button type="button" class="close-btn" onclick="closeBidItemModal()">&times;</button>
+            </div>
             
             <form id="bidItemForm">
-                <input type="hidden" id="projectBidItemId" value="">
-                
                 <div class="form-group">
                     <label for="bidItem">Bid Item:</label>
                     <div class="autocomplete-container">
@@ -722,9 +844,13 @@
         </div>
     </div>
     
+    <!-- Contract Quantity Modal -->
     <div id="contractQtyModal" class="modal">
         <div class="modal-content">
-            <h3>Set Contract Quantity</h3>
+            <div class="modal-header">
+                <h3 class="modal-title">Set Contract Quantity</h3>
+                <button type="button" class="close-btn" onclick="closeContractQtyModal()">&times;</button>
+            </div>
             
             <form id="contractQtyForm">
                 <input type="hidden" id="contractProjectBidItemId" value="">
@@ -760,13 +886,21 @@
         </div>
     </div>
     
+    <!-- Delete Confirmation Modal -->
     <div id="deleteModal" class="modal">
         <div class="modal-content">
-            <h3>Confirm Delete</h3>
+            <div class="modal-header">
+                <h3 class="modal-title">Confirm Delete</h3>
+                <button type="button" class="close-btn" onclick="closeDeleteModal()">&times;</button>
+            </div>
+            
             <p>Are you sure you want to delete this bid item?</p>
             <p id="deleteItemDetails"></p>
-            <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
-            <button type="button" id="confirmDeleteBtn" class="btn btn-danger">Delete</button>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+                <button type="button" id="confirmDeleteBtn" class="btn btn-danger">Delete</button>
+            </div>
         </div>
     </div>
     
@@ -783,6 +917,8 @@
         let itemToDeleteId = null;
         let bidItemsLookup = {};
         let currentTab = 'bid-items';
+        let modifiedItems = {};
+        let originalData = {};
         
         // Initialize page on DOM load
         document.addEventListener('DOMContentLoaded', async function() {
@@ -882,6 +1018,13 @@
             if (!projectId) return;
             try {
                 projectBidItems = await AuthHelper.apiCall('api/project-bid-items?project_id=' + projectId);
+                
+                // Store original data for comparison
+                originalData = {};
+                projectBidItems.forEach(item => {
+                    originalData[item.project_bid_item_id] = {...item};
+                });
+                
                 renderBidItemsTable();
                 updateBidItemsStats();
             } catch (error) {
@@ -889,7 +1032,7 @@
             }
         }
         
-        // FIXED: Load installed quantities using the new endpoint
+        // Load installed quantities using the new endpoint
         async function loadInstalledQuantities(projectId) {
             if (!projectId) return;
             try {
@@ -904,6 +1047,136 @@
                 renderInstalledQuantitiesTable();
                 updateInstalledQuantitiesStats();
                 showMessage('Error loading installed quantities: ' + error.message, 'error');
+            }
+        }
+        
+        // Track field changes
+        function trackChange(itemId, field, newValue) {
+            if (!modifiedItems[itemId]) {
+                modifiedItems[itemId] = {};
+            }
+            
+            // Convert values for comparison
+            const original = originalData[itemId][field];
+            let compareNew = newValue;
+            let compareOrig = original;
+            
+            // Handle different data types
+            if (field === 'rate' || field === 'material_cost') {
+                compareNew = parseFloat(newValue) || 0;
+                compareOrig = parseFloat(original) || 0;
+            }
+            
+            // Check if value is actually different from original
+            if (compareNew !== compareOrig) {
+                modifiedItems[itemId][field] = newValue;
+            } else {
+                delete modifiedItems[itemId][field];
+                if (Object.keys(modifiedItems[itemId]).length === 0) {
+                    delete modifiedItems[itemId];
+                }
+            }
+            
+            updateSaveBar();
+        }
+        
+        // Update save bar
+        function updateSaveBar() {
+            const saveBar = document.getElementById('saveBar');
+            const changeCount = document.getElementById('changeCount');
+            const count = Object.keys(modifiedItems).length;
+            
+            if (count > 0) {
+                saveBar.classList.add('show');
+                changeCount.textContent = count;
+            } else {
+                saveBar.classList.remove('show');
+            }
+        }
+        
+        // Handle field change
+        function handleFieldChange(e) {
+            const itemId = e.target.dataset.id;
+            const field = e.target.dataset.field;
+            const value = e.target.value;
+            trackChange(itemId, field, value);
+            
+            // Update row appearance
+            const row = document.getElementById('row-' + itemId);
+            if (modifiedItems[itemId] && Object.keys(modifiedItems[itemId]).length > 0) {
+                row.classList.add('modified');
+            } else {
+                row.classList.remove('modified');
+            }
+        }
+        
+        // Handle field input (for visual feedback)
+        function handleFieldInput(e) {
+            const itemId = e.target.dataset.id;
+            const field = e.target.dataset.field;
+            const value = e.target.value;
+            
+            // Update visual state
+            const original = originalData[itemId][field];
+            
+            let isDifferent = false;
+            if (field === 'rate' || field === 'material_cost') {
+                isDifferent = parseFloat(value) !== parseFloat(original);
+            } else {
+                isDifferent = value !== original;
+            }
+            
+            if (isDifferent) {
+                e.target.classList.add('changed');
+            } else {
+                e.target.classList.remove('changed');
+            }
+        }
+        
+        // Save all changes using AuthHelper
+        async function saveAllChanges() {
+            const saveButton = event.target;
+            saveButton.disabled = true;
+            saveButton.textContent = 'Saving...';
+            
+            try {
+                const updates = [];
+                
+                for (const [itemId, changes] of Object.entries(modifiedItems)) {
+                    const item = projectBidItems.find(i => i.project_bid_item_id === itemId);
+                    const updateData = {
+                        rate: changes.rate !== undefined ? parseFloat(changes.rate) : parseFloat(item.rate),
+                        material_cost: changes.material_cost !== undefined ? parseFloat(changes.material_cost) : parseFloat(item.material_cost),
+                        unit: changes.unit !== undefined ? changes.unit : item.unit
+                    };
+                    
+                    updates.push(AuthHelper.apiCall('api/project-bid-items/' + itemId, {
+                        method: 'PUT',
+                        body: JSON.stringify(updateData)
+                    }));
+                }
+                
+                await Promise.all(updates);
+                
+                showMessage(`Successfully updated ${updates.length} item(s)`, 'success');
+                modifiedItems = {};
+                updateSaveBar();
+                await loadProjectBidItems(selectedProjectId);
+                
+            } catch (error) {
+                showMessage('Error saving changes: ' + error.message, 'error');
+            } finally {
+                saveButton.disabled = false;
+                saveButton.textContent = 'Save All Changes';
+            }
+        }
+        
+        // Discard changes
+        function discardChanges() {
+            if (confirm('Are you sure you want to discard all unsaved changes?')) {
+                modifiedItems = {};
+                renderBidItemsTable();
+                updateSaveBar();
             }
         }
         
@@ -940,12 +1213,27 @@
             document.getElementById('bidItemForm').addEventListener('submit', saveBidItem);
             document.getElementById('contractQtyForm').addEventListener('submit', saveContractQuantity);
             document.getElementById('itemRate').addEventListener('input', calculateMarkup);
-            document.getElementById('itemMaterialCost').addEventListener('input', calculateMarkup); // NEW EVENT LISTENER
+            document.getElementById('itemMaterialCost').addEventListener('input', calculateMarkup);
             document.getElementById('contractQuantity').addEventListener('input', calculateContractValue);
             document.getElementById('confirmDeleteBtn').addEventListener('click', deleteBidItem);
+            
+            // Warn before leaving with unsaved changes
+            window.addEventListener('beforeunload', function(e) {
+                if (Object.keys(modifiedItems).length > 0) {
+                    e.preventDefault();
+                    e.returnValue = '';
+                }
+            });
         }
         
         function switchTab(tabName) {
+            // Check for unsaved changes before switching
+            if (Object.keys(modifiedItems).length > 0) {
+                if (!confirm('You have unsaved changes. Continue without saving?')) {
+                    return;
+                }
+            }
+            
             // Update active tab button
             document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
             document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
@@ -979,7 +1267,7 @@
             }
         }
         
-        // Bid Items Tab Functions
+        // Bid Items Tab Functions with inline editing
         function renderBidItemsTable() {
             const tableBody = document.getElementById('bidItemsTableBody');
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
@@ -1003,6 +1291,19 @@
                 return;
             }
             
+            // Get unique categories for dropdown
+            const allCategories = [...new Set(allBidItems.map(item => item.category).filter(cat => cat))].sort();
+            const standardCategories = ['CLEARING', 'DEMOLITION', 'EARTHWORK', 'EROSION CONTROL', 
+                'LANDSCAPING', 'MASONRY', 'MISC METALS', 'PAINTING', 'PAVING', 
+                'SITE CONCRETE', 'SPECIALTIES', 'STORM DRAINAGE', 'STRUCTURES', 
+                'TRAFFIC', 'UTILITIES', 'WATERWORKS'];
+            const combinedCategories = [...new Set([...allCategories, ...standardCategories])].sort();
+            
+            // Get unique units for dropdown
+            const allUnits = [...new Set(allBidItems.map(item => item.default_unit).filter(unit => unit))].sort();
+            const standardUnits = ['EA', 'LF', 'SF', 'SY', 'CY', 'TON', 'GAL', 'HR', 'DAY', 'MO', 'LS', 'AC'];
+            const combinedUnits = [...new Set([...allUnits, ...standardUnits])].sort();
+            
             tableBody.innerHTML = '';
             filteredItems.forEach(item => {
                 const rate = Number(item.rate);
@@ -1010,20 +1311,78 @@
                 const markupPercent = materialCost > 0 ? ((rate - materialCost) / materialCost * 100).toFixed(2) : 'N/A';
                 
                 const row = document.createElement('tr');
+                row.id = 'row-' + item.project_bid_item_id;
+                
+                // Check if this item has modifications
+                if (modifiedItems[item.project_bid_item_id]) {
+                    row.classList.add('modified');
+                }
+                
+                // Create category options
+                const categoryOptions = combinedCategories
+                    .map(cat => {
+                        const isSelected = item.category && 
+                                         item.category.trim().toUpperCase() === cat.trim().toUpperCase();
+                        return `<option value="${cat}" ${isSelected ? 'selected' : ''}>${cat}</option>`;
+                    })
+                    .join('');
+                
+                // Create unit options
+                const unitOptions = combinedUnits
+                    .map(unit => {
+                        const isSelected = item.unit && 
+                                         item.unit.trim().toUpperCase() === unit.trim().toUpperCase();
+                        return `<option value="${unit}" ${isSelected ? 'selected' : ''}>${unit}</option>`;
+                    })
+                    .join('');
+                
                 row.innerHTML = `
                     <td>${item.item_code}</td>
                     <td>${item.item_name}</td>
-                    <td>${item.category}</td>
-                    <td>${item.unit}</td>
-                    <td>$${rate.toFixed(2)}</td>
-                    <td>$${materialCost.toFixed(2)}</td>
-                    <td>${markupPercent}${markupPercent !== 'N/A' ? '%' : ''}</td>
                     <td>
-                        <button class="btn btn-sm btn-secondary" onclick="editBidItem('${item.project_bid_item_id}')">Edit</button> 
+                        <select class="editable ${modifiedItems[item.project_bid_item_id]?.category ? 'changed' : ''}" 
+                                data-id="${item.project_bid_item_id}" 
+                                data-field="category">
+                            <option value="">-- Select Category --</option>
+                            ${categoryOptions}
+                        </select>
+                    </td>
+                    <td>
+                        <select class="editable ${modifiedItems[item.project_bid_item_id]?.unit ? 'changed' : ''}" 
+                                data-id="${item.project_bid_item_id}" 
+                                data-field="unit">
+                            <option value="">-- Select Unit --</option>
+                            ${unitOptions}
+                        </select>
+                    </td>
+                    <td>
+                        <input type="number" class="editable ${modifiedItems[item.project_bid_item_id]?.rate ? 'changed' : ''}" 
+                               value="${rate.toFixed(2)}" 
+                               data-id="${item.project_bid_item_id}" 
+                               data-field="rate"
+                               min="0" 
+                               step="0.01">
+                    </td>
+                    <td>
+                        <input type="number" class="editable ${modifiedItems[item.project_bid_item_id]?.material_cost ? 'changed' : ''}" 
+                               value="${materialCost.toFixed(2)}" 
+                               data-id="${item.project_bid_item_id}" 
+                               data-field="material_cost"
+                               min="0" 
+                               step="0.01">
+                    </td>
+                    <td>${markupPercent}${markupPercent !== 'N/A' ? '%' : ''}</td>
+                    <td class="actions-cell">
                         <button class="btn btn-sm btn-danger" onclick="showDeleteConfirmation('${item.project_bid_item_id}','${item.item_code}','${item.item_name}')">Delete</button>
                     </td>
                 `;
                 tableBody.appendChild(row);
+            });
+            
+            // Add event listeners to editable fields
+            document.querySelectorAll('.editable').forEach(element => {
+                element.addEventListener('change', handleFieldChange);
+                element.addEventListener('input', handleFieldInput);
             });
         }
         
@@ -1048,14 +1407,14 @@
             document.getElementById('avgMarkup').textContent = (validMarkups > 0 ? (totalMarkup / validMarkups).toFixed(2) : '0.00') + '%';
         }
         
-        // FIXED: Installed Quantities Tab Functions
+        // Installed Quantities Tab Functions
         function renderInstalledQuantitiesTable() {
             const tableBody = document.getElementById('installedQuantitiesTableBody');
             const searchTerm = document.getElementById('installedSearchInput').value.toLowerCase();
             const dateFrom = document.getElementById('dateFromFilter').value;
             const dateTo = document.getElementById('dateToFilter').value;
             
-            let filteredItems = [...installedQuantities]; // Create a copy
+            let filteredItems = [...installedQuantities];
             
             if (searchTerm) {
                 filteredItems = filteredItems.filter(item => 
@@ -1304,7 +1663,7 @@
             }
         }
         
-        // UPDATED: Bid item autocomplete - allows editing but populates defaults
+        // Bid item autocomplete
         function setupBidItemAutocomplete() {
             const input = document.getElementById('bidItem');
             const hiddenInput = document.getElementById('bidItemId');
@@ -1384,7 +1743,7 @@
             });
         }
         
-        // UPDATED: Calculate markup using current material cost value
+        // Calculate markup using current material cost value
         function calculateMarkup() {
             const rate = parseFloat(document.getElementById('itemRate').value) || 0;
             const materialCost = parseFloat(document.getElementById('itemMaterialCost').value) || 0;
@@ -1396,41 +1755,15 @@
             document.getElementById('itemMarkup').value = markup;
         }
         
-        // UPDATED: Show add modal - clear fields properly
+        // Show add modal - clear fields properly
         function showAddBidItemModal() {
-            document.getElementById('modalTitle').textContent = 'Add Bid Item';
-            document.getElementById('projectBidItemId').value = '';
             document.getElementById('bidItemForm').reset();
-            document.getElementById('bidItem').disabled = false;
             document.getElementById('itemMarkup').value = 'N/A';
             
             // Clear the material cost and unit fields for new items
             document.getElementById('itemMaterialCost').value = '';
             document.getElementById('itemUnit').value = '';
             
-            document.getElementById('bidItemModal').classList.add('show');
-        }
-        
-        // UPDATED: Edit bid item - populate all editable fields
-        function editBidItem(id) {
-            const item = projectBidItems.find(item => item.project_bid_item_id == id);
-            if (!item) {
-                showMessage('Item not found.', 'error');
-                return;
-            }
-            
-            document.getElementById('modalTitle').textContent = 'Edit Bid Item';
-            document.getElementById('projectBidItemId').value = id;
-            document.getElementById('bidItem').value = item.item_code + ' - ' + item.item_name;
-            document.getElementById('bidItemId').value = item.bid_item_id;
-            document.getElementById('bidItem').disabled = true;
-            
-            // Populate all editable fields
-            document.getElementById('itemRate').value = item.rate;
-            document.getElementById('itemMaterialCost').value = parseFloat(item.material_cost).toFixed(2);
-            document.getElementById('itemUnit').value = item.unit;
-            
-            calculateMarkup();
             document.getElementById('bidItemModal').classList.add('show');
         }
         
@@ -1443,11 +1776,10 @@
             itemToDeleteId = null;
         }
         
-        // UPDATED: Save bid item - include material cost and unit
+        // Save bid item - include material cost and unit
         async function saveBidItem(event) {
             event.preventDefault();
             
-            const projectBidItemId = document.getElementById('projectBidItemId').value;
             const bidItemId = document.getElementById('bidItemId').value;
             const rate = parseFloat(document.getElementById('itemRate').value);
             const materialCost = parseFloat(document.getElementById('itemMaterialCost').value) || 0;
@@ -1472,25 +1804,17 @@
                     unit: unit
                 };
                 
-                if (projectBidItemId) {
-                    await AuthHelper.apiCall('api/project-bid-items/' + projectBidItemId, {
-                        method: 'PUT',
-                        body: JSON.stringify(itemData)
-                    });
-                    showMessage('Bid item updated successfully.', 'success');
-                } else {
-                    const exists = projectBidItems.some(item => item.bid_item_id == bidItemId);
-                    if (exists) {
-                        showMessage('This bid item is already in the project.', 'error');
-                        return;
-                    }
-                    
-                    await AuthHelper.apiCall('api/project-bid-items', {
-                        method: 'POST',
-                        body: JSON.stringify(itemData)
-                    });
-                    showMessage('Bid item added successfully.', 'success');
+                const exists = projectBidItems.some(item => item.bid_item_id == bidItemId);
+                if (exists) {
+                    showMessage('This bid item is already in the project.', 'error');
+                    return;
                 }
+                
+                await AuthHelper.apiCall('api/project-bid-items', {
+                    method: 'POST',
+                    body: JSON.stringify(itemData)
+                });
+                showMessage('Bid item added successfully.', 'success');
                 
                 await loadProjectBidItems(selectedProjectId);
                 closeBidItemModal();
