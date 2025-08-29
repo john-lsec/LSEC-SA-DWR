@@ -195,7 +195,7 @@ exports.handler = async (event, context) => {
       
       // Consolidated project bid items endpoint - handles all CRUD operations
       case 'project-bid-items':
-        return await (event, headers, method, id);
+        return await handleProjectBidItems(event, headers, method, id);
       
       // NEW: Installed quantities endpoint
       case 'installed-quantities':
