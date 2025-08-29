@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LSEC SA Project Management</title>
-    <!-- jsPDF and autoTable for PDF export -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <!-- No external scripts needed - using native browser capabilities -->
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; padding: 20px; font-family: Arial, sans-serif; background: #1a1a1a; color: #e0e0e0; }
@@ -159,9 +157,9 @@
                             <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M15.8,20H14L12,13.2L10,20H8.2L11.1,12L8.2,4H10L12,10.8L14,4H15.8L12.9,12L15.8,20M13,9V3.5L18.5,9H13Z"/></svg>
                             Excel
                         </button>
-                        <button class="btn btn-pdf export-btn" onclick="exportBidItemsToPDF()">
+                        <button class="btn btn-pdf export-btn" onclick="exportBidItemsToPDF()" title="Opens in new window for printing to PDF">
                             <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2H14M18,20V9H13V4H6V20H18M10.92,12.31C10.68,11.54 10.15,9.08 11.55,9.04C12.95,9 12.03,12.16 12.03,12.16C12.42,13.65 14.05,14.72 14.05,14.72C14.55,14.57 17.4,14.24 17,15.72C16.57,17.2 13.5,15.81 13.5,15.81C11.55,15.95 10.09,16.47 10.09,16.47C8.96,18.58 7.64,19.5 7.1,18.61C6.43,17.5 9.23,16.07 9.23,16.07C10.68,13.72 10.9,12.35 10.92,12.31M11.57,13.15C11.17,14.45 10.37,15.84 10.37,15.84C11.22,15.5 13.08,15.11 13.08,15.11C11.94,14.11 11.59,13.16 11.57,13.15M14.71,15.32C14.71,15.32 16.46,15.97 16.5,15.71C16.57,15.44 14.71,15.32 14.71,15.32M9.05,16.81C8.28,17.11 7.54,18.39 7.72,18.39C7.9,18.4 8.63,17.79 9.05,16.81M11.57,11.26C11.57,11.21 12,9.58 11.57,9.53C11.27,9.5 11.56,11.22 11.57,11.26Z"/></svg>
-                            PDF
+                            Print/PDF
                         </button>
                     </div>
                 </div>
@@ -204,9 +202,9 @@
                             <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M15.8,20H14L12,13.2L10,20H8.2L11.1,12L8.2,4H10L12,10.8L14,4H15.8L12.9,12L15.8,20M13,9V3.5L18.5,9H13Z"/></svg>
                             Excel
                         </button>
-                        <button class="btn btn-pdf export-btn" onclick="exportInstalledToPDF()">
+                        <button class="btn btn-pdf export-btn" onclick="exportInstalledToPDF()" title="Opens in new window for printing to PDF">
                             <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2H14M18,20V9H13V4H6V20H18M10.92,12.31C10.68,11.54 10.15,9.08 11.55,9.04C12.95,9 12.03,12.16 12.03,12.16C12.42,13.65 14.05,14.72 14.05,14.72C14.55,14.57 17.4,14.24 17,15.72C16.57,17.2 13.5,15.81 13.5,15.81C11.55,15.95 10.09,16.47 10.09,16.47C8.96,18.58 7.64,19.5 7.1,18.61C6.43,17.5 9.23,16.07 9.23,16.07C10.68,13.72 10.9,12.35 10.92,12.31M11.57,13.15C11.17,14.45 10.37,15.84 10.37,15.84C11.22,15.5 13.08,15.11 13.08,15.11C11.94,14.11 11.59,13.16 11.57,13.15M14.71,15.32C14.71,15.32 16.46,15.97 16.5,15.71C16.57,15.44 14.71,15.32 14.71,15.32M9.05,16.81C8.28,17.11 7.54,18.39 7.72,18.39C7.9,18.4 8.63,17.79 9.05,16.81M11.57,11.26C11.57,11.21 12,9.58 11.57,9.53C11.27,9.5 11.56,11.22 11.57,11.26Z"/></svg>
-                            PDF
+                            Print/PDF
                         </button>
                     </div>
                 </div>
@@ -241,9 +239,9 @@
                             <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M15.8,20H14L12,13.2L10,20H8.2L11.1,12L8.2,4H10L12,10.8L14,4H15.8L12.9,12L15.8,20M13,9V3.5L18.5,9H13Z"/></svg>
                             Excel
                         </button>
-                        <button class="btn btn-pdf export-btn" onclick="exportPayAppToPDF()">
+                        <button class="btn btn-pdf export-btn" onclick="exportPayAppToPDF()" title="Opens in new window for printing to PDF">
                             <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2H14M18,20V9H13V4H6V20H18M10.92,12.31C10.68,11.54 10.15,9.08 11.55,9.04C12.95,9 12.03,12.16 12.03,12.16C12.42,13.65 14.05,14.72 14.05,14.72C14.55,14.57 17.4,14.24 17,15.72C16.57,17.2 13.5,15.81 13.5,15.81C11.55,15.95 10.09,16.47 10.09,16.47C8.96,18.58 7.64,19.5 7.1,18.61C6.43,17.5 9.23,16.07 9.23,16.07C10.68,13.72 10.9,12.35 10.92,12.31M11.57,13.15C11.17,14.45 10.37,15.84 10.37,15.84C11.22,15.5 13.08,15.11 13.08,15.11C11.94,14.11 11.59,13.16 11.57,13.15M14.71,15.32C14.71,15.32 16.46,15.97 16.5,15.71C16.57,15.44 14.71,15.32 14.71,15.32M9.05,16.81C8.28,17.11 7.54,18.39 7.72,18.39C7.9,18.4 8.63,17.79 9.05,16.81M11.57,11.26C11.57,11.21 12,9.58 11.57,9.53C11.27,9.5 11.56,11.22 11.57,11.26Z"/></svg>
-                            PDF
+                            Print/PDF
                         </button>
                     </div>
                 </div>
@@ -709,70 +707,102 @@
         }
         
         function exportBidItemsToPDF() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF('l', 'mm', 'a4'); // Landscape orientation
+            // Create HTML content for printing
+            const printWindow = window.open('', '_blank');
             
-            // Add title
-            doc.setFontSize(16);
-            doc.setTextColor(74, 158, 255);
-            doc.text(`Project Bid Items - ${selectedProjectName}`, 14, 15);
-            
-            // Add date
-            doc.setFontSize(10);
-            doc.setTextColor(100);
-            doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 22);
-            
-            // Prepare table data
-            const headers = [['Code', 'Name', 'Category', 'Unit', 'Rate', 'Material', 'Contract', 'Markup']];
-            const data = projectBidItems.map(item => {
+            const tableRows = projectBidItems.map(item => {
                 const rate = Number(item.rate) || 0;
                 const material = Number(item.material_cost) || 0;
                 const contract = Number(item.contract_quantity) || 0;
                 const markup = material > 0 ? ((rate - material) / material * 100).toFixed(1) + '%' : 'N/A';
                 
-                return [
-                    item.item_code,
-                    item.item_name,
-                    item.category || '',
-                    item.unit || 'EA',
-                    '$' + rate.toFixed(2),
-                    '$' + material.toFixed(2),
-                    contract.toFixed(2),
-                    markup
-                ];
-            });
+                return `
+                    <tr>
+                        <td>${item.item_code}</td>
+                        <td>${item.item_name}</td>
+                        <td>${item.category || ''}</td>
+                        <td>${item.unit || 'EA'}</td>
+                        <td style="text-align: right">${rate.toFixed(2)}</td>
+                        <td style="text-align: right">${material.toFixed(2)}</td>
+                        <td style="text-align: right">${contract.toFixed(2)}</td>
+                        <td style="text-align: center">${markup}</td>
+                    </tr>
+                `;
+            }).join('');
             
-            // Add table
-            doc.autoTable({
-                head: headers,
-                body: data,
-                startY: 28,
-                theme: 'grid',
-                headStyles: { fillColor: [74, 158, 255], fontSize: 9 },
-                bodyStyles: { fontSize: 8 },
-                columnStyles: {
-                    0: { cellWidth: 20 },
-                    1: { cellWidth: 60 },
-                    2: { cellWidth: 35 },
-                    3: { cellWidth: 15 },
-                    4: { cellWidth: 25, halign: 'right' },
-                    5: { cellWidth: 25, halign: 'right' },
-                    6: { cellWidth: 25, halign: 'right' },
-                    7: { cellWidth: 20, halign: 'center' }
-                }
-            });
+            const html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Project Bid Items - ${selectedProjectName}</title>
+                    <style>
+                        @page { size: landscape; margin: 15mm; }
+                        @media print { 
+                            .no-print { display: none; }
+                            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        }
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        h1 { color: #4a9eff; font-size: 24px; margin-bottom: 5px; }
+                        .subtitle { color: #666; font-size: 14px; margin-bottom: 20px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th { background: #4a9eff; color: white; padding: 10px; text-align: left; font-weight: 600; }
+                        td { padding: 8px; border-bottom: 1px solid #ddd; }
+                        tr:nth-child(even) { background: #f5f5f5; }
+                        .print-button { 
+                            background: #dc2626; color: white; padding: 10px 20px; 
+                            border: none; border-radius: 6px; cursor: pointer; font-weight: 600; 
+                            margin-bottom: 20px;
+                        }
+                        .print-button:hover { background: #b91c1c; }
+                        .stats { display: flex; gap: 30px; margin: 20px 0; }
+                        .stat { flex: 1; }
+                        .stat-label { font-size: 12px; color: #666; text-transform: uppercase; }
+                        .stat-value { font-size: 18px; font-weight: bold; color: #333; }
+                    </style>
+                </head>
+                <body>
+                    <button class="print-button no-print" onclick="window.print()">Print to PDF</button>
+                    <h1>Project Bid Items - ${selectedProjectName}</h1>
+                    <div class="subtitle">Generated: ${new Date().toLocaleDateString()}</div>
+                    
+                    <div class="stats">
+                        <div class="stat">
+                            <div class="stat-label">Total Items</div>
+                            <div class="stat-value">${projectBidItems.length}</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-label">Average Rate</div>
+                            <div class="stat-value">${(projectBidItems.reduce((s, i) => s + Number(i.rate || 0), 0) / (projectBidItems.length || 1)).toFixed(2)}</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-label">Average Material Cost</div>
+                            <div class="stat-value">${(projectBidItems.reduce((s, i) => s + Number(i.material_cost || 0), 0) / (projectBidItems.length || 1)).toFixed(2)}</div>
+                        </div>
+                    </div>
+                    
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Name</th>
+                                <th>Category</th>
+                                <th>Unit</th>
+                                <th style="text-align: right">Rate</th>
+                                <th style="text-align: right">Material</th>
+                                <th style="text-align: right">Contract</th>
+                                <th style="text-align: center">Markup</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows}
+                        </tbody>
+                    </table>
+                </body>
+                </html>
+            `;
             
-            // Add footer
-            const pageCount = doc.internal.getNumberOfPages();
-            for (let i = 1; i <= pageCount; i++) {
-                doc.setPage(i);
-                doc.setFontSize(8);
-                doc.setTextColor(150);
-                doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
-            }
-            
-            // Save the PDF
-            doc.save(`${selectedProjectName}_bid_items_${getFormattedDate()}.pdf`);
+            printWindow.document.write(html);
+            printWindow.document.close();
         }
         
         // ==================== INSTALLED QUANTITIES EXPORTS ====================
@@ -797,61 +827,104 @@
         }
         
         function exportInstalledToPDF() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF('l', 'mm', 'a4');
+            const printWindow = window.open('', '_blank');
             
-            doc.setFontSize(16);
-            doc.setTextColor(74, 158, 255);
-            doc.text(`Installed Quantities - ${selectedProjectName}`, 14, 15);
-            
-            doc.setFontSize(10);
-            doc.setTextColor(100);
-            doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 22);
-            
-            // Add summary stats
             const totalValue = installedQuantities.reduce((s, i) => s + Number(i.extension || 0), 0);
-            doc.text(`Total Value: $${totalValue.toFixed(2)} | Entries: ${installedQuantities.length}`, 14, 28);
+            const workDates = [...new Set(installedQuantities.map(i => i.work_date).filter(d => d))];
             
-            const headers = [['Date', 'Code', 'Name', 'Qty', 'Unit', 'Rate', 'Total', 'Location']];
-            const data = installedQuantities.map(item => [
-                item.work_date || '',
-                item.item_code || '',
-                item.item_name || '',
-                Number(item.quantity || 0).toFixed(2),
-                item.unit || 'EA',
-                '$' + Number(item.rate || 0).toFixed(2),
-                '$' + Number(item.extension || 0).toFixed(2),
-                item.location_description || ''
-            ]);
+            const tableRows = installedQuantities.map(item => `
+                <tr>
+                    <td>${item.work_date || ''}</td>
+                    <td>${item.item_code || ''}</td>
+                    <td>${item.item_name || ''}</td>
+                    <td style="text-align: right">${Number(item.quantity || 0).toFixed(2)}</td>
+                    <td style="text-align: center">${item.unit || 'EA'}</td>
+                    <td style="text-align: right">${Number(item.rate || 0).toFixed(2)}</td>
+                    <td style="text-align: right">${Number(item.extension || 0).toFixed(2)}</td>
+                    <td>${item.location_description || ''}</td>
+                </tr>
+            `).join('');
             
-            doc.autoTable({
-                head: headers,
-                body: data,
-                startY: 34,
-                theme: 'grid',
-                headStyles: { fillColor: [74, 158, 255], fontSize: 9 },
-                bodyStyles: { fontSize: 8 },
-                columnStyles: {
-                    0: { cellWidth: 25 },
-                    1: { cellWidth: 25 },
-                    2: { cellWidth: 60 },
-                    3: { cellWidth: 20, halign: 'right' },
-                    4: { cellWidth: 15, halign: 'center' },
-                    5: { cellWidth: 25, halign: 'right' },
-                    6: { cellWidth: 25, halign: 'right' },
-                    7: { cellWidth: 50 }
-                }
-            });
+            const html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Installed Quantities - ${selectedProjectName}</title>
+                    <style>
+                        @page { size: landscape; margin: 15mm; }
+                        @media print { 
+                            .no-print { display: none; }
+                            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        }
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        h1 { color: #4a9eff; font-size: 24px; margin-bottom: 5px; }
+                        .subtitle { color: #666; font-size: 14px; margin-bottom: 20px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th { background: #4a9eff; color: white; padding: 10px; text-align: left; font-weight: 600; }
+                        td { padding: 8px; border-bottom: 1px solid #ddd; }
+                        tr:nth-child(even) { background: #f5f5f5; }
+                        .print-button { 
+                            background: #dc2626; color: white; padding: 10px 20px; 
+                            border: none; border-radius: 6px; cursor: pointer; font-weight: 600; 
+                            margin-bottom: 20px;
+                        }
+                        .print-button:hover { background: #b91c1c; }
+                        .summary { 
+                            background: #f0f9ff; padding: 15px; border-radius: 8px; 
+                            margin: 20px 0; border: 1px solid #4a9eff;
+                        }
+                        .summary-item { display: inline-block; margin-right: 30px; }
+                        .summary-label { font-size: 12px; color: #666; text-transform: uppercase; }
+                        .summary-value { font-size: 18px; font-weight: bold; color: #333; }
+                    </style>
+                </head>
+                <body>
+                    <button class="print-button no-print" onclick="window.print()">Print to PDF</button>
+                    <h1>Installed Quantities - ${selectedProjectName}</h1>
+                    <div class="subtitle">Generated: ${new Date().toLocaleDateString()}</div>
+                    
+                    <div class="summary">
+                        <div class="summary-item">
+                            <div class="summary-label">Total Value</div>
+                            <div class="summary-value">${totalValue.toFixed(2)}</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-label">Total Entries</div>
+                            <div class="summary-value">${installedQuantities.length}</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-label">Work Days</div>
+                            <div class="summary-value">${workDates.length}</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-label">Last Date</div>
+                            <div class="summary-value">${workDates.sort().pop() || 'N/A'}</div>
+                        </div>
+                    </div>
+                    
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Code</th>
+                                <th>Name</th>
+                                <th style="text-align: right">Qty</th>
+                                <th style="text-align: center">Unit</th>
+                                <th style="text-align: right">Rate</th>
+                                <th style="text-align: right">Total</th>
+                                <th>Location</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows || '<tr><td colspan="8">No installed quantities</td></tr>'}
+                        </tbody>
+                    </table>
+                </body>
+                </html>
+            `;
             
-            const pageCount = doc.internal.getNumberOfPages();
-            for (let i = 1; i <= pageCount; i++) {
-                doc.setPage(i);
-                doc.setFontSize(8);
-                doc.setTextColor(150);
-                doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
-            }
-            
-            doc.save(`${selectedProjectName}_installed_quantities_${getFormattedDate()}.pdf`);
+            printWindow.document.write(html);
+            printWindow.document.close();
         }
         
         // ==================== PAY APPLICATION EXPORTS ====================
@@ -897,16 +970,7 @@
         }
         
         function exportPayAppToPDF() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF('l', 'mm', 'a4');
-            
-            doc.setFontSize(16);
-            doc.setTextColor(74, 158, 255);
-            doc.text(`Pay Application - ${selectedProjectName}`, 14, 15);
-            
-            doc.setFontSize(10);
-            doc.setTextColor(100);
-            doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 22);
+            const printWindow = window.open('', '_blank');
             
             // Calculate totals
             const totalContract = projectBidItems.reduce((s, i) => s + ((Number(i.contract_quantity || 0)) * Number(i.rate || 0)), 0);
@@ -914,83 +978,151 @@
             const totalPercent = totalContract > 0 ? (totalInstalled / totalContract * 100) : 0;
             const balance = totalContract - totalInstalled;
             
-            // Add summary
-            doc.setFontSize(10);
-            doc.text(`Contract Total: $${totalContract.toFixed(2)} | Installed: $${totalInstalled.toFixed(2)} | Complete: ${totalPercent.toFixed(1)}% | Balance: $${balance.toFixed(2)}`, 14, 28);
-            
-            const headers = [['Code', 'Name', 'Rate', 'Contract', 'Installed', 'Progress', 'Status']];
-            const data = projectBidItems.map(item => {
+            const tableRows = projectBidItems.map(item => {
                 const rate = Number(item.rate) || 0;
                 const contractQty = Number(item.contract_quantity) || 0;
                 const installedQty = getInstalledQty(item.project_bid_item_id);
+                const contractValue = contractQty * rate;
+                const installedValue = installedQty * rate;
                 const percent = contractQty > 0 ? (installedQty / contractQty * 100) : 0;
                 
                 let status = 'Pending';
-                if (percent >= 100) status = 'Complete';
-                else if (percent > 0) status = 'Partial';
-                if (installedQty > contractQty && contractQty > 0) status = 'Over';
+                let statusColor = '#f87171';
+                if (percent >= 100) { status = 'Complete'; statusColor = '#4ade80'; }
+                else if (percent > 0) { status = 'Partial'; statusColor = '#fbbf24'; }
+                if (installedQty > contractQty && contractQty > 0) { status = 'Over'; statusColor = '#f87171'; }
                 
-                return [
-                    item.item_code,
-                    item.item_name,
-                    '$' + rate.toFixed(2),
-                    contractQty.toFixed(2),
-                    installedQty.toFixed(2),
-                    percent.toFixed(1) + '%',
-                    status
-                ];
-            });
+                return `
+                    <tr>
+                        <td>${item.item_code}</td>
+                        <td>${item.item_name}</td>
+                        <td style="text-align: right">${rate.toFixed(2)}</td>
+                        <td style="text-align: right">${contractQty.toFixed(2)}</td>
+                        <td style="text-align: right">${installedQty.toFixed(2)}</td>
+                        <td style="text-align: right">${contractValue.toFixed(2)}</td>
+                        <td style="text-align: right">${installedValue.toFixed(2)}</td>
+                        <td style="text-align: center">
+                            <div style="display: inline-block; width: 100px; background: #e5e5e5; height: 20px; border-radius: 4px; position: relative;">
+                                <div style="width: ${Math.min(percent, 100)}%; background: #28a745; height: 100%; border-radius: 4px;"></div>
+                                <span style="position: absolute; top: 0; left: 50%; transform: translateX(-50%); line-height: 20px; font-size: 11px; font-weight: bold;">
+                                    ${percent.toFixed(1)}%
+                                </span>
+                            </div>
+                        </td>
+                        <td style="text-align: center; color: ${statusColor}; font-weight: bold">${status}</td>
+                    </tr>
+                `;
+            }).join('');
             
-            doc.autoTable({
-                head: headers,
-                body: data,
-                startY: 34,
-                theme: 'grid',
-                headStyles: { fillColor: [74, 158, 255], fontSize: 9 },
-                bodyStyles: { fontSize: 8 },
-                columnStyles: {
-                    0: { cellWidth: 25 },
-                    1: { cellWidth: 80 },
-                    2: { cellWidth: 25, halign: 'right' },
-                    3: { cellWidth: 25, halign: 'right' },
-                    4: { cellWidth: 25, halign: 'right' },
-                    5: { cellWidth: 25, halign: 'center' },
-                    6: { cellWidth: 25, halign: 'center' }
-                },
-                didDrawPage: function(data) {
-                    // Footer on each page
-                    doc.setFontSize(8);
-                    doc.setTextColor(150);
-                    doc.text(`Page ${data.pageNumber}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
-                }
-            });
+            const html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Pay Application - ${selectedProjectName}</title>
+                    <style>
+                        @page { size: landscape; margin: 15mm; }
+                        @media print { 
+                            .no-print { display: none; }
+                            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        }
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        h1 { color: #4a9eff; font-size: 24px; margin-bottom: 5px; }
+                        .subtitle { color: #666; font-size: 14px; margin-bottom: 20px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th { background: #4a9eff; color: white; padding: 10px; text-align: left; font-weight: 600; font-size: 12px; }
+                        td { padding: 8px; border-bottom: 1px solid #ddd; font-size: 11px; }
+                        tr:nth-child(even) { background: #f5f5f5; }
+                        .print-button { 
+                            background: #dc2626; color: white; padding: 10px 20px; 
+                            border: none; border-radius: 6px; cursor: pointer; font-weight: 600; 
+                            margin-bottom: 20px;
+                        }
+                        .print-button:hover { background: #b91c1c; }
+                        .summary-box { 
+                            background: linear-gradient(135deg, #f0f9ff, #e0f2fe); 
+                            padding: 20px; border-radius: 8px; margin: 20px 0; 
+                            border: 2px solid #4a9eff;
+                        }
+                        .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+                        .summary-item { text-align: center; }
+                        .summary-label { font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 5px; }
+                        .summary-value { font-size: 24px; font-weight: bold; color: #333; }
+                        .summary-table { margin-top: 30px; }
+                        .summary-table table { width: auto; margin: 0 auto; }
+                        .summary-table th { background: #2563eb; }
+                        .summary-table td { font-size: 14px; padding: 10px 20px; }
+                    </style>
+                </head>
+                <body>
+                    <button class="print-button no-print" onclick="window.print()">Print to PDF</button>
+                    <h1>Pay Application - ${selectedProjectName}</h1>
+                    <div class="subtitle">Generated: ${new Date().toLocaleDateString()}</div>
+                    
+                    <div class="summary-box">
+                        <div class="summary-grid">
+                            <div class="summary-item">
+                                <div class="summary-label">Contract Total</div>
+                                <div class="summary-value">${totalContract.toFixed(2)}</div>
+                            </div>
+                            <div class="summary-item">
+                                <div class="summary-label">Installed to Date</div>
+                                <div class="summary-value">${totalInstalled.toFixed(2)}</div>
+                            </div>
+                            <div class="summary-item">
+                                <div class="summary-label">Complete</div>
+                                <div class="summary-value">${totalPercent.toFixed(1)}%</div>
+                            </div>
+                            <div class="summary-item">
+                                <div class="summary-label">Balance</div>
+                                <div class="summary-value">${balance.toFixed(2)}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Name</th>
+                                <th style="text-align: right">Rate</th>
+                                <th style="text-align: right">Contract Qty</th>
+                                <th style="text-align: right">Installed Qty</th>
+                                <th style="text-align: right">Contract $</th>
+                                <th style="text-align: right">Installed $</th>
+                                <th style="text-align: center">Progress</th>
+                                <th style="text-align: center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows}
+                        </tbody>
+                        <tfoot style="font-weight: bold; background: #f0f0f0;">
+                            <tr>
+                                <td colspan="5">TOTALS</td>
+                                <td style="text-align: right">${totalContract.toFixed(2)}</td>
+                                <td style="text-align: right">${totalInstalled.toFixed(2)}</td>
+                                <td style="text-align: center">${totalPercent.toFixed(1)}%</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    
+                    <div class="summary-table">
+                        <h2 style="color: #4a9eff; text-align: center;">Payment Summary</h2>
+                        <table>
+                            <tr><th>Description</th><th>Amount</th></tr>
+                            <tr><td>Contract Total</td><td style="text-align: right">${totalContract.toFixed(2)}</td></tr>
+                            <tr><td>Work Completed to Date</td><td style="text-align: right">${totalInstalled.toFixed(2)}</td></tr>
+                            <tr><td>Percent Complete</td><td style="text-align: right">${totalPercent.toFixed(1)}%</td></tr>
+                            <tr style="background: #fef3c7;"><td><strong>Balance Remaining</strong></td><td style="text-align: right"><strong>${balance.toFixed(2)}</strong></td></tr>
+                        </table>
+                    </div>
+                </body>
+                </html>
+            `;
             
-            // Add summary table at the end
-            const finalY = doc.previousAutoTable.finalY || 34;
-            if (finalY < doc.internal.pageSize.height - 40) {
-                doc.setFontSize(11);
-                doc.setTextColor(74, 158, 255);
-                doc.text('Summary', 14, finalY + 10);
-                
-                doc.autoTable({
-                    head: [['Description', 'Amount']],
-                    body: [
-                        ['Contract Total', '$' + totalContract.toFixed(2)],
-                        ['Installed to Date', '$' + totalInstalled.toFixed(2)],
-                        ['Percent Complete', totalPercent.toFixed(1) + '%'],
-                        ['Remaining Balance', '$' + balance.toFixed(2)]
-                    ],
-                    startY: finalY + 15,
-                    theme: 'striped',
-                    headStyles: { fillColor: [74, 158, 255] },
-                    columnStyles: {
-                        0: { cellWidth: 50 },
-                        1: { cellWidth: 40, halign: 'right' }
-                    }
-                });
-            }
-            
-            doc.save(`${selectedProjectName}_pay_application_${getFormattedDate()}.pdf`);
+            printWindow.document.write(html);
+            printWindow.document.close();
         }
     </script>
 </body>
