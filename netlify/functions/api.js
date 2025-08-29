@@ -1174,7 +1174,7 @@ async function handleBidItems(event, headers, method, id) {
   }
 }
 
-// Project Bid Items handler - Updated to handle category in project_bid_items table
+// Project Bid Items handler - Complete version with category column support
 async function handleProjectBidItems(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -1193,7 +1193,7 @@ async function handleProjectBidItems(event, headers, method, id) {
               pbi.bid_item_id,
               bi.item_code,
               bi.item_name,
-              COALESCE(pbi.category, bi.category) as category,  -- Use project override or fallback to master
+              COALESCE(pbi.category, bi.category) as category,
               bi.description,
               pbi.unit,
               pbi.rate,
@@ -1241,7 +1241,7 @@ async function handleProjectBidItems(event, headers, method, id) {
           };
         }
         
-        // Get all project bid items for the project
+        // Get all project bid items for the project with COALESCE for category
         const bidItems = await sql`
           SELECT 
             pbi.id as project_bid_item_id,
@@ -1249,7 +1249,7 @@ async function handleProjectBidItems(event, headers, method, id) {
             pbi.bid_item_id,
             bi.item_code,
             bi.item_name,
-            COALESCE(pbi.category, bi.category) as category,  -- Use project override or fallback to master
+            COALESCE(pbi.category, bi.category) as category,
             bi.description,
             pbi.unit,
             pbi.rate,
@@ -1361,7 +1361,17 @@ async function handleProjectBidItems(event, headers, method, id) {
         // Insert new project bid item with category
         const newItem = await sql`
           INSERT INTO project_bid_items (
-            project_id, bid_item_id, rate, material_cost, unit, category, contract_quantity, notes, is_active, created_at, updated_at
+            project_id, 
+            bid_item_id, 
+            rate, 
+            material_cost, 
+            unit, 
+            category,
+            contract_quantity, 
+            notes, 
+            is_active, 
+            created_at, 
+            updated_at
           ) VALUES (
             ${data.project_id},
             ${data.bid_item_id},
@@ -1454,7 +1464,7 @@ async function handleProjectBidItems(event, headers, method, id) {
           };
         }
         
-        // Update the item with category support
+        // Update the item including category
         const updated = await sql`
           UPDATE project_bid_items
           SET 
