@@ -1174,9 +1174,7 @@ async function handleBidItems(event, headers, method, id) {
   }
 }
 
-// Safe version of handleProjectBidItems that won't crash if category column doesn't exist
-// Replace the handleProjectBidItems function in api-2.js with this version
-
+// Project Bid Items handler - Updated to handle category in project_bid_items table
 async function handleProjectBidItems(event, headers, method, id) {
   const { role, userId } = event.auth || {};
 
@@ -1187,7 +1185,7 @@ async function handleProjectBidItems(event, headers, method, id) {
         const projectId = params.project_id;
         
         if (id) {
-          // Get specific project bid item by ID - safe version
+          // Get specific project bid item by ID
           const bidItems = await sql`
             SELECT 
               pbi.id as project_bid_item_id,
@@ -1195,7 +1193,7 @@ async function handleProjectBidItems(event, headers, method, id) {
               pbi.bid_item_id,
               bi.item_code,
               bi.item_name,
-              bi.category,
+              COALESCE(pbi.category, bi.category) as category,  -- Use project override or fallback to master
               bi.description,
               pbi.unit,
               pbi.rate,
@@ -1243,7 +1241,7 @@ async function handleProjectBidItems(event, headers, method, id) {
           };
         }
         
-        // Get all project bid items for the project - safe version using only bi.category
+        // Get all project bid items for the project
         const bidItems = await sql`
           SELECT 
             pbi.id as project_bid_item_id,
@@ -1251,7 +1249,7 @@ async function handleProjectBidItems(event, headers, method, id) {
             pbi.bid_item_id,
             bi.item_code,
             bi.item_name,
-            bi.category,
+            COALESCE(pbi.category, bi.category) as category,  -- Use project override or fallback to master
             bi.description,
             pbi.unit,
             pbi.rate,
@@ -1344,7 +1342,7 @@ async function handleProjectBidItems(event, headers, method, id) {
         
         // Get bid item details for defaults
         const bidItem = await sql`
-          SELECT material_cost, default_unit FROM bid_items 
+          SELECT material_cost, default_unit, category FROM bid_items 
           WHERE id = ${data.bid_item_id} AND is_active = true
         `;
         
@@ -1358,17 +1356,19 @@ async function handleProjectBidItems(event, headers, method, id) {
         
         const defaultMaterialCost = bidItem[0].material_cost || 0;
         const defaultUnit = bidItem[0].default_unit || 'EA';
+        const defaultCategory = bidItem[0].category || null;
         
-        // Insert new project bid item - WITHOUT category for now
+        // Insert new project bid item with category
         const newItem = await sql`
           INSERT INTO project_bid_items (
-            project_id, bid_item_id, rate, material_cost, unit, contract_quantity, notes, is_active, created_at, updated_at
+            project_id, bid_item_id, rate, material_cost, unit, category, contract_quantity, notes, is_active, created_at, updated_at
           ) VALUES (
             ${data.project_id},
             ${data.bid_item_id},
             ${data.rate || 0},
             ${data.material_cost !== undefined ? data.material_cost : defaultMaterialCost},
             ${data.unit || defaultUnit},
+            ${data.category !== undefined ? data.category : defaultCategory},
             ${data.contract_quantity || null},
             ${data.notes || null},
             ${data.is_active !== false},
@@ -1386,7 +1386,7 @@ async function handleProjectBidItems(event, headers, method, id) {
             pbi.bid_item_id,
             bi.item_code,
             bi.item_name,
-            bi.category,
+            COALESCE(pbi.category, bi.category) as category,
             pbi.unit,
             pbi.rate,
             pbi.material_cost,
@@ -1454,13 +1454,14 @@ async function handleProjectBidItems(event, headers, method, id) {
           };
         }
         
-        // Update the item - WITHOUT category for now to avoid crashes
+        // Update the item with category support
         const updated = await sql`
           UPDATE project_bid_items
           SET 
             rate = ${data.rate !== undefined ? data.rate : existing[0].rate},
             material_cost = ${data.material_cost !== undefined ? data.material_cost : existing[0].material_cost},
             unit = ${data.unit !== undefined ? data.unit : existing[0].unit},
+            category = ${data.category !== undefined ? data.category : existing[0].category},
             contract_quantity = ${data.contract_quantity !== undefined ? data.contract_quantity : existing[0].contract_quantity},
             notes = ${data.notes !== undefined ? data.notes : existing[0].notes},
             is_active = ${data.is_active !== undefined ? data.is_active : existing[0].is_active},
@@ -1477,7 +1478,7 @@ async function handleProjectBidItems(event, headers, method, id) {
             pbi.bid_item_id,
             bi.item_code,
             bi.item_name,
-            bi.category,
+            COALESCE(pbi.category, bi.category) as category,
             pbi.unit,
             pbi.rate,
             pbi.material_cost,
