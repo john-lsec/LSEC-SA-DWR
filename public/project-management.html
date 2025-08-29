@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LSEC SA Project Management</title>
+    <!-- jsPDF and autoTable for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; padding: 20px; font-family: Arial, sans-serif; background: #1a1a1a; color: #e0e0e0; }
@@ -50,7 +53,16 @@
         .btn:hover { background: #357abd; }
         .btn-success { background: #28a745; }
         .btn-danger { background: #dc3545; }
+        .btn-excel { background: #217346; }
+        .btn-excel:hover { background: #1e5e3a; }
+        .btn-pdf { background: #dc2626; }
+        .btn-pdf:hover { background: #b91c1c; }
         .btn-sm { padding: 6px 12px; font-size: 12px; }
+        
+        /* Export Buttons Group */
+        .export-buttons { display: flex; gap: 8px; }
+        .export-btn { padding: 8px 16px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+        .export-btn svg { width: 16px; height: 16px; }
         
         /* Table */
         table { width: 100%; border-collapse: collapse; background: #1e1e1e; font-size: 13px; }
@@ -60,7 +72,8 @@
         tr.modified { background: rgba(74, 158, 255, 0.1); border-left: 3px solid #4a9eff; }
         
         .table-container { overflow-x: auto; border: 1px solid #404040; border-radius: 8px; }
-        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 10px; }
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 10px; flex-wrap: wrap; }
+        .toolbar-left { display: flex; gap: 10px; align-items: center; flex: 1; }
         .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
         .stat { background: #242424; padding: 15px; border-radius: 8px; border: 1px solid #404040; }
         .stat h4 { margin: 0 0 8px 0; color: #4a9eff; font-size: 12px; text-transform: uppercase; }
@@ -82,6 +95,13 @@
         .status-partial { color: #fbbf24; }
         .status-pending { color: #f87171; }
         .over-billed { color: #f87171; font-weight: bold; }
+        
+        @media (max-width: 768px) {
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            .toolbar { flex-direction: column; align-items: stretch; }
+            .toolbar-left { flex-direction: column; }
+            .export-buttons { justify-content: center; }
+        }
     </style>
 </head>
 <body>
@@ -128,10 +148,22 @@
                 </div>
                 
                 <div class="toolbar">
-                    <input type="text" id="searchInput" placeholder="Search items..." style="max-width: 200px;">
-                    <select id="categoryFilter" style="max-width: 150px;">
-                        <option value="">All Categories</option>
-                    </select>
+                    <div class="toolbar-left">
+                        <input type="text" id="searchInput" placeholder="Search items..." style="max-width: 200px;">
+                        <select id="categoryFilter" style="max-width: 150px;">
+                            <option value="">All Categories</option>
+                        </select>
+                    </div>
+                    <div class="export-buttons">
+                        <button class="btn btn-excel export-btn" onclick="exportBidItemsToExcel()">
+                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M15.8,20H14L12,13.2L10,20H8.2L11.1,12L8.2,4H10L12,10.8L14,4H15.8L12.9,12L15.8,20M13,9V3.5L18.5,9H13Z"/></svg>
+                            Excel
+                        </button>
+                        <button class="btn btn-pdf export-btn" onclick="exportBidItemsToPDF()">
+                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2H14M18,20V9H13V4H6V20H18M10.92,12.31C10.68,11.54 10.15,9.08 11.55,9.04C12.95,9 12.03,12.16 12.03,12.16C12.42,13.65 14.05,14.72 14.05,14.72C14.55,14.57 17.4,14.24 17,15.72C16.57,17.2 13.5,15.81 13.5,15.81C11.55,15.95 10.09,16.47 10.09,16.47C8.96,18.58 7.64,19.5 7.1,18.61C6.43,17.5 9.23,16.07 9.23,16.07C10.68,13.72 10.9,12.35 10.92,12.31M11.57,13.15C11.17,14.45 10.37,15.84 10.37,15.84C11.22,15.5 13.08,15.11 13.08,15.11C11.94,14.11 11.59,13.16 11.57,13.15M14.71,15.32C14.71,15.32 16.46,15.97 16.5,15.71C16.57,15.44 14.71,15.32 14.71,15.32M9.05,16.81C8.28,17.11 7.54,18.39 7.72,18.39C7.9,18.4 8.63,17.79 9.05,16.81M11.57,11.26C11.57,11.21 12,9.58 11.57,9.53C11.27,9.5 11.56,11.22 11.57,11.26Z"/></svg>
+                            PDF
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="table-container">
@@ -165,6 +197,20 @@
                     <div class="stat"><h4>Last Date</h4><div class="value" id="lastDate">-</div></div>
                 </div>
                 
+                <div class="toolbar">
+                    <div class="toolbar-left"></div>
+                    <div class="export-buttons">
+                        <button class="btn btn-excel export-btn" onclick="exportInstalledToExcel()">
+                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M15.8,20H14L12,13.2L10,20H8.2L11.1,12L8.2,4H10L12,10.8L14,4H15.8L12.9,12L15.8,20M13,9V3.5L18.5,9H13Z"/></svg>
+                            Excel
+                        </button>
+                        <button class="btn btn-pdf export-btn" onclick="exportInstalledToPDF()">
+                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2H14M18,20V9H13V4H6V20H18M10.92,12.31C10.68,11.54 10.15,9.08 11.55,9.04C12.95,9 12.03,12.16 12.03,12.16C12.42,13.65 14.05,14.72 14.05,14.72C14.55,14.57 17.4,14.24 17,15.72C16.57,17.2 13.5,15.81 13.5,15.81C11.55,15.95 10.09,16.47 10.09,16.47C8.96,18.58 7.64,19.5 7.1,18.61C6.43,17.5 9.23,16.07 9.23,16.07C10.68,13.72 10.9,12.35 10.92,12.31M11.57,13.15C11.17,14.45 10.37,15.84 10.37,15.84C11.22,15.5 13.08,15.11 13.08,15.11C11.94,14.11 11.59,13.16 11.57,13.15M14.71,15.32C14.71,15.32 16.46,15.97 16.5,15.71C16.57,15.44 14.71,15.32 14.71,15.32M9.05,16.81C8.28,17.11 7.54,18.39 7.72,18.39C7.9,18.4 8.63,17.79 9.05,16.81M11.57,11.26C11.57,11.21 12,9.58 11.57,9.53C11.27,9.5 11.56,11.22 11.57,11.26Z"/></svg>
+                            PDF
+                        </button>
+                    </div>
+                </div>
+                
                 <div class="table-container">
                     <table>
                         <thead>
@@ -186,6 +232,20 @@
                     <div class="stat"><h4>Installed</h4><div class="value" id="totalInstalled">$0</div></div>
                     <div class="stat"><h4>Complete</h4><div class="value" id="percentComplete">0%</div></div>
                     <div class="stat"><h4>Balance</h4><div class="value" id="balance">$0</div></div>
+                </div>
+                
+                <div class="toolbar">
+                    <div class="toolbar-left"></div>
+                    <div class="export-buttons">
+                        <button class="btn btn-excel export-btn" onclick="exportPayAppToExcel()">
+                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M15.8,20H14L12,13.2L10,20H8.2L11.1,12L8.2,4H10L12,10.8L14,4H15.8L12.9,12L15.8,20M13,9V3.5L18.5,9H13Z"/></svg>
+                            Excel
+                        </button>
+                        <button class="btn btn-pdf export-btn" onclick="exportPayAppToPDF()">
+                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2H14M18,20V9H13V4H6V20H18M10.92,12.31C10.68,11.54 10.15,9.08 11.55,9.04C12.95,9 12.03,12.16 12.03,12.16C12.42,13.65 14.05,14.72 14.05,14.72C14.55,14.57 17.4,14.24 17,15.72C16.57,17.2 13.5,15.81 13.5,15.81C11.55,15.95 10.09,16.47 10.09,16.47C8.96,18.58 7.64,19.5 7.1,18.61C6.43,17.5 9.23,16.07 9.23,16.07C10.68,13.72 10.9,12.35 10.92,12.31M11.57,13.15C11.17,14.45 10.37,15.84 10.37,15.84C11.22,15.5 13.08,15.11 13.08,15.11C11.94,14.11 11.59,13.16 11.57,13.15M14.71,15.32C14.71,15.32 16.46,15.97 16.5,15.71C16.57,15.44 14.71,15.32 14.71,15.32M9.05,16.81C8.28,17.11 7.54,18.39 7.72,18.39C7.9,18.4 8.63,17.79 9.05,16.81M11.57,11.26C11.57,11.21 12,9.58 11.57,9.53C11.27,9.5 11.56,11.22 11.57,11.26Z"/></svg>
+                            PDF
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="table-container">
@@ -211,6 +271,7 @@
         let projectBidItems = [];
         let installedQuantities = [];
         let selectedProjectId = null;
+        let selectedProjectName = '';
         let modifiedItems = {};
         let originalData = {};
         let currentTab = 'bid-items';
@@ -462,7 +523,7 @@
                         rate: changes.rate !== undefined ? parseFloat(changes.rate) : parseFloat(item.rate),
                         material_cost: changes.material_cost !== undefined ? parseFloat(changes.material_cost) : parseFloat(item.material_cost),
                         unit: changes.unit !== undefined ? changes.unit : item.unit,
-                        category: changes.category !== undefined ? changes.category : item.category,  // Include category
+                        category: changes.category !== undefined ? changes.category : item.category,
                         contract_quantity: changes.contract_quantity !== undefined ? parseFloat(changes.contract_quantity) : parseFloat(item.contract_quantity || 0)
                     };
                     
@@ -555,6 +616,7 @@
         function setupEvents() {
             document.getElementById('project').addEventListener('change', function() {
                 selectedProjectId = this.value;
+                selectedProjectName = this.options[this.selectedIndex].text;
                 if (selectedProjectId) {
                     loadProjectData(selectedProjectId);
                     document.getElementById('mainContent').classList.remove('hidden');
@@ -580,6 +642,355 @@
             div.className = 'alert alert-' + type;
             div.textContent = msg;
             if (type === 'success') setTimeout(() => { div.innerHTML = ''; div.className = ''; }, 3000);
+        }
+        
+        // ==================== EXPORT FUNCTIONS ====================
+        
+        // Helper function to convert data to CSV
+        function convertToCSV(headers, data) {
+            const csvHeaders = headers.join(',');
+            const csvRows = data.map(row => 
+                row.map(cell => {
+                    // Escape quotes and wrap in quotes if contains comma or quote
+                    const str = String(cell || '');
+                    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                        return '"' + str.replace(/"/g, '""') + '"';
+                    }
+                    return str;
+                }).join(',')
+            );
+            return csvHeaders + '\n' + csvRows.join('\n');
+        }
+        
+        // Helper function to download file
+        function downloadFile(content, filename, type) {
+            const blob = new Blob([content], { type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        // Helper function to get formatted date
+        function getFormattedDate() {
+            const now = new Date();
+            return now.toISOString().split('T')[0];
+        }
+        
+        // ==================== BID ITEMS EXPORTS ====================
+        
+        function exportBidItemsToExcel() {
+            const headers = ['Code', 'Name', 'Category', 'Unit', 'Rate', 'Material Cost', 'Contract Qty', 'Markup %'];
+            const data = projectBidItems.map(item => {
+                const rate = Number(item.rate) || 0;
+                const material = Number(item.material_cost) || 0;
+                const contract = Number(item.contract_quantity) || 0;
+                const markup = material > 0 ? ((rate - material) / material * 100).toFixed(1) : '0';
+                
+                return [
+                    item.item_code,
+                    item.item_name,
+                    item.category || '',
+                    item.unit || 'EA',
+                    rate.toFixed(2),
+                    material.toFixed(2),
+                    contract.toFixed(2),
+                    markup
+                ];
+            });
+            
+            const csv = convertToCSV(headers, data);
+            const filename = `${selectedProjectName}_bid_items_${getFormattedDate()}.csv`;
+            downloadFile(csv, filename, 'text/csv;charset=utf-8;');
+        }
+        
+        function exportBidItemsToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4'); // Landscape orientation
+            
+            // Add title
+            doc.setFontSize(16);
+            doc.setTextColor(74, 158, 255);
+            doc.text(`Project Bid Items - ${selectedProjectName}`, 14, 15);
+            
+            // Add date
+            doc.setFontSize(10);
+            doc.setTextColor(100);
+            doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 22);
+            
+            // Prepare table data
+            const headers = [['Code', 'Name', 'Category', 'Unit', 'Rate', 'Material', 'Contract', 'Markup']];
+            const data = projectBidItems.map(item => {
+                const rate = Number(item.rate) || 0;
+                const material = Number(item.material_cost) || 0;
+                const contract = Number(item.contract_quantity) || 0;
+                const markup = material > 0 ? ((rate - material) / material * 100).toFixed(1) + '%' : 'N/A';
+                
+                return [
+                    item.item_code,
+                    item.item_name,
+                    item.category || '',
+                    item.unit || 'EA',
+                    '$' + rate.toFixed(2),
+                    '$' + material.toFixed(2),
+                    contract.toFixed(2),
+                    markup
+                ];
+            });
+            
+            // Add table
+            doc.autoTable({
+                head: headers,
+                body: data,
+                startY: 28,
+                theme: 'grid',
+                headStyles: { fillColor: [74, 158, 255], fontSize: 9 },
+                bodyStyles: { fontSize: 8 },
+                columnStyles: {
+                    0: { cellWidth: 20 },
+                    1: { cellWidth: 60 },
+                    2: { cellWidth: 35 },
+                    3: { cellWidth: 15 },
+                    4: { cellWidth: 25, halign: 'right' },
+                    5: { cellWidth: 25, halign: 'right' },
+                    6: { cellWidth: 25, halign: 'right' },
+                    7: { cellWidth: 20, halign: 'center' }
+                }
+            });
+            
+            // Add footer
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setTextColor(150);
+                doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
+            }
+            
+            // Save the PDF
+            doc.save(`${selectedProjectName}_bid_items_${getFormattedDate()}.pdf`);
+        }
+        
+        // ==================== INSTALLED QUANTITIES EXPORTS ====================
+        
+        function exportInstalledToExcel() {
+            const headers = ['Date', 'Code', 'Name', 'Quantity', 'Unit', 'Rate', 'Total', 'Location', 'Notes'];
+            const data = installedQuantities.map(item => [
+                item.work_date || '',
+                item.item_code || '',
+                item.item_name || '',
+                Number(item.quantity || 0).toFixed(2),
+                item.unit || 'EA',
+                Number(item.rate || 0).toFixed(2),
+                Number(item.extension || 0).toFixed(2),
+                item.location_description || '',
+                item.notes || ''
+            ]);
+            
+            const csv = convertToCSV(headers, data);
+            const filename = `${selectedProjectName}_installed_quantities_${getFormattedDate()}.csv`;
+            downloadFile(csv, filename, 'text/csv;charset=utf-8;');
+        }
+        
+        function exportInstalledToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4');
+            
+            doc.setFontSize(16);
+            doc.setTextColor(74, 158, 255);
+            doc.text(`Installed Quantities - ${selectedProjectName}`, 14, 15);
+            
+            doc.setFontSize(10);
+            doc.setTextColor(100);
+            doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 22);
+            
+            // Add summary stats
+            const totalValue = installedQuantities.reduce((s, i) => s + Number(i.extension || 0), 0);
+            doc.text(`Total Value: $${totalValue.toFixed(2)} | Entries: ${installedQuantities.length}`, 14, 28);
+            
+            const headers = [['Date', 'Code', 'Name', 'Qty', 'Unit', 'Rate', 'Total', 'Location']];
+            const data = installedQuantities.map(item => [
+                item.work_date || '',
+                item.item_code || '',
+                item.item_name || '',
+                Number(item.quantity || 0).toFixed(2),
+                item.unit || 'EA',
+                '$' + Number(item.rate || 0).toFixed(2),
+                '$' + Number(item.extension || 0).toFixed(2),
+                item.location_description || ''
+            ]);
+            
+            doc.autoTable({
+                head: headers,
+                body: data,
+                startY: 34,
+                theme: 'grid',
+                headStyles: { fillColor: [74, 158, 255], fontSize: 9 },
+                bodyStyles: { fontSize: 8 },
+                columnStyles: {
+                    0: { cellWidth: 25 },
+                    1: { cellWidth: 25 },
+                    2: { cellWidth: 60 },
+                    3: { cellWidth: 20, halign: 'right' },
+                    4: { cellWidth: 15, halign: 'center' },
+                    5: { cellWidth: 25, halign: 'right' },
+                    6: { cellWidth: 25, halign: 'right' },
+                    7: { cellWidth: 50 }
+                }
+            });
+            
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setTextColor(150);
+                doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
+            }
+            
+            doc.save(`${selectedProjectName}_installed_quantities_${getFormattedDate()}.pdf`);
+        }
+        
+        // ==================== PAY APPLICATION EXPORTS ====================
+        
+        function exportPayAppToExcel() {
+            const headers = ['Code', 'Name', 'Rate', 'Contract Qty', 'Installed Qty', 'Contract Value', 'Installed Value', 'Progress %', 'Status'];
+            const data = projectBidItems.map(item => {
+                const rate = Number(item.rate) || 0;
+                const contractQty = Number(item.contract_quantity) || 0;
+                const installedQty = getInstalledQty(item.project_bid_item_id);
+                const contractValue = contractQty * rate;
+                const installedValue = installedQty * rate;
+                const percent = contractQty > 0 ? (installedQty / contractQty * 100) : 0;
+                
+                let status = 'Pending';
+                if (percent >= 100) status = 'Complete';
+                else if (percent > 0) status = 'Partial';
+                if (installedQty > contractQty && contractQty > 0) status = 'Over-billed';
+                
+                return [
+                    item.item_code,
+                    item.item_name,
+                    rate.toFixed(2),
+                    contractQty.toFixed(2),
+                    installedQty.toFixed(2),
+                    contractValue.toFixed(2),
+                    installedValue.toFixed(2),
+                    percent.toFixed(1),
+                    status
+                ];
+            });
+            
+            // Add totals row
+            const totalContract = projectBidItems.reduce((s, i) => s + ((Number(i.contract_quantity || 0)) * Number(i.rate || 0)), 0);
+            const totalInstalled = projectBidItems.reduce((s, i) => s + (getInstalledQty(i.project_bid_item_id) * Number(i.rate || 0)), 0);
+            const totalPercent = totalContract > 0 ? (totalInstalled / totalContract * 100) : 0;
+            
+            data.push(['', 'TOTALS', '', '', '', totalContract.toFixed(2), totalInstalled.toFixed(2), totalPercent.toFixed(1), '']);
+            
+            const csv = convertToCSV(headers, data);
+            const filename = `${selectedProjectName}_pay_application_${getFormattedDate()}.csv`;
+            downloadFile(csv, filename, 'text/csv;charset=utf-8;');
+        }
+        
+        function exportPayAppToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4');
+            
+            doc.setFontSize(16);
+            doc.setTextColor(74, 158, 255);
+            doc.text(`Pay Application - ${selectedProjectName}`, 14, 15);
+            
+            doc.setFontSize(10);
+            doc.setTextColor(100);
+            doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 22);
+            
+            // Calculate totals
+            const totalContract = projectBidItems.reduce((s, i) => s + ((Number(i.contract_quantity || 0)) * Number(i.rate || 0)), 0);
+            const totalInstalled = projectBidItems.reduce((s, i) => s + (getInstalledQty(i.project_bid_item_id) * Number(i.rate || 0)), 0);
+            const totalPercent = totalContract > 0 ? (totalInstalled / totalContract * 100) : 0;
+            const balance = totalContract - totalInstalled;
+            
+            // Add summary
+            doc.setFontSize(10);
+            doc.text(`Contract Total: $${totalContract.toFixed(2)} | Installed: $${totalInstalled.toFixed(2)} | Complete: ${totalPercent.toFixed(1)}% | Balance: $${balance.toFixed(2)}`, 14, 28);
+            
+            const headers = [['Code', 'Name', 'Rate', 'Contract', 'Installed', 'Progress', 'Status']];
+            const data = projectBidItems.map(item => {
+                const rate = Number(item.rate) || 0;
+                const contractQty = Number(item.contract_quantity) || 0;
+                const installedQty = getInstalledQty(item.project_bid_item_id);
+                const percent = contractQty > 0 ? (installedQty / contractQty * 100) : 0;
+                
+                let status = 'Pending';
+                if (percent >= 100) status = 'Complete';
+                else if (percent > 0) status = 'Partial';
+                if (installedQty > contractQty && contractQty > 0) status = 'Over';
+                
+                return [
+                    item.item_code,
+                    item.item_name,
+                    '$' + rate.toFixed(2),
+                    contractQty.toFixed(2),
+                    installedQty.toFixed(2),
+                    percent.toFixed(1) + '%',
+                    status
+                ];
+            });
+            
+            doc.autoTable({
+                head: headers,
+                body: data,
+                startY: 34,
+                theme: 'grid',
+                headStyles: { fillColor: [74, 158, 255], fontSize: 9 },
+                bodyStyles: { fontSize: 8 },
+                columnStyles: {
+                    0: { cellWidth: 25 },
+                    1: { cellWidth: 80 },
+                    2: { cellWidth: 25, halign: 'right' },
+                    3: { cellWidth: 25, halign: 'right' },
+                    4: { cellWidth: 25, halign: 'right' },
+                    5: { cellWidth: 25, halign: 'center' },
+                    6: { cellWidth: 25, halign: 'center' }
+                },
+                didDrawPage: function(data) {
+                    // Footer on each page
+                    doc.setFontSize(8);
+                    doc.setTextColor(150);
+                    doc.text(`Page ${data.pageNumber}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
+                }
+            });
+            
+            // Add summary table at the end
+            const finalY = doc.previousAutoTable.finalY || 34;
+            if (finalY < doc.internal.pageSize.height - 40) {
+                doc.setFontSize(11);
+                doc.setTextColor(74, 158, 255);
+                doc.text('Summary', 14, finalY + 10);
+                
+                doc.autoTable({
+                    head: [['Description', 'Amount']],
+                    body: [
+                        ['Contract Total', '$' + totalContract.toFixed(2)],
+                        ['Installed to Date', '$' + totalInstalled.toFixed(2)],
+                        ['Percent Complete', totalPercent.toFixed(1) + '%'],
+                        ['Remaining Balance', '$' + balance.toFixed(2)]
+                    ],
+                    startY: finalY + 15,
+                    theme: 'striped',
+                    headStyles: { fillColor: [74, 158, 255] },
+                    columnStyles: {
+                        0: { cellWidth: 50 },
+                        1: { cellWidth: 40, halign: 'right' }
+                    }
+                });
+            }
+            
+            doc.save(`${selectedProjectName}_pay_application_${getFormattedDate()}.pdf`);
         }
     </script>
 </body>
