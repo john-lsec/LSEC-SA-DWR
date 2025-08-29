@@ -462,11 +462,14 @@
                         rate: changes.rate !== undefined ? parseFloat(changes.rate) : parseFloat(item.rate),
                         material_cost: changes.material_cost !== undefined ? parseFloat(changes.material_cost) : parseFloat(item.material_cost),
                         unit: changes.unit !== undefined ? changes.unit : item.unit,
-                        category: changes.category !== undefined ? changes.category : item.category,
+                        category: changes.category !== undefined ? changes.category : item.category,  // Include category
                         contract_quantity: changes.contract_quantity !== undefined ? parseFloat(changes.contract_quantity) : parseFloat(item.contract_quantity || 0)
                     };
                     
-                    updates.push(AuthHelper.apiCall('api/project-bid-items/' + itemId, { method: 'PUT', body: JSON.stringify(data) }));
+                    updates.push(AuthHelper.apiCall('api/project-bid-items/' + itemId, { 
+                        method: 'PUT', 
+                        body: JSON.stringify(data) 
+                    }));
                 }
                 
                 if (updates.length > 0) {
