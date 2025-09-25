@@ -42,48 +42,74 @@
         .editable { background: transparent; border: 1px solid transparent; padding: 4px 8px; border-radius: 4px; 
                    transition: all 0.2s ease; font-size: 13px; }
         .editable:hover { background: #2a2a2a; border-color: #404040; }
-        .editable:focus { background: #333; border-color: #4a9eff; box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2); }
-        .editable.changed { background: rgba(74, 158, 255, 0.1); border-color: #4a9eff; }
+        .editable:focus { background: #333; border-color: #4a9eff; }
+        .editable.modified { background: #3d1e1e; border-color: #dc2626; }
         
         /* Buttons */
-        .btn { background: #4a9eff; color: white; border: none; padding: 10px 20px; border-radius: 6px; 
-               cursor: pointer; font-weight: 600; }
-        .btn:hover { background: #357abd; }
-        .btn-success { background: #28a745; }
-        .btn-danger { background: #dc3545; }
-        .btn-excel { background: #217346; }
-        .btn-excel:hover { background: #1e5e3a; }
-        .btn-pdf { background: #dc2626; }
-        .btn-pdf:hover { background: #b91c1c; }
-        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; 
+               transition: all 0.3s ease; }
+        .btn-success { background: #16a34a; color: white; }
+        .btn-success:hover { background: #15803d; }
+        .btn-danger { background: #dc2626; color: white; }
+        .btn-danger:hover { background: #b91c1c; }
+        .btn-secondary { background: #404040; color: #e0e0e0; }
+        .btn-secondary:hover { background: #525252; }
+        .btn-primary { background: #4a9eff; color: white; }
+        .btn-primary:hover { background: #2b7edb; }
         
-        /* Export Buttons Group */
-        .export-buttons { display: flex; gap: 8px; }
-        .export-btn { padding: 8px 16px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
-        .export-btn svg { width: 16px; height: 16px; }
-        
-        /* Table */
-        table { width: 100%; border-collapse: collapse; background: #1e1e1e; font-size: 13px; }
-        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #404040; }
-        th { background: #242424; color: #4a9eff; font-weight: 600; text-transform: uppercase; font-size: 11px; }
-        tr:hover { background: #242424; }
-        tr.modified { background: rgba(74, 158, 255, 0.1); border-left: 3px solid #4a9eff; }
-        
-        .table-container { overflow-x: auto; border: 1px solid #404040; border-radius: 8px; }
-        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 10px; flex-wrap: wrap; }
+        /* Toolbar */
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin: 20px 0; flex-wrap: wrap; gap: 10px; }
         .toolbar-left { display: flex; gap: 10px; align-items: center; flex: 1; }
-        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
-        .stat { background: #242424; padding: 15px; border-radius: 8px; border: 1px solid #404040; }
-        .stat h4 { margin: 0 0 8px 0; color: #4a9eff; font-size: 12px; text-transform: uppercase; }
-        .stat .value { font-size: 20px; font-weight: bold; color: #e0e0e0; }
+        .search-box { flex: 1; max-width: 300px; }
+        .export-buttons { display: flex; gap: 10px; }
         
-        .alert { padding: 12px; border-radius: 6px; margin-bottom: 15px; }
-        .alert-success { background: #1e3d29; color: #4ade80; border: 1px solid #16a34a; }
-        .alert-error { background: #3d1e1e; color: #f87171; border: 1px solid #dc2626; }
+        /* Stats Grid */
+        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+        .stat { background: #2a2a2a; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #404040; }
+        .stat h4 { margin: 0 0 10px 0; color: #888; font-size: 12px; text-transform: uppercase; }
+        .stat .value { font-size: 24px; font-weight: bold; color: #4a9eff; }
+        
+        /* Table Styles */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { background: #2a2a2a; padding: 12px; text-align: left; font-weight: 600; color: #4a9eff; 
+             border-bottom: 2px solid #404040; position: sticky; top: 0; z-index: 10; }
+        td { padding: 10px; border-bottom: 1px solid #333; }
+        tr:hover { background: #1e1e1e; }
+        
+        /* Modal */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; 
+                overflow: auto; background: rgba(0, 0, 0, 0.7); }
+        .modal-content { background: #1e1e1e; margin: 5% auto; padding: 20px; border: 1px solid #404040; 
+                        width: 90%; max-width: 600px; border-radius: 12px; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; 
+                       padding-bottom: 15px; border-bottom: 2px solid #404040; }
+        .modal-title { color: #4a9eff; font-size: 1.5rem; margin: 0; }
+        .close { color: #888; font-size: 28px; font-weight: bold; cursor: pointer; transition: color 0.3s; }
+        .close:hover, .close:focus { color: #f87171; }
+        
+        /* Form Grid */
+        .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group.full-width { grid-column: span 2; }
+        .form-group label { display: block; margin-bottom: 5px; color: #4a9eff; font-size: 0.9rem; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; }
+        textarea { resize: vertical; min-height: 80px; }
+        
+        /* Modal Buttons */
+        .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; 
+                       padding-top: 20px; border-top: 1px solid #404040; }
+        
+        /* Message */
+        .message { padding: 15px; margin: 20px 0; border-radius: 8px; text-align: center; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .message.success { background: #16a34a; color: white; }
+        .message.error { background: #dc2626; color: white; }
+        
+        /* Hidden */
         .hidden { display: none !important; }
         
-        /* Progress bar */
-        .progress { background: #333; border-radius: 4px; height: 18px; position: relative; overflow: hidden; }
+        /* Progress Bar */
+        .progress { background: #333; height: 20px; border-radius: 4px; position: relative; overflow: hidden; }
         .progress-fill { background: #28a745; height: 100%; transition: width 0.3s; }
         .progress-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
                         color: white; font-size: 10px; font-weight: bold; }
@@ -99,8 +125,11 @@
             .toolbar { flex-direction: column; align-items: stretch; }
             .toolbar-left { flex-direction: column; }
             .export-buttons { justify-content: center; }
+            .form-grid { grid-template-columns: 1fr; }
+            .form-group.full-width { grid-column: span 1; }
         }
     </style>
+    <script src="js/auth-helper.js"></script>
 </head>
 <body>
     <div class="container">
@@ -147,139 +176,207 @@
                 
                 <div class="toolbar">
                     <div class="toolbar-left">
-                        <input type="text" id="searchInput" placeholder="Search items..." style="max-width: 200px;">
-                        <select id="categoryFilter" style="max-width: 150px;">
+                        <input type="text" id="searchInput" class="search-box" placeholder="Search items...">
+                        <select id="categoryFilter">
                             <option value="">All Categories</option>
                         </select>
+                        <button class="btn btn-primary" onclick="openAddBidItemModal()">
+                            Add Bid Item
+                        </button>
                     </div>
                     <div class="export-buttons">
-                        <button class="btn btn-excel export-btn" onclick="exportBidItemsToExcel()">
-                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M15.8,20H14L12,13.2L10,20H8.2L11.1,12L8.2,4H10L12,10.8L14,4H15.8L12.9,12L15.8,20M13,9V3.5L18.5,9H13Z"/></svg>
-                            Excel
-                        </button>
-                        <button class="btn btn-pdf export-btn" onclick="exportBidItemsToPDF()" title="Opens in new window for printing to PDF">
-                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2H14M18,20V9H13V4H6V20H18M10.92,12.31C10.68,11.54 10.15,9.08 11.55,9.04C12.95,9 12.03,12.16 12.03,12.16C12.42,13.65 14.05,14.72 14.05,14.72C14.55,14.57 17.4,14.24 17,15.72C16.57,17.2 13.5,15.81 13.5,15.81C11.55,15.95 10.09,16.47 10.09,16.47C8.96,18.58 7.64,19.5 7.1,18.61C6.43,17.5 9.23,16.07 9.23,16.07C10.68,13.72 10.9,12.35 10.92,12.31M11.57,13.15C11.17,14.45 10.37,15.84 10.37,15.84C11.22,15.5 13.08,15.11 13.08,15.11C11.94,14.11 11.59,13.16 11.57,13.15M14.71,15.32C14.71,15.32 16.46,15.97 16.5,15.71C16.57,15.44 14.71,15.32 14.71,15.32M9.05,16.81C8.28,17.11 7.54,18.39 7.72,18.39C7.9,18.4 8.63,17.79 9.05,16.81M11.57,11.26C11.57,11.21 12,9.58 11.57,9.53C11.27,9.5 11.56,11.22 11.57,11.26Z"/></svg>
-                            Print/PDF
-                        </button>
+                        <button class="btn btn-secondary" onclick="exportToCSV('bid-items')">Export CSV</button>
+                        <button class="btn btn-secondary" onclick="exportToPDF('bid-items')">Export PDF</button>
                     </div>
                 </div>
                 
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th style="width: 80px;">Code</th>
-                                <th style="width: 180px;">Name</th>
-                                <th style="width: 100px;">Category</th>
-                                <th style="width: 60px;">Unit</th>
-                                <th style="width: 80px;">Rate</th>
-                                <th style="width: 80px;">Material</th>
-                                <th style="width: 80px;">Contract</th>
-                                <th style="width: 60px;">Markup</th>
-                                <th style="width: 60px;">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="bidItemsTable">
-                            <tr><td colspan="9">Loading...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Item Name</th>
+                            <th>Category</th>
+                            <th>Unit</th>
+                            <th>Rate</th>
+                            <th>Material Cost</th>
+                            <th>Markup %</th>
+                            <th>Contract Qty</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bidItemsTable">
+                        <tr><td colspan="9">Select a project to view items</td></tr>
+                    </tbody>
+                </table>
             </div>
             
             <!-- Installed Quantities Tab -->
             <div id="installed" class="tab-content">
                 <div class="stats">
-                    <div class="stat"><h4>Entries</h4><div class="value" id="installedEntries">0</div></div>
-                    <div class="stat"><h4>Value</h4><div class="value" id="installedValue">$0</div></div>
-                    <div class="stat"><h4>Days</h4><div class="value" id="workDays">0</div></div>
-                    <div class="stat"><h4>Last Date</h4><div class="value" id="lastDate">-</div></div>
+                    <div class="stat"><h4>Total Entries</h4><div class="value" id="installedEntries">0</div></div>
+                    <div class="stat"><h4>Total Value</h4><div class="value" id="installedValue">$0</div></div>
+                    <div class="stat"><h4>Work Days</h4><div class="value" id="workDays">0</div></div>
+                    <div class="stat"><h4>Last Entry</h4><div class="value" id="lastDate">-</div></div>
                 </div>
                 
                 <div class="toolbar">
-                    <div class="toolbar-left"></div>
+                    <div class="toolbar-left">
+                        <input type="date" id="dateFilter" onchange="renderInstalled()">
+                        <select id="itemFilter" onchange="renderInstalled()">
+                            <option value="">All Items</option>
+                        </select>
+                    </div>
                     <div class="export-buttons">
-                        <button class="btn btn-excel export-btn" onclick="exportInstalledToExcel()">
-                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M15.8,20H14L12,13.2L10,20H8.2L11.1,12L8.2,4H10L12,10.8L14,4H15.8L12.9,12L15.8,20M13,9V3.5L18.5,9H13Z"/></svg>
-                            Excel
-                        </button>
-                        <button class="btn btn-pdf export-btn" onclick="exportInstalledToPDF()" title="Opens in new window for printing to PDF">
-                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2H14M18,20V9H13V4H6V20H18M10.92,12.31C10.68,11.54 10.15,9.08 11.55,9.04C12.95,9 12.03,12.16 12.03,12.16C12.42,13.65 14.05,14.72 14.05,14.72C14.55,14.57 17.4,14.24 17,15.72C16.57,17.2 13.5,15.81 13.5,15.81C11.55,15.95 10.09,16.47 10.09,16.47C8.96,18.58 7.64,19.5 7.1,18.61C6.43,17.5 9.23,16.07 9.23,16.07C10.68,13.72 10.9,12.35 10.92,12.31M11.57,13.15C11.17,14.45 10.37,15.84 10.37,15.84C11.22,15.5 13.08,15.11 13.08,15.11C11.94,14.11 11.59,13.16 11.57,13.15M14.71,15.32C14.71,15.32 16.46,15.97 16.5,15.71C16.57,15.44 14.71,15.32 14.71,15.32M9.05,16.81C8.28,17.11 7.54,18.39 7.72,18.39C7.9,18.4 8.63,17.79 9.05,16.81M11.57,11.26C11.57,11.21 12,9.58 11.57,9.53C11.27,9.5 11.56,11.22 11.57,11.26Z"/></svg>
-                            Print/PDF
-                        </button>
+                        <button class="btn btn-secondary" onclick="exportToCSV('installed')">Export CSV</button>
+                        <button class="btn btn-secondary" onclick="exportToPDF('installed')">Export PDF</button>
                     </div>
                 </div>
                 
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Date</th><th>Code</th><th>Name</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Total</th><th>Location</th>
-                            </tr>
-                        </thead>
-                        <tbody id="installedTable">
-                            <tr><td colspan="8">No installed quantities</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Item Code</th>
+                            <th>Item Name</th>
+                            <th>Quantity</th>
+                            <th>Unit</th>
+                            <th>Rate</th>
+                            <th>Extension</th>
+                            <th>Notes</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="installedTable">
+                        <tr><td colspan="9">No installed quantities recorded</td></tr>
+                    </tbody>
+                </table>
             </div>
             
-            <!-- Pay App Tab -->
+            <!-- Pay Application Tab -->
             <div id="pay-app" class="tab-content">
                 <div class="stats">
-                    <div class="stat"><h4>Contract</h4><div class="value" id="totalContract">$0</div></div>
-                    <div class="stat"><h4>Installed</h4><div class="value" id="totalInstalled">$0</div></div>
-                    <div class="stat"><h4>Complete</h4><div class="value" id="percentComplete">0%</div></div>
+                    <div class="stat"><h4>Contract Total</h4><div class="value" id="totalContract">$0</div></div>
+                    <div class="stat"><h4>Installed Total</h4><div class="value" id="totalInstalled">$0</div></div>
+                    <div class="stat"><h4>% Complete</h4><div class="value" id="percentComplete">0%</div></div>
                     <div class="stat"><h4>Balance</h4><div class="value" id="balance">$0</div></div>
                 </div>
                 
                 <div class="toolbar">
-                    <div class="toolbar-left"></div>
+                    <div class="toolbar-left">
+                        <select id="payAppFilter" onchange="renderPayApp()">
+                            <option value="all">All Items</option>
+                            <option value="active">Active Only</option>
+                            <option value="complete">Complete</option>
+                            <option value="pending">Pending</option>
+                        </select>
+                    </div>
                     <div class="export-buttons">
-                        <button class="btn btn-excel export-btn" onclick="exportPayAppToExcel()">
-                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M15.8,20H14L12,13.2L10,20H8.2L11.1,12L8.2,4H10L12,10.8L14,4H15.8L12.9,12L15.8,20M13,9V3.5L18.5,9H13Z"/></svg>
-                            Excel
-                        </button>
-                        <button class="btn btn-pdf export-btn" onclick="exportPayAppToPDF()" title="Opens in new window for printing to PDF">
-                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2H14M18,20V9H13V4H6V20H18M10.92,12.31C10.68,11.54 10.15,9.08 11.55,9.04C12.95,9 12.03,12.16 12.03,12.16C12.42,13.65 14.05,14.72 14.05,14.72C14.55,14.57 17.4,14.24 17,15.72C16.57,17.2 13.5,15.81 13.5,15.81C11.55,15.95 10.09,16.47 10.09,16.47C8.96,18.58 7.64,19.5 7.1,18.61C6.43,17.5 9.23,16.07 9.23,16.07C10.68,13.72 10.9,12.35 10.92,12.31M11.57,13.15C11.17,14.45 10.37,15.84 10.37,15.84C11.22,15.5 13.08,15.11 13.08,15.11C11.94,14.11 11.59,13.16 11.57,13.15M14.71,15.32C14.71,15.32 16.46,15.97 16.5,15.71C16.57,15.44 14.71,15.32 14.71,15.32M9.05,16.81C8.28,17.11 7.54,18.39 7.72,18.39C7.9,18.4 8.63,17.79 9.05,16.81M11.57,11.26C11.57,11.21 12,9.58 11.57,9.53C11.27,9.5 11.56,11.22 11.57,11.26Z"/></svg>
-                            Print/PDF
-                        </button>
+                        <button class="btn btn-secondary" onclick="exportToCSV('pay-app')">Export CSV</button>
+                        <button class="btn btn-secondary" onclick="exportToPDF('pay-app')">Export PDF</button>
                     </div>
                 </div>
                 
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Code</th><th>Name</th><th>Rate</th><th>Contract</th><th>Installed</th><th>Progress</th><th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="payAppTable">
-                            <tr><td colspan="7">No pay application data</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item Code</th>
+                            <th>Item Name</th>
+                            <th>Contract Qty</th>
+                            <th>Installed Qty</th>
+                            <th>Unit</th>
+                            <th>Rate</th>
+                            <th>Contract Amt</th>
+                            <th>Installed Amt</th>
+                            <th>% Complete</th>
+                            <th>Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody id="payAppTable">
+                        <tr><td colspan="10">No data available</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
         
-        <div id="resultMessage"></div>
+        <!-- Message Container -->
+        <div id="messageContainer"></div>
     </div>
     
-    <script src="auth-helper.js"></script>
+    <!-- Add Bid Item Modal -->
+    <div id="addBidItemModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Add Bid Item to Project</h2>
+                <span class="close" onclick="closeAddBidItemModal()">&times;</span>
+            </div>
+            
+            <form id="addBidItemForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="bidItemSelect">Select Bid Item *</label>
+                        <select id="bidItemSelect" required>
+                            <option value="">-- Select Bid Item --</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="bidItemCategory">Category</label>
+                        <input type="text" id="bidItemCategory" readonly>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="bidItemUnit">Unit *</label>
+                        <input type="text" id="bidItemUnit" required placeholder="e.g., CY, SF, LF">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="bidItemRate">Rate ($) *</label>
+                        <input type="number" id="bidItemRate" required min="0" step="0.01" placeholder="0.00">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="bidItemMaterialCost">Material Cost ($)</label>
+                        <input type="number" id="bidItemMaterialCost" min="0" step="0.01" placeholder="0.00">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="bidItemContractQty">Contract Quantity</label>
+                        <input type="number" id="bidItemContractQty" min="0" step="0.01" placeholder="0.00">
+                    </div>
+                    
+                    <div class="form-group full-width">
+                        <label for="bidItemNotes">Notes</label>
+                        <textarea id="bidItemNotes" rows="3" placeholder="Optional notes..."></textarea>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeAddBidItemModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success">Add Bid Item</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
     <script>
-        let projectBidItems = [];
-        let installedQuantities = [];
+        // Global variables
         let selectedProjectId = null;
         let selectedProjectName = '';
+        let projectBidItems = [];
+        let installedQuantities = [];
         let modifiedItems = {};
         let originalData = {};
         let currentTab = 'bid-items';
+        let availableBidItems = [];
         
-        const categories = ['CLEARING', 'DEMOLITION', 'EARTHWORK', 'EROSION CONTROL', 'LANDSCAPING', 'MASONRY', 'MISC METALS', 'PAINTING', 'PAVING', 'SITE CONCRETE', 'SPECIALTIES', 'STORM DRAINAGE', 'STRUCTURES', 'TRAFFIC', 'UTILITIES', 'WATERWORKS'];
-        const units = ['EA', 'LF', 'SF', 'SY', 'CY', 'TON', 'GAL', 'HR', 'DAY', 'MO', 'LS', 'AC'];
+        const categories = ['CLEARING', 'DEMOLITION', 'EARTHWORK', 'EROSION CONTROL', 'LANDSCAPING', 
+                          'MASONRY', 'MISC METALS', 'PAINTING', 'PAVING', 'SITE CONCRETE', 
+                          'SPECIALTIES', 'STORM DRAINAGE', 'STRUCTURES', 'TRAFFIC', 'UTILITIES', 'WATERWORKS'];
         
+        // Initialize
         document.addEventListener('DOMContentLoaded', async function() {
             const isAuth = await AuthHelper.init({
-                onAuthenticated: (user) => {
+                onAuthenticated: function(user) {
                     document.getElementById('userDisplay').textContent = user.name + ' (' + user.role + ')';
                     loadProjects();
                     setupEvents();
@@ -288,7 +385,125 @@
             if (!isAuth) return;
         });
         
-        function handleLogout() { AuthHelper.logout(); }
+        function handleLogout() {
+            AuthHelper.logout();
+        }
+        
+        // Add Bid Item Modal Functions
+        async function openAddBidItemModal() {
+            if (!selectedProjectId) {
+                showMessage('Please select a project first', 'error');
+                return;
+            }
+            
+            // Load available bid items
+            try {
+                availableBidItems = await AuthHelper.apiCall('api/bid-items');
+                const select = document.getElementById('bidItemSelect');
+                select.innerHTML = '<option value="">-- Select Bid Item --</option>';
+                
+                // Group by category for better organization
+                const grouped = {};
+                availableBidItems.forEach(item => {
+                    if (!grouped[item.category]) grouped[item.category] = [];
+                    grouped[item.category].push(item);
+                });
+                
+                // Add options grouped by category
+                Object.keys(grouped).sort().forEach(category => {
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = category;
+                    
+                    grouped[category].forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.id;
+                        option.textContent = `${item.item_code} - ${item.item_name}`;
+                        option.dataset.category = item.category;
+                        option.dataset.unit = item.default_unit || '';
+                        option.dataset.materialCost = item.material_cost || '0';
+                        optgroup.appendChild(option);
+                    });
+                    
+                    select.appendChild(optgroup);
+                });
+                
+                // Reset form
+                document.getElementById('addBidItemForm').reset();
+                document.getElementById('addBidItemModal').style.display = 'block';
+            } catch (error) {
+                showMessage('Error loading bid items: ' + error.message, 'error');
+            }
+        }
+        
+        function closeAddBidItemModal() {
+            document.getElementById('addBidItemModal').style.display = 'none';
+            document.getElementById('addBidItemForm').reset();
+        }
+        
+        // Handle bid item selection
+        document.getElementById('bidItemSelect').addEventListener('change', function() {
+            const selected = this.options[this.selectedIndex];
+            if (selected.value) {
+                document.getElementById('bidItemCategory').value = selected.dataset.category || '';
+                document.getElementById('bidItemUnit').value = selected.dataset.unit || '';
+                document.getElementById('bidItemMaterialCost').value = selected.dataset.materialCost || '0';
+            } else {
+                document.getElementById('bidItemCategory').value = '';
+                document.getElementById('bidItemUnit').value = '';
+                document.getElementById('bidItemMaterialCost').value = '';
+            }
+        });
+        
+        // Handle form submission
+        document.getElementById('addBidItemForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const bidItemId = document.getElementById('bidItemSelect').value;
+            if (!bidItemId) {
+                showMessage('Please select a bid item', 'error');
+                return;
+            }
+            
+            // Check if item already exists in project
+            if (projectBidItems.some(item => item.bid_item_id === bidItemId)) {
+                showMessage('This bid item already exists in the project', 'error');
+                return;
+            }
+            
+            const data = {
+                project_id: selectedProjectId,
+                bid_item_id: bidItemId,
+                unit: document.getElementById('bidItemUnit').value,
+                rate: parseFloat(document.getElementById('bidItemRate').value) || 0,
+                material_cost: parseFloat(document.getElementById('bidItemMaterialCost').value) || 0,
+                contract_quantity: parseFloat(document.getElementById('bidItemContractQty').value) || 0,
+                notes: document.getElementById('bidItemNotes').value
+            };
+            
+            try {
+                await AuthHelper.apiCall('api/project-bid-items', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                showMessage('Bid item added successfully', 'success');
+                closeAddBidItemModal();
+                
+                // Reload project data
+                await loadProjectData(selectedProjectId);
+                updateBidStats();
+            } catch (error) {
+                showMessage('Error adding bid item: ' + error.message, 'error');
+            }
+        });
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            if (event.target === document.getElementById('addBidItemModal')) {
+                closeAddBidItemModal();
+            }
+        };
         
         async function loadProjects() {
             try {
@@ -352,35 +567,26 @@
                 const rate = Number(item.rate) || 0;
                 const material = Number(item.material_cost) || 0;
                 const contract = Number(item.contract_quantity) || 0;
-                const markup = material > 0 ? ((rate - material) / material * 100).toFixed(1) : 'N/A';
+                const markup = material > 0 ? ((rate - material) / material * 100).toFixed(1) : '0.0';
+                const isModified = modifiedItems[item.project_bid_item_id];
                 
                 const row = document.createElement('tr');
-                row.id = 'row-' + item.project_bid_item_id;
-                if (modifiedItems[item.project_bid_item_id]) row.classList.add('modified');
-                
                 row.innerHTML = `
                     <td>${item.item_code}</td>
                     <td>${item.item_name}</td>
-                    <td><select class="editable" data-id="${item.project_bid_item_id}" data-field="category">
-                        <option value="">Select</option>
-                        ${categories.map(c => `<option value="${c}" ${item.category === c ? 'selected' : ''}>${c}</option>`).join('')}
-                    </select></td>
-                    <td><select class="editable" data-id="${item.project_bid_item_id}" data-field="unit">
-                        <option value="">Select</option>
-                        ${units.map(u => `<option value="${u}" ${item.unit === u ? 'selected' : ''}>${u}</option>`).join('')}
-                    </select></td>
-                    <td><input type="number" class="editable" value="${rate.toFixed(2)}" data-id="${item.project_bid_item_id}" data-field="rate" min="0" step="0.01"></td>
-                    <td><input type="number" class="editable" value="${material.toFixed(2)}" data-id="${item.project_bid_item_id}" data-field="material_cost" min="0" step="0.01"></td>
-                    <td><input type="number" class="editable" value="${contract.toFixed(2)}" data-id="${item.project_bid_item_id}" data-field="contract_quantity" min="0" step="0.01"></td>
-                    <td>${markup}${markup !== 'N/A' ? '%' : ''}</td>
-                    <td><button class="btn btn-danger btn-sm" onclick="deleteItem('${item.project_bid_item_id}')">Del</button></td>
+                    <td>${item.category}</td>
+                    <td><input class="editable ${isModified ? 'modified' : ''}" value="${item.unit}" 
+                               onchange="updateField('${item.project_bid_item_id}', 'unit', this.value)"></td>
+                    <td><input type="number" class="editable ${isModified ? 'modified' : ''}" value="${rate.toFixed(2)}" 
+                               onchange="updateField('${item.project_bid_item_id}', 'rate', this.value)"></td>
+                    <td><input type="number" class="editable ${isModified ? 'modified' : ''}" value="${material.toFixed(2)}" 
+                               onchange="updateField('${item.project_bid_item_id}', 'material_cost', this.value)"></td>
+                    <td>${markup}%</td>
+                    <td><input type="number" class="editable ${isModified ? 'modified' : ''}" value="${contract.toFixed(2)}" 
+                               onchange="updateField('${item.project_bid_item_id}', 'contract_quantity', this.value)"></td>
+                    <td><button class="btn btn-danger" onclick="deleteItem('${item.project_bid_item_id}')">Delete</button></td>
                 `;
                 tbody.appendChild(row);
-            });
-            
-            document.querySelectorAll('.editable').forEach(el => {
-                el.addEventListener('change', handleChange);
-                el.addEventListener('input', handleInput);
             });
             
             updateBidStats();
@@ -388,24 +594,38 @@
         
         function renderInstalled() {
             const tbody = document.getElementById('installedTable');
-            if (installedQuantities.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8">No installed quantities</td></tr>';
-                updateInstalledStats();
+            const dateFilter = document.getElementById('dateFilter').value;
+            const itemFilter = document.getElementById('itemFilter').value;
+            
+            let items = installedQuantities;
+            if (dateFilter) items = items.filter(i => i.work_date === dateFilter);
+            if (itemFilter) items = items.filter(i => i.project_bid_item_id === itemFilter);
+            
+            if (items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9">No installed quantities recorded</td></tr>';
                 return;
             }
             
             tbody.innerHTML = '';
-            installedQuantities.forEach(item => {
+            items.forEach(item => {
+                const bidItem = projectBidItems.find(bi => bi.project_bid_item_id === item.project_bid_item_id);
+                if (!bidItem) return;
+                
+                const qty = Number(item.quantity) || 0;
+                const rate = Number(bidItem.rate) || 0;
+                const ext = qty * rate;
+                
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${item.work_date || 'N/A'}</td>
-                    <td>${item.item_code || 'N/A'}</td>
-                    <td>${item.item_name || 'N/A'}</td>
-                    <td>${Number(item.quantity || 0).toFixed(2)}</td>
-                    <td>${item.unit || 'EA'}</td>
-                    <td>$${Number(item.rate || 0).toFixed(2)}</td>
-                    <td>$${Number(item.extension || 0).toFixed(2)}</td>
-                    <td>${item.location_description || 'N/A'}</td>
+                    <td>${item.work_date}</td>
+                    <td>${bidItem.item_code}</td>
+                    <td>${bidItem.item_name}</td>
+                    <td>${qty.toFixed(2)}</td>
+                    <td>${bidItem.unit}</td>
+                    <td>$${rate.toFixed(2)}</td>
+                    <td>$${ext.toFixed(2)}</td>
+                    <td>${item.notes || '-'}</td>
+                    <td><button class="btn btn-danger" onclick="deleteInstalledQty('${item.id}')">Delete</button></td>
                 `;
                 tbody.appendChild(row);
             });
@@ -415,33 +635,52 @@
         
         function renderPayApp() {
             const tbody = document.getElementById('payAppTable');
-            if (projectBidItems.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7">No pay application data</td></tr>';
-                updatePayAppStats();
+            const filter = document.getElementById('payAppFilter').value;
+            
+            let items = projectBidItems;
+            if (filter === 'active') items = items.filter(i => getInstalledQty(i.project_bid_item_id) > 0);
+            else if (filter === 'complete') items = items.filter(i => {
+                const installed = getInstalledQty(i.project_bid_item_id);
+                const contract = Number(i.contract_quantity) || 0;
+                return contract > 0 && installed >= contract;
+            });
+            else if (filter === 'pending') items = items.filter(i => {
+                const installed = getInstalledQty(i.project_bid_item_id);
+                const contract = Number(i.contract_quantity) || 0;
+                return contract > 0 && installed < contract;
+            });
+            
+            if (items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10">No items found</td></tr>';
                 return;
             }
             
             tbody.innerHTML = '';
-            projectBidItems.forEach(item => {
+            items.forEach(item => {
+                const contract = Number(item.contract_quantity) || 0;
                 const rate = Number(item.rate) || 0;
-                const contractQty = Number(item.contract_quantity) || 0;
-                const installedQty = getInstalledQty(item.project_bid_item_id);
-                const percent = contractQty > 0 ? (installedQty / contractQty * 100) : 0;
+                const installed = getInstalledQty(item.project_bid_item_id);
+                const contractAmt = contract * rate;
+                const installedAmt = installed * rate;
+                const percent = contract > 0 ? (installed / contract * 100) : 0;
+                const balance = contractAmt - installedAmt;
                 
-                let status = 'pending', statusClass = 'status-pending';
-                if (percent >= 100) { status = 'complete'; statusClass = 'status-complete'; }
-                else if (percent > 0) { status = 'partial'; statusClass = 'status-partial'; }
-                if (installedQty > contractQty && contractQty > 0) { status = 'over'; statusClass = 'over-billed'; }
+                let statusClass = 'status-pending';
+                if (percent >= 100) statusClass = 'status-complete';
+                else if (percent > 0) statusClass = 'status-partial';
                 
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${item.item_code}</td>
                     <td>${item.item_name}</td>
+                    <td>${contract.toFixed(2)}</td>
+                    <td>${installed.toFixed(2)}</td>
+                    <td>${item.unit}</td>
                     <td>$${rate.toFixed(2)}</td>
-                    <td>${contractQty.toFixed(2)}</td>
-                    <td>${installedQty.toFixed(2)}</td>
-                    <td><div class="progress"><div class="progress-fill" style="width: ${Math.min(percent, 100)}%"></div><div class="progress-text">${percent.toFixed(1)}%</div></div></td>
-                    <td class="${statusClass}">${status}</td>
+                    <td>$${contractAmt.toFixed(2)}</td>
+                    <td>$${installedAmt.toFixed(2)}</td>
+                    <td class="${percent > 100 ? 'over-billed' : statusClass}">${percent.toFixed(1)}%</td>
+                    <td>$${balance.toFixed(2)}</td>
                 `;
                 tbody.appendChild(row);
             });
@@ -449,102 +688,71 @@
             updatePayAppStats();
         }
         
-        function getInstalledQty(itemId) {
-            return installedQuantities.filter(i => i.project_bid_item_id === itemId).reduce((sum, i) => sum + Number(i.quantity || 0), 0);
+        function getInstalledQty(projectBidItemId) {
+            return installedQuantities
+                .filter(i => i.project_bid_item_id === projectBidItemId)
+                .reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
         }
         
-        function handleChange(e) {
-            const itemId = e.target.dataset.id;
-            const field = e.target.dataset.field;
-            const value = e.target.value;
-            trackChange(itemId, field, value);
+        function updateField(id, field, value) {
+            const item = projectBidItems.find(i => i.project_bid_item_id === id);
+            if (!item) return;
             
-            const row = document.getElementById('row-' + itemId);
-            if (modifiedItems[itemId] && Object.keys(modifiedItems[itemId]).length > 0) {
-                row.classList.add('modified');
-            } else {
-                row.classList.remove('modified');
-            }
-        }
-        
-        function handleInput(e) {
-            const itemId = e.target.dataset.id;
-            const field = e.target.dataset.field;
-            const value = e.target.value;
-            const original = originalData[itemId][field];
-            
-            let isDiff = false;
-            if (['rate', 'material_cost', 'contract_quantity'].includes(field)) {
-                isDiff = parseFloat(value) !== parseFloat(original);
-            } else {
-                isDiff = value !== original;
+            const numFields = ['rate', 'material_cost', 'contract_quantity'];
+            if (numFields.includes(field)) {
+                value = parseFloat(value) || 0;
             }
             
-            e.target.classList.toggle('changed', isDiff);
-        }
-        
-        function trackChange(itemId, field, newValue) {
-            if (!modifiedItems[itemId]) modifiedItems[itemId] = {};
+            item[field] = value;
             
-            const original = originalData[itemId][field];
-            let compareNew = newValue, compareOrig = original;
-            
-            if (['rate', 'material_cost', 'contract_quantity'].includes(field)) {
-                compareNew = parseFloat(newValue) || 0;
-                compareOrig = parseFloat(original) || 0;
-            }
-            
-            if (compareNew !== compareOrig) {
-                modifiedItems[itemId][field] = newValue;
-            } else {
-                delete modifiedItems[itemId][field];
-                if (Object.keys(modifiedItems[itemId]).length === 0) delete modifiedItems[itemId];
-            }
+            if (!modifiedItems[id]) modifiedItems[id] = {};
+            modifiedItems[id][field] = value;
             
             updateSaveBar();
+            if (field === 'rate' || field === 'material_cost') {
+                renderBidItems();
+            }
         }
         
         function updateSaveBar() {
             const count = Object.keys(modifiedItems).length;
-            document.getElementById('changeCount').textContent = count;
-            document.getElementById('saveBar').classList.toggle('show', count > 0);
+            const bar = document.getElementById('saveBar');
+            const countEl = document.getElementById('changeCount');
+            
+            if (count > 0) {
+                bar.classList.add('show');
+                countEl.textContent = count;
+            } else {
+                bar.classList.remove('show');
+            }
         }
         
         async function saveAllChanges() {
             try {
-                const updates = [];
-                for (const [itemId, changes] of Object.entries(modifiedItems)) {
-                    const item = projectBidItems.find(i => i.project_bid_item_id === itemId);
-                    if (!item) continue;
-                    
-                    const data = {
-                        rate: changes.rate !== undefined ? parseFloat(changes.rate) : parseFloat(item.rate),
-                        material_cost: changes.material_cost !== undefined ? parseFloat(changes.material_cost) : parseFloat(item.material_cost),
-                        unit: changes.unit !== undefined ? changes.unit : item.unit,
-                        category: changes.category !== undefined ? changes.category : item.category,
-                        contract_quantity: changes.contract_quantity !== undefined ? parseFloat(changes.contract_quantity) : parseFloat(item.contract_quantity || 0)
-                    };
-                    
-                    updates.push(AuthHelper.apiCall('api/project-bid-items/' + itemId, { 
-                        method: 'PUT', 
-                        body: JSON.stringify(data) 
-                    }));
+                for (const id in modifiedItems) {
+                    await AuthHelper.apiCall(`api/project-bid-items/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(modifiedItems[id])
+                    });
                 }
                 
-                if (updates.length > 0) {
-                    await Promise.all(updates);
-                    showMessage(`Updated ${updates.length} item(s)`, 'success');
-                    modifiedItems = {};
-                    updateSaveBar();
-                    await loadProjectData(selectedProjectId);
-                }
+                showMessage('All changes saved successfully', 'success');
+                modifiedItems = {};
+                updateSaveBar();
+                await loadProjectData(selectedProjectId);
             } catch (e) {
-                showMessage('Error saving: ' + e.message, 'error');
+                showMessage('Error saving changes: ' + e.message, 'error');
             }
         }
         
         function discardChanges() {
             if (confirm('Discard all unsaved changes?')) {
+                projectBidItems.forEach(item => {
+                    if (originalData[item.project_bid_item_id]) {
+                        Object.assign(item, originalData[item.project_bid_item_id]);
+                    }
+                });
                 modifiedItems = {};
                 updateSaveBar();
                 refreshCurrentTab();
@@ -631,498 +839,126 @@
             });
         }
         
-        function deleteItem(id) {
-            if (confirm('Delete this item?')) showMessage('Delete not implemented', 'error');
+        async function deleteItem(id) {
+            if (confirm('Delete this item?')) {
+                try {
+                    await AuthHelper.apiCall(`api/project-bid-items/${id}`, { method: 'DELETE' });
+                    showMessage('Item deleted successfully', 'success');
+                    await loadProjectData(selectedProjectId);
+                } catch (e) {
+                    showMessage('Error deleting item: ' + e.message, 'error');
+                }
+            }
+        }
+        
+        async function deleteInstalledQty(id) {
+            if (confirm('Delete this entry?')) {
+                try {
+                    await AuthHelper.apiCall(`api/installed-quantities/${id}`, { method: 'DELETE' });
+                    showMessage('Entry deleted successfully', 'success');
+                    await loadProjectData(selectedProjectId);
+                } catch (e) {
+                    showMessage('Error deleting entry: ' + e.message, 'error');
+                }
+            }
         }
         
         function showMessage(msg, type) {
-            const div = document.getElementById('resultMessage');
-            div.className = 'alert alert-' + type;
+            const container = document.getElementById('messageContainer');
+            const div = document.createElement('div');
+            div.className = `message ${type}`;
             div.textContent = msg;
-            if (type === 'success') setTimeout(() => { div.innerHTML = ''; div.className = ''; }, 3000);
+            container.appendChild(div);
+            
+            setTimeout(() => div.remove(), 3000);
         }
         
-        // ==================== EXPORT FUNCTIONS ====================
-        
-        // Helper function to convert data to CSV
-        function convertToCSV(headers, data) {
-            const csvHeaders = headers.join(',');
-            const csvRows = data.map(row => 
-                row.map(cell => {
-                    // Escape quotes and wrap in quotes if contains comma or quote
-                    const str = String(cell || '');
-                    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-                        return '"' + str.replace(/"/g, '""') + '"';
-                    }
-                    return str;
-                }).join(',')
-            );
-            return csvHeaders + '\n' + csvRows.join('\n');
+        function exportToCSV(type) {
+            let data = [], filename = '';
+            
+            if (type === 'bid-items') {
+                data = projectBidItems.map(i => ({
+                    'Item Code': i.item_code,
+                    'Item Name': i.item_name,
+                    'Category': i.category,
+                    'Unit': i.unit,
+                    'Rate': i.rate,
+                    'Material Cost': i.material_cost,
+                    'Markup %': i.material_cost > 0 ? ((i.rate - i.material_cost) / i.material_cost * 100).toFixed(1) : '0',
+                    'Contract Qty': i.contract_quantity
+                }));
+                filename = `${selectedProjectName}_bid_items_${new Date().toISOString().split('T')[0]}.csv`;
+            } else if (type === 'installed') {
+                data = installedQuantities.map(i => {
+                    const bidItem = projectBidItems.find(bi => bi.project_bid_item_id === i.project_bid_item_id);
+                    return {
+                        'Date': i.work_date,
+                        'Item Code': bidItem?.item_code || '',
+                        'Item Name': bidItem?.item_name || '',
+                        'Quantity': i.quantity,
+                        'Unit': bidItem?.unit || '',
+                        'Rate': bidItem?.rate || 0,
+                        'Extension': (i.quantity * (bidItem?.rate || 0)).toFixed(2),
+                        'Notes': i.notes || ''
+                    };
+                });
+                filename = `${selectedProjectName}_installed_${new Date().toISOString().split('T')[0]}.csv`;
+            } else if (type === 'pay-app') {
+                data = projectBidItems.map(i => {
+                    const contract = Number(i.contract_quantity) || 0;
+                    const installed = getInstalledQty(i.project_bid_item_id);
+                    const rate = Number(i.rate) || 0;
+                    return {
+                        'Item Code': i.item_code,
+                        'Item Name': i.item_name,
+                        'Contract Qty': contract.toFixed(2),
+                        'Installed Qty': installed.toFixed(2),
+                        'Unit': i.unit,
+                        'Rate': rate.toFixed(2),
+                        'Contract Amount': (contract * rate).toFixed(2),
+                        'Installed Amount': (installed * rate).toFixed(2),
+                        '% Complete': contract > 0 ? ((installed / contract * 100).toFixed(1)) : '0',
+                        'Balance': ((contract - installed) * rate).toFixed(2)
+                    };
+                });
+                filename = `${selectedProjectName}_pay_app_${new Date().toISOString().split('T')[0]}.csv`;
+            }
+            
+            if (data.length === 0) {
+                showMessage('No data to export', 'error');
+                return;
+            }
+            
+            const csvContent = convertToCSV(data);
+            downloadFile(csvContent, filename, 'text/csv');
         }
         
-        // Helper function to download file
+        function convertToCSV(data) {
+            const headers = Object.keys(data[0]);
+            const rows = [headers.join(',')];
+            
+            data.forEach(item => {
+                const values = headers.map(h => {
+                    const val = item[h];
+                    return typeof val === 'string' && val.includes(',') ? `"${val}"` : val;
+                });
+                rows.push(values.join(','));
+            });
+            
+            return rows.join('\n');
+        }
+        
         function downloadFile(content, filename, type) {
             const blob = new Blob([content], { type });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+            URL.revokeObjectURL(link.href);
         }
         
-        // Helper function to get formatted date
-        function getFormattedDate() {
-            const now = new Date();
-            return now.toISOString().split('T')[0];
-        }
-        
-        // ==================== BID ITEMS EXPORTS ====================
-        
-        function exportBidItemsToExcel() {
-            const headers = ['Code', 'Name', 'Category', 'Unit', 'Rate', 'Material Cost', 'Contract Qty', 'Markup %'];
-            const data = projectBidItems.map(item => {
-                const rate = Number(item.rate) || 0;
-                const material = Number(item.material_cost) || 0;
-                const contract = Number(item.contract_quantity) || 0;
-                const markup = material > 0 ? ((rate - material) / material * 100).toFixed(1) : '0';
-                
-                return [
-                    item.item_code,
-                    item.item_name,
-                    item.category || '',
-                    item.unit || 'EA',
-                    rate.toFixed(2),
-                    material.toFixed(2),
-                    contract.toFixed(2),
-                    markup
-                ];
-            });
-            
-            const csv = convertToCSV(headers, data);
-            const filename = `${selectedProjectName}_bid_items_${getFormattedDate()}.csv`;
-            downloadFile(csv, filename, 'text/csv;charset=utf-8;');
-        }
-        
-        function exportBidItemsToPDF() {
-            // Create HTML content for printing
-            const printWindow = window.open('', '_blank');
-            
-            const tableRows = projectBidItems.map(item => {
-                const rate = Number(item.rate) || 0;
-                const material = Number(item.material_cost) || 0;
-                const contract = Number(item.contract_quantity) || 0;
-                const markup = material > 0 ? ((rate - material) / material * 100).toFixed(1) + '%' : 'N/A';
-                
-                return `
-                    <tr>
-                        <td>${item.item_code}</td>
-                        <td>${item.item_name}</td>
-                        <td>${item.category || ''}</td>
-                        <td>${item.unit || 'EA'}</td>
-                        <td style="text-align: right">${rate.toFixed(2)}</td>
-                        <td style="text-align: right">${material.toFixed(2)}</td>
-                        <td style="text-align: right">${contract.toFixed(2)}</td>
-                        <td style="text-align: center">${markup}</td>
-                    </tr>
-                `;
-            }).join('');
-            
-            const html = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Project Bid Items - ${selectedProjectName}</title>
-                    <style>
-                        @page { size: landscape; margin: 15mm; }
-                        @media print { 
-                            .no-print { display: none; }
-                            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        }
-                        body { font-family: Arial, sans-serif; margin: 20px; }
-                        h1 { color: #4a9eff; font-size: 24px; margin-bottom: 5px; }
-                        .subtitle { color: #666; font-size: 14px; margin-bottom: 20px; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                        th { background: #4a9eff; color: white; padding: 10px; text-align: left; font-weight: 600; }
-                        td { padding: 8px; border-bottom: 1px solid #ddd; }
-                        tr:nth-child(even) { background: #f5f5f5; }
-                        .print-button { 
-                            background: #dc2626; color: white; padding: 10px 20px; 
-                            border: none; border-radius: 6px; cursor: pointer; font-weight: 600; 
-                            margin-bottom: 20px;
-                        }
-                        .print-button:hover { background: #b91c1c; }
-                        .stats { display: flex; gap: 30px; margin: 20px 0; }
-                        .stat { flex: 1; }
-                        .stat-label { font-size: 12px; color: #666; text-transform: uppercase; }
-                        .stat-value { font-size: 18px; font-weight: bold; color: #333; }
-                    </style>
-                </head>
-                <body>
-                    <button class="print-button no-print" onclick="window.print()">Print to PDF</button>
-                    <h1>Project Bid Items - ${selectedProjectName}</h1>
-                    <div class="subtitle">Generated: ${new Date().toLocaleDateString()}</div>
-                    
-                    <div class="stats">
-                        <div class="stat">
-                            <div class="stat-label">Total Items</div>
-                            <div class="stat-value">${projectBidItems.length}</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">Average Rate</div>
-                            <div class="stat-value">${(projectBidItems.reduce((s, i) => s + Number(i.rate || 0), 0) / (projectBidItems.length || 1)).toFixed(2)}</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">Average Material Cost</div>
-                            <div class="stat-value">${(projectBidItems.reduce((s, i) => s + Number(i.material_cost || 0), 0) / (projectBidItems.length || 1)).toFixed(2)}</div>
-                        </div>
-                    </div>
-                    
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Code</th>
-                                <th>Name</th>
-                                <th>Category</th>
-                                <th>Unit</th>
-                                <th style="text-align: right">Rate</th>
-                                <th style="text-align: right">Material</th>
-                                <th style="text-align: right">Contract</th>
-                                <th style="text-align: center">Markup</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${tableRows}
-                        </tbody>
-                    </table>
-                </body>
-                </html>
-            `;
-            
-            printWindow.document.write(html);
-            printWindow.document.close();
-        }
-        
-        // ==================== INSTALLED QUANTITIES EXPORTS ====================
-        
-        function exportInstalledToExcel() {
-            const headers = ['Date', 'Code', 'Name', 'Quantity', 'Unit', 'Rate', 'Total', 'Location', 'Notes'];
-            const data = installedQuantities.map(item => [
-                item.work_date || '',
-                item.item_code || '',
-                item.item_name || '',
-                Number(item.quantity || 0).toFixed(2),
-                item.unit || 'EA',
-                Number(item.rate || 0).toFixed(2),
-                Number(item.extension || 0).toFixed(2),
-                item.location_description || '',
-                item.notes || ''
-            ]);
-            
-            const csv = convertToCSV(headers, data);
-            const filename = `${selectedProjectName}_installed_quantities_${getFormattedDate()}.csv`;
-            downloadFile(csv, filename, 'text/csv;charset=utf-8;');
-        }
-        
-        function exportInstalledToPDF() {
-            const printWindow = window.open('', '_blank');
-            
-            const totalValue = installedQuantities.reduce((s, i) => s + Number(i.extension || 0), 0);
-            const workDates = [...new Set(installedQuantities.map(i => i.work_date).filter(d => d))];
-            
-            const tableRows = installedQuantities.map(item => `
-                <tr>
-                    <td>${item.work_date || ''}</td>
-                    <td>${item.item_code || ''}</td>
-                    <td>${item.item_name || ''}</td>
-                    <td style="text-align: right">${Number(item.quantity || 0).toFixed(2)}</td>
-                    <td style="text-align: center">${item.unit || 'EA'}</td>
-                    <td style="text-align: right">${Number(item.rate || 0).toFixed(2)}</td>
-                    <td style="text-align: right">${Number(item.extension || 0).toFixed(2)}</td>
-                    <td>${item.location_description || ''}</td>
-                </tr>
-            `).join('');
-            
-            const html = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Installed Quantities - ${selectedProjectName}</title>
-                    <style>
-                        @page { size: landscape; margin: 15mm; }
-                        @media print { 
-                            .no-print { display: none; }
-                            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        }
-                        body { font-family: Arial, sans-serif; margin: 20px; }
-                        h1 { color: #4a9eff; font-size: 24px; margin-bottom: 5px; }
-                        .subtitle { color: #666; font-size: 14px; margin-bottom: 20px; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                        th { background: #4a9eff; color: white; padding: 10px; text-align: left; font-weight: 600; }
-                        td { padding: 8px; border-bottom: 1px solid #ddd; }
-                        tr:nth-child(even) { background: #f5f5f5; }
-                        .print-button { 
-                            background: #dc2626; color: white; padding: 10px 20px; 
-                            border: none; border-radius: 6px; cursor: pointer; font-weight: 600; 
-                            margin-bottom: 20px;
-                        }
-                        .print-button:hover { background: #b91c1c; }
-                        .summary { 
-                            background: #f0f9ff; padding: 15px; border-radius: 8px; 
-                            margin: 20px 0; border: 1px solid #4a9eff;
-                        }
-                        .summary-item { display: inline-block; margin-right: 30px; }
-                        .summary-label { font-size: 12px; color: #666; text-transform: uppercase; }
-                        .summary-value { font-size: 18px; font-weight: bold; color: #333; }
-                    </style>
-                </head>
-                <body>
-                    <button class="print-button no-print" onclick="window.print()">Print to PDF</button>
-                    <h1>Installed Quantities - ${selectedProjectName}</h1>
-                    <div class="subtitle">Generated: ${new Date().toLocaleDateString()}</div>
-                    
-                    <div class="summary">
-                        <div class="summary-item">
-                            <div class="summary-label">Total Value</div>
-                            <div class="summary-value">${totalValue.toFixed(2)}</div>
-                        </div>
-                        <div class="summary-item">
-                            <div class="summary-label">Total Entries</div>
-                            <div class="summary-value">${installedQuantities.length}</div>
-                        </div>
-                        <div class="summary-item">
-                            <div class="summary-label">Work Days</div>
-                            <div class="summary-value">${workDates.length}</div>
-                        </div>
-                        <div class="summary-item">
-                            <div class="summary-label">Last Date</div>
-                            <div class="summary-value">${workDates.sort().pop() || 'N/A'}</div>
-                        </div>
-                    </div>
-                    
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Code</th>
-                                <th>Name</th>
-                                <th style="text-align: right">Qty</th>
-                                <th style="text-align: center">Unit</th>
-                                <th style="text-align: right">Rate</th>
-                                <th style="text-align: right">Total</th>
-                                <th>Location</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${tableRows || '<tr><td colspan="8">No installed quantities</td></tr>'}
-                        </tbody>
-                    </table>
-                </body>
-                </html>
-            `;
-            
-            printWindow.document.write(html);
-            printWindow.document.close();
-        }
-        
-        // ==================== PAY APPLICATION EXPORTS ====================
-        
-        function exportPayAppToExcel() {
-            const headers = ['Code', 'Name', 'Rate', 'Contract Qty', 'Installed Qty', 'Contract Value', 'Installed Value', 'Progress %', 'Status'];
-            const data = projectBidItems.map(item => {
-                const rate = Number(item.rate) || 0;
-                const contractQty = Number(item.contract_quantity) || 0;
-                const installedQty = getInstalledQty(item.project_bid_item_id);
-                const contractValue = contractQty * rate;
-                const installedValue = installedQty * rate;
-                const percent = contractQty > 0 ? (installedQty / contractQty * 100) : 0;
-                
-                let status = 'Pending';
-                if (percent >= 100) status = 'Complete';
-                else if (percent > 0) status = 'Partial';
-                if (installedQty > contractQty && contractQty > 0) status = 'Over-billed';
-                
-                return [
-                    item.item_code,
-                    item.item_name,
-                    rate.toFixed(2),
-                    contractQty.toFixed(2),
-                    installedQty.toFixed(2),
-                    contractValue.toFixed(2),
-                    installedValue.toFixed(2),
-                    percent.toFixed(1),
-                    status
-                ];
-            });
-            
-            // Add totals row
-            const totalContract = projectBidItems.reduce((s, i) => s + ((Number(i.contract_quantity || 0)) * Number(i.rate || 0)), 0);
-            const totalInstalled = projectBidItems.reduce((s, i) => s + (getInstalledQty(i.project_bid_item_id) * Number(i.rate || 0)), 0);
-            const totalPercent = totalContract > 0 ? (totalInstalled / totalContract * 100) : 0;
-            
-            data.push(['', 'TOTALS', '', '', '', totalContract.toFixed(2), totalInstalled.toFixed(2), totalPercent.toFixed(1), '']);
-            
-            const csv = convertToCSV(headers, data);
-            const filename = `${selectedProjectName}_pay_application_${getFormattedDate()}.csv`;
-            downloadFile(csv, filename, 'text/csv;charset=utf-8;');
-        }
-        
-        function exportPayAppToPDF() {
-            const printWindow = window.open('', '_blank');
-            
-            // Calculate totals
-            const totalContract = projectBidItems.reduce((s, i) => s + ((Number(i.contract_quantity || 0)) * Number(i.rate || 0)), 0);
-            const totalInstalled = projectBidItems.reduce((s, i) => s + (getInstalledQty(i.project_bid_item_id) * Number(i.rate || 0)), 0);
-            const totalPercent = totalContract > 0 ? (totalInstalled / totalContract * 100) : 0;
-            const balance = totalContract - totalInstalled;
-            
-            const tableRows = projectBidItems.map(item => {
-                const rate = Number(item.rate) || 0;
-                const contractQty = Number(item.contract_quantity) || 0;
-                const installedQty = getInstalledQty(item.project_bid_item_id);
-                const contractValue = contractQty * rate;
-                const installedValue = installedQty * rate;
-                const percent = contractQty > 0 ? (installedQty / contractQty * 100) : 0;
-                
-                let status = 'Pending';
-                let statusColor = '#f87171';
-                if (percent >= 100) { status = 'Complete'; statusColor = '#4ade80'; }
-                else if (percent > 0) { status = 'Partial'; statusColor = '#fbbf24'; }
-                if (installedQty > contractQty && contractQty > 0) { status = 'Over'; statusColor = '#f87171'; }
-                
-                return `
-                    <tr>
-                        <td>${item.item_code}</td>
-                        <td>${item.item_name}</td>
-                        <td style="text-align: right">${rate.toFixed(2)}</td>
-                        <td style="text-align: right">${contractQty.toFixed(2)}</td>
-                        <td style="text-align: right">${installedQty.toFixed(2)}</td>
-                        <td style="text-align: right">${contractValue.toFixed(2)}</td>
-                        <td style="text-align: right">${installedValue.toFixed(2)}</td>
-                        <td style="text-align: center">
-                            <div style="display: inline-block; width: 100px; background: #e5e5e5; height: 20px; border-radius: 4px; position: relative;">
-                                <div style="width: ${Math.min(percent, 100)}%; background: #28a745; height: 100%; border-radius: 4px;"></div>
-                                <span style="position: absolute; top: 0; left: 50%; transform: translateX(-50%); line-height: 20px; font-size: 11px; font-weight: bold;">
-                                    ${percent.toFixed(1)}%
-                                </span>
-                            </div>
-                        </td>
-                        <td style="text-align: center; color: ${statusColor}; font-weight: bold">${status}</td>
-                    </tr>
-                `;
-            }).join('');
-            
-            const html = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Pay Application - ${selectedProjectName}</title>
-                    <style>
-                        @page { size: landscape; margin: 15mm; }
-                        @media print { 
-                            .no-print { display: none; }
-                            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        }
-                        body { font-family: Arial, sans-serif; margin: 20px; }
-                        h1 { color: #4a9eff; font-size: 24px; margin-bottom: 5px; }
-                        .subtitle { color: #666; font-size: 14px; margin-bottom: 20px; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                        th { background: #4a9eff; color: white; padding: 10px; text-align: left; font-weight: 600; font-size: 12px; }
-                        td { padding: 8px; border-bottom: 1px solid #ddd; font-size: 11px; }
-                        tr:nth-child(even) { background: #f5f5f5; }
-                        .print-button { 
-                            background: #dc2626; color: white; padding: 10px 20px; 
-                            border: none; border-radius: 6px; cursor: pointer; font-weight: 600; 
-                            margin-bottom: 20px;
-                        }
-                        .print-button:hover { background: #b91c1c; }
-                        .summary-box { 
-                            background: linear-gradient(135deg, #f0f9ff, #e0f2fe); 
-                            padding: 20px; border-radius: 8px; margin: 20px 0; 
-                            border: 2px solid #4a9eff;
-                        }
-                        .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
-                        .summary-item { text-align: center; }
-                        .summary-label { font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 5px; }
-                        .summary-value { font-size: 24px; font-weight: bold; color: #333; }
-                        .summary-table { margin-top: 30px; }
-                        .summary-table table { width: auto; margin: 0 auto; }
-                        .summary-table th { background: #2563eb; }
-                        .summary-table td { font-size: 14px; padding: 10px 20px; }
-                    </style>
-                </head>
-                <body>
-                    <button class="print-button no-print" onclick="window.print()">Print to PDF</button>
-                    <h1>Pay Application - ${selectedProjectName}</h1>
-                    <div class="subtitle">Generated: ${new Date().toLocaleDateString()}</div>
-                    
-                    <div class="summary-box">
-                        <div class="summary-grid">
-                            <div class="summary-item">
-                                <div class="summary-label">Contract Total</div>
-                                <div class="summary-value">${totalContract.toFixed(2)}</div>
-                            </div>
-                            <div class="summary-item">
-                                <div class="summary-label">Installed to Date</div>
-                                <div class="summary-value">${totalInstalled.toFixed(2)}</div>
-                            </div>
-                            <div class="summary-item">
-                                <div class="summary-label">Complete</div>
-                                <div class="summary-value">${totalPercent.toFixed(1)}%</div>
-                            </div>
-                            <div class="summary-item">
-                                <div class="summary-label">Balance</div>
-                                <div class="summary-value">${balance.toFixed(2)}</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Code</th>
-                                <th>Name</th>
-                                <th style="text-align: right">Rate</th>
-                                <th style="text-align: right">Contract Qty</th>
-                                <th style="text-align: right">Installed Qty</th>
-                                <th style="text-align: right">Contract $</th>
-                                <th style="text-align: right">Installed $</th>
-                                <th style="text-align: center">Progress</th>
-                                <th style="text-align: center">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${tableRows}
-                        </tbody>
-                        <tfoot style="font-weight: bold; background: #f0f0f0;">
-                            <tr>
-                                <td colspan="5">TOTALS</td>
-                                <td style="text-align: right">${totalContract.toFixed(2)}</td>
-                                <td style="text-align: right">${totalInstalled.toFixed(2)}</td>
-                                <td style="text-align: center">${totalPercent.toFixed(1)}%</td>
-                                <td></td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                    
-                    <div class="summary-table">
-                        <h2 style="color: #4a9eff; text-align: center;">Payment Summary</h2>
-                        <table>
-                            <tr><th>Description</th><th>Amount</th></tr>
-                            <tr><td>Contract Total</td><td style="text-align: right">${totalContract.toFixed(2)}</td></tr>
-                            <tr><td>Work Completed to Date</td><td style="text-align: right">${totalInstalled.toFixed(2)}</td></tr>
-                            <tr><td>Percent Complete</td><td style="text-align: right">${totalPercent.toFixed(1)}%</td></tr>
-                            <tr style="background: #fef3c7;"><td><strong>Balance Remaining</strong></td><td style="text-align: right"><strong>${balance.toFixed(2)}</strong></td></tr>
-                        </table>
-                    </div>
-                </body>
-                </html>
-            `;
-            
-            printWindow.document.write(html);
-            printWindow.document.close();
+        function exportToPDF(type) {
+            showMessage('PDF export coming soon', 'error');
         }
     </script>
 </body>
