@@ -899,7 +899,28 @@
                 row.innerHTML = `
                     <td>${item.item_code}</td>
                     <td>${item.item_name}</td>
-                    <td>${item.category}</td>
+                    <td>
+                        <select class="editable ${isModified ? 'modified' : ''}" 
+                                onchange="updateField('${item.project_bid_item_id}', 'category', this.value)">
+                            <option value="">-- None --</option>
+                            <option value="CLEARING" ${item.category === 'CLEARING' ? 'selected' : ''}>CLEARING</option>
+                            <option value="DEMOLITION" ${item.category === 'DEMOLITION' ? 'selected' : ''}>DEMOLITION</option>
+                            <option value="EARTHWORK" ${item.category === 'EARTHWORK' ? 'selected' : ''}>EARTHWORK</option>
+                            <option value="EROSION CONTROL" ${item.category === 'EROSION CONTROL' ? 'selected' : ''}>EROSION CONTROL</option>
+                            <option value="LANDSCAPING" ${item.category === 'LANDSCAPING' ? 'selected' : ''}>LANDSCAPING</option>
+                            <option value="MASONRY" ${item.category === 'MASONRY' ? 'selected' : ''}>MASONRY</option>
+                            <option value="MISC METALS" ${item.category === 'MISC METALS' ? 'selected' : ''}>MISC METALS</option>
+                            <option value="PAINTING" ${item.category === 'PAINTING' ? 'selected' : ''}>PAINTING</option>
+                            <option value="PAVING" ${item.category === 'PAVING' ? 'selected' : ''}>PAVING</option>
+                            <option value="SITE CONCRETE" ${item.category === 'SITE CONCRETE' ? 'selected' : ''}>SITE CONCRETE</option>
+                            <option value="SPECIALTIES" ${item.category === 'SPECIALTIES' ? 'selected' : ''}>SPECIALTIES</option>
+                            <option value="STORM DRAINAGE" ${item.category === 'STORM DRAINAGE' ? 'selected' : ''}>STORM DRAINAGE</option>
+                            <option value="STRUCTURES" ${item.category === 'STRUCTURES' ? 'selected' : ''}>STRUCTURES</option>
+                            <option value="TRAFFIC" ${item.category === 'TRAFFIC' ? 'selected' : ''}>TRAFFIC</option>
+                            <option value="UTILITIES" ${item.category === 'UTILITIES' ? 'selected' : ''}>UTILITIES</option>
+                            <option value="WATERWORKS" ${item.category === 'WATERWORKS' ? 'selected' : ''}>WATERWORKS</option>
+                        </select>
+                    </td>
                     <td><input class="editable ${isModified ? 'modified' : ''}" value="${item.unit}" 
                                onchange="updateField('${item.project_bid_item_id}', 'unit', this.value)"></td>
                     <td><input type="number" class="editable ${isModified ? 'modified' : ''}" value="${rate.toFixed(2)}" 
