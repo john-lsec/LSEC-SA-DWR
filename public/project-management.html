@@ -120,6 +120,55 @@
         .status-pending { color: #f87171; }
         .over-billed { color: #f87171; font-weight: bold; }
         
+        /* Autocomplete Styles */
+        .autocomplete-container { position: relative; }
+        .autocomplete-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #2a2a2a;
+            border: 1px solid #404040;
+            border-radius: 6px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1001;
+            display: none;
+            margin-top: 2px;
+        }
+        .autocomplete-results.show { display: block; }
+        .autocomplete-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #333;
+            transition: background 0.2s;
+        }
+        .autocomplete-item:hover, .autocomplete-item.selected {
+            background: #333;
+        }
+        .autocomplete-item-code {
+            color: #4a9eff;
+            font-weight: bold;
+        }
+        .autocomplete-item-name {
+            color: #e0e0e0;
+            margin-left: 10px;
+        }
+        .autocomplete-item-category {
+            color: #888;
+            font-size: 0.85rem;
+            margin-top: 3px;
+        }
+        .autocomplete-no-results {
+            padding: 15px;
+            text-align: center;
+            color: #888;
+        }
+        #bidItemSearch.has-selection {
+            background: #1e3d29;
+            border-color: #16a34a;
+        }
+        
         @media (max-width: 768px) {
             .stats { grid-template-columns: repeat(2, 1fr); }
             .toolbar { flex-direction: column; align-items: stretch; }
@@ -313,10 +362,12 @@
             <form id="addBidItemForm">
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="bidItemSelect">Select Bid Item *</label>
-                        <select id="bidItemSelect" required>
-                            <option value="">-- Select Bid Item --</option>
-                        </select>
+                        <label for="bidItemSearch">Search Bid Item *</label>
+                        <div class="autocomplete-container">
+                            <input type="text" id="bidItemSearch" placeholder="Type to search item code or name..." required autocomplete="off">
+                            <input type="hidden" id="bidItemId" required>
+                            <div id="autocompleteResults" class="autocomplete-results"></div>
+                        </div>
                     </div>
                     
                     <div class="form-group">
@@ -368,6 +419,8 @@
         let originalData = {};
         let currentTab = 'bid-items';
         let availableBidItems = [];
+        let selectedBidItem = null;
+        let autocompleteIndex = -1;
         
         const categories = ['CLEARING', 'DEMOLITION', 'EARTHWORK', 'EROSION CONTROL', 'LANDSCAPING', 
                           'MASONRY', 'MISC METALS', 'PAINTING', 'PAVING', 'SITE CONCRETE', 
@@ -380,6 +433,7 @@
                     document.getElementById('userDisplay').textContent = user.name + ' (' + user.role + ')';
                     loadProjects();
                     setupEvents();
+                    setupAutocomplete(); // Initialize autocomplete
                 }
             });
             if (!isAuth) return;
@@ -413,50 +467,35 @@
                     return;
                 }
                 
-                availableBidItems = items;
+                // Filter for active items only
+                availableBidItems = items.filter(item => item.is_active !== false);
                 
                 if (availableBidItems.length === 0) {
                     showMessage('No bid items available. Please add bid items first.', 'error');
                     return;
                 }
                 
-                const select = document.getElementById('bidItemSelect');
-                select.innerHTML = '<option value="">-- Select Bid Item --</option>';
-                
-                // Filter for active items only
-                const activeItems = availableBidItems.filter(item => 
-                    item.is_active !== false
-                );
-                
-                // Group by category for better organization
-                const grouped = {};
-                activeItems.forEach(item => {
-                    const category = item.category || 'UNCATEGORIZED';
-                    if (!grouped[category]) grouped[category] = [];
-                    grouped[category].push(item);
-                });
-                
-                // Add options grouped by category
-                Object.keys(grouped).sort().forEach(category => {
-                    const optgroup = document.createElement('optgroup');
-                    optgroup.label = category;
-                    
-                    grouped[category].forEach(item => {
-                        const option = document.createElement('option');
-                        option.value = item.id;
-                        option.textContent = `${item.item_code} - ${item.item_name}`;
-                        option.dataset.category = item.category || '';
-                        option.dataset.unit = item.default_unit || '';
-                        option.dataset.materialCost = item.material_cost || '0';
-                        optgroup.appendChild(option);
-                    });
-                    
-                    select.appendChild(optgroup);
-                });
-                
-                // Reset form
+                // Reset form and clear selection
                 document.getElementById('addBidItemForm').reset();
+                document.getElementById('bidItemSearch').value = '';
+                document.getElementById('bidItemId').value = '';
+                document.getElementById('bidItemSearch').classList.remove('has-selection');
+                selectedBidItem = null;
+                autocompleteIndex = -1;
+                
+                // Clear autocomplete results
+                const resultsDiv = document.getElementById('autocompleteResults');
+                resultsDiv.innerHTML = '';
+                resultsDiv.classList.remove('show');
+                
+                // Show modal
                 document.getElementById('addBidItemModal').style.display = 'block';
+                
+                // Focus on search input
+                setTimeout(() => {
+                    document.getElementById('bidItemSearch').focus();
+                }, 100);
+                
             } catch (error) {
                 console.error('Error loading bid items:', error);
                 showMessage('Error loading bid items. Please check console for details.', 'error');
@@ -466,29 +505,172 @@
         function closeAddBidItemModal() {
             document.getElementById('addBidItemModal').style.display = 'none';
             document.getElementById('addBidItemForm').reset();
+            document.getElementById('bidItemSearch').classList.remove('has-selection');
+            selectedBidItem = null;
+            autocompleteIndex = -1;
+            
+            // Clear autocomplete results
+            const resultsDiv = document.getElementById('autocompleteResults');
+            resultsDiv.innerHTML = '';
+            resultsDiv.classList.remove('show');
         }
         
-        // Handle bid item selection
-        document.getElementById('bidItemSelect').addEventListener('change', function() {
-            const selected = this.options[this.selectedIndex];
-            if (selected.value) {
-                document.getElementById('bidItemCategory').value = selected.dataset.category || '';
-                document.getElementById('bidItemUnit').value = selected.dataset.unit || '';
-                document.getElementById('bidItemMaterialCost').value = selected.dataset.materialCost || '0';
-            } else {
-                document.getElementById('bidItemCategory').value = '';
-                document.getElementById('bidItemUnit').value = '';
-                document.getElementById('bidItemMaterialCost').value = '';
+        // Autocomplete functions
+        function setupAutocomplete() {
+            const searchInput = document.getElementById('bidItemSearch');
+            const resultsDiv = document.getElementById('autocompleteResults');
+            
+            // Search input handler
+            searchInput.addEventListener('input', function(e) {
+                const query = e.target.value.toLowerCase().trim();
+                
+                // Clear selection if user is typing
+                if (selectedBidItem) {
+                    selectedBidItem = null;
+                    document.getElementById('bidItemId').value = '';
+                    searchInput.classList.remove('has-selection');
+                    clearBidItemFields();
+                }
+                
+                if (query.length < 2) {
+                    resultsDiv.innerHTML = '';
+                    resultsDiv.classList.remove('show');
+                    autocompleteIndex = -1;
+                    return;
+                }
+                
+                // Filter bid items
+                const filtered = availableBidItems.filter(item => {
+                    return (item.item_code && item.item_code.toLowerCase().includes(query)) ||
+                           (item.item_name && item.item_name.toLowerCase().includes(query));
+                });
+                
+                displayAutocompleteResults(filtered);
+            });
+            
+            // Keyboard navigation
+            searchInput.addEventListener('keydown', function(e) {
+                const resultsDiv = document.getElementById('autocompleteResults');
+                const items = resultsDiv.querySelectorAll('.autocomplete-item');
+                
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    autocompleteIndex = Math.min(autocompleteIndex + 1, items.length - 1);
+                    updateAutocompleteSelection(items);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    autocompleteIndex = Math.max(autocompleteIndex - 1, -1);
+                    updateAutocompleteSelection(items);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (autocompleteIndex >= 0 && items[autocompleteIndex]) {
+                        const itemId = items[autocompleteIndex].dataset.itemId;
+                        selectBidItem(itemId);
+                    }
+                } else if (e.key === 'Escape') {
+                    resultsDiv.innerHTML = '';
+                    resultsDiv.classList.remove('show');
+                    autocompleteIndex = -1;
+                }
+            });
+            
+            // Click outside to close
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.autocomplete-container')) {
+                    resultsDiv.innerHTML = '';
+                    resultsDiv.classList.remove('show');
+                    autocompleteIndex = -1;
+                }
+            });
+        }
+        
+        function displayAutocompleteResults(items) {
+            const resultsDiv = document.getElementById('autocompleteResults');
+            
+            if (items.length === 0) {
+                resultsDiv.innerHTML = '<div class="autocomplete-no-results">No matching items found</div>';
+                resultsDiv.classList.add('show');
+                autocompleteIndex = -1;
+                return;
             }
-        });
+            
+            resultsDiv.innerHTML = '';
+            items.slice(0, 10).forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'autocomplete-item';
+                div.dataset.itemId = item.id;
+                
+                div.innerHTML = `
+                    <div>
+                        <span class="autocomplete-item-code">${item.item_code || ''}</span>
+                        <span class="autocomplete-item-name">${item.item_name || ''}</span>
+                    </div>
+                    ${item.category ? `<div class="autocomplete-item-category">${item.category}</div>` : ''}
+                `;
+                
+                div.addEventListener('click', function() {
+                    selectBidItem(item.id);
+                });
+                
+                resultsDiv.appendChild(div);
+            });
+            
+            resultsDiv.classList.add('show');
+            autocompleteIndex = -1;
+        }
+        
+        function updateAutocompleteSelection(items) {
+            items.forEach((item, index) => {
+                if (index === autocompleteIndex) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+        
+        function selectBidItem(itemId) {
+            selectedBidItem = availableBidItems.find(item => item.id === itemId);
+            
+            if (!selectedBidItem) return;
+            
+            // Update search input
+            const searchInput = document.getElementById('bidItemSearch');
+            searchInput.value = `${selectedBidItem.item_code} - ${selectedBidItem.item_name}`;
+            searchInput.classList.add('has-selection');
+            
+            // Set hidden ID field
+            document.getElementById('bidItemId').value = selectedBidItem.id;
+            
+            // Update form fields
+            document.getElementById('bidItemCategory').value = selectedBidItem.category || '';
+            document.getElementById('bidItemUnit').value = selectedBidItem.default_unit || '';
+            document.getElementById('bidItemMaterialCost').value = selectedBidItem.material_cost || '0';
+            
+            // Clear autocomplete results
+            const resultsDiv = document.getElementById('autocompleteResults');
+            resultsDiv.innerHTML = '';
+            resultsDiv.classList.remove('show');
+            autocompleteIndex = -1;
+            
+            // Focus on rate field
+            document.getElementById('bidItemRate').focus();
+        }
+        
+        function clearBidItemFields() {
+            document.getElementById('bidItemCategory').value = '';
+            document.getElementById('bidItemUnit').value = '';
+            document.getElementById('bidItemMaterialCost').value = '';
+        }
         
         // Handle form submission
         document.getElementById('addBidItemForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            const bidItemId = document.getElementById('bidItemSelect').value;
+            const bidItemId = document.getElementById('bidItemId').value;
             if (!bidItemId) {
-                showMessage('Please select a bid item', 'error');
+                showMessage('Please select a bid item from the search results', 'error');
+                document.getElementById('bidItemSearch').focus();
                 return;
             }
             
@@ -529,8 +711,19 @@
         
         // Close modal when clicking outside
         window.onclick = function(event) {
-            if (event.target === document.getElementById('addBidItemModal')) {
+            const modal = document.getElementById('addBidItemModal');
+            const resultsDiv = document.getElementById('autocompleteResults');
+            
+            // Close modal if clicking outside of it
+            if (event.target === modal) {
                 closeAddBidItemModal();
+            }
+            
+            // Close autocomplete if clicking outside of it
+            if (!event.target.closest('.autocomplete-container')) {
+                resultsDiv.innerHTML = '';
+                resultsDiv.classList.remove('show');
+                autocompleteIndex = -1;
             }
         };
         
