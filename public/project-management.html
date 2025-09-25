@@ -104,6 +104,7 @@
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .message.success { background: #16a34a; color: white; }
         .message.error { background: #dc2626; color: white; }
+        .message.info { background: #4a9eff; color: white; }
         
         /* Hidden */
         .hidden { display: none !important; }
@@ -130,7 +131,7 @@
             background: #2a2a2a;
             border: 1px solid #404040;
             border-radius: 6px;
-            max-height: 200px;
+            max-height: 400px;
             overflow-y: auto;
             z-index: 1001;
             display: none;
@@ -450,36 +451,82 @@
                 return;
             }
             
-            // Load available bid items
+            // Show modal immediately with loading state
+            document.getElementById('addBidItemModal').style.display = 'block';
+            const searchInput = document.getElementById('bidItemSearch');
+            searchInput.disabled = true;
+            searchInput.placeholder = 'Loading bid items...';
+            
+            // Load ALL available bid items (all pages)
             try {
-                // Use the correct API endpoint path
-                const response = await AuthHelper.apiCall('api/bid-items');
+                availableBidItems = [];
+                let currentPage = 1;
+                let hasMorePages = true;
+                let totalLoaded = 0;
                 
-                // Handle paginated response if your API returns that format
-                let items = [];
-                if (response && response.items && Array.isArray(response.items)) {
-                    items = response.items;
-                } else if (Array.isArray(response)) {
-                    items = response;
-                } else {
-                    console.error('Unexpected response format:', response);
-                    showMessage('Unexpected response format from bid items API', 'error');
-                    return;
+                // Fetch all pages of bid items
+                while (hasMorePages) {
+                    const response = await AuthHelper.apiCall(`api/bid-items?page=${currentPage}&limit=500`);
+                    
+                    let items = [];
+                    let pagination = null;
+                    
+                    // Handle paginated response format
+                    if (response && response.items && Array.isArray(response.items)) {
+                        items = response.items;
+                        pagination = response.pagination;
+                    } else if (Array.isArray(response)) {
+                        items = response;
+                        hasMorePages = false; // Non-paginated response, stop after this
+                    } else {
+                        console.error('Unexpected response format:', response);
+                        showMessage('Unexpected response format from bid items API', 'error');
+                        searchInput.disabled = false;
+                        searchInput.placeholder = 'Type to search item code or name...';
+                        closeAddBidItemModal();
+                        return;
+                    }
+                    
+                    // Add items to our collection
+                    availableBidItems = availableBidItems.concat(items);
+                    totalLoaded = availableBidItems.length;
+                    
+                    // Update loading placeholder with count
+                    searchInput.placeholder = `Loading bid items... (${totalLoaded} loaded)`;
+                    
+                    // Check if there are more pages
+                    if (pagination) {
+                        hasMorePages = pagination.hasNext;
+                        currentPage++;
+                    } else {
+                        hasMorePages = false;
+                    }
+                    
+                    // Safety check to prevent infinite loop
+                    if (currentPage > 50) {
+                        console.warn('Too many pages, stopping at page 50');
+                        hasMorePages = false;
+                    }
                 }
                 
                 // Filter for active items only
-                availableBidItems = items.filter(item => item.is_active !== false);
+                availableBidItems = availableBidItems.filter(item => item.is_active !== false);
+                
+                console.log(`Loaded ${availableBidItems.length} active bid items`);
                 
                 if (availableBidItems.length === 0) {
                     showMessage('No bid items available. Please add bid items first.', 'error');
+                    closeAddBidItemModal();
                     return;
                 }
                 
                 // Reset form and clear selection
                 document.getElementById('addBidItemForm').reset();
-                document.getElementById('bidItemSearch').value = '';
+                searchInput.value = '';
+                searchInput.disabled = false;
+                searchInput.placeholder = `Search ${availableBidItems.length} bid items (type code or name)...`;
                 document.getElementById('bidItemId').value = '';
-                document.getElementById('bidItemSearch').classList.remove('has-selection');
+                searchInput.classList.remove('has-selection');
                 selectedBidItem = null;
                 autocompleteIndex = -1;
                 
@@ -488,17 +535,13 @@
                 resultsDiv.innerHTML = '';
                 resultsDiv.classList.remove('show');
                 
-                // Show modal
-                document.getElementById('addBidItemModal').style.display = 'block';
-                
                 // Focus on search input
-                setTimeout(() => {
-                    document.getElementById('bidItemSearch').focus();
-                }, 100);
+                searchInput.focus();
                 
             } catch (error) {
                 console.error('Error loading bid items:', error);
                 showMessage('Error loading bid items. Please check console for details.', 'error');
+                closeAddBidItemModal();
             }
         }
         
@@ -595,7 +638,12 @@
             }
             
             resultsDiv.innerHTML = '';
-            items.slice(0, 10).forEach((item, index) => {
+            
+            // Show up to 20 results for better coverage
+            const maxResults = Math.min(items.length, 20);
+            
+            for (let i = 0; i < maxResults; i++) {
+                const item = items[i];
                 const div = document.createElement('div');
                 div.className = 'autocomplete-item';
                 div.dataset.itemId = item.id;
@@ -613,7 +661,16 @@
                 });
                 
                 resultsDiv.appendChild(div);
-            });
+            }
+            
+            // Add a note if there are more results
+            if (items.length > maxResults) {
+                const moreDiv = document.createElement('div');
+                moreDiv.className = 'autocomplete-no-results';
+                moreDiv.style.fontSize = '0.85rem';
+                moreDiv.textContent = `...and ${items.length - maxResults} more results. Keep typing to refine.`;
+                resultsDiv.appendChild(moreDiv);
+            }
             
             resultsDiv.classList.add('show');
             autocompleteIndex = -1;
