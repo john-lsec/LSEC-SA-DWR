@@ -845,9 +845,19 @@
                 projectBidItems = Array.isArray(projectBidItems) ? projectBidItems : [];
                 installedQuantities = Array.isArray(installedQuantities) ? installedQuantities : [];
                 
+                // Log the structure to debug
+                if (projectBidItems.length > 0) {
+                    console.log('Sample project bid item structure:', projectBidItems[0]);
+                }
+                
                 originalData = {};
                 projectBidItems.forEach(item => {
-                    originalData[item.project_bid_item_id] = {...item};
+                    // Ensure we have the correct ID field
+                    const itemId = item.project_bid_item_id || item.id;
+                    if (!item.project_bid_item_id && item.id) {
+                        item.project_bid_item_id = item.id; // Normalize the ID field
+                    }
+                    originalData[itemId] = {...item};
                 });
                 
                 populateFilters();
