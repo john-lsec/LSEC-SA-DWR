@@ -398,11 +398,22 @@
             
             // Load available bid items
             try {
-                // Try the correct endpoint - just 'bid-items' not 'api/bid-items'
-                const response = await AuthHelper.apiCall('bid-items');
+                // Use the correct API endpoint path
+                const response = await AuthHelper.apiCall('api/bid-items');
                 
-                // Ensure we have an array
-                availableBidItems = Array.isArray(response) ? response : [];
+                // Handle paginated response if your API returns that format
+                let items = [];
+                if (response && response.items && Array.isArray(response.items)) {
+                    items = response.items;
+                } else if (Array.isArray(response)) {
+                    items = response;
+                } else {
+                    console.error('Unexpected response format:', response);
+                    showMessage('Unexpected response format from bid items API', 'error');
+                    return;
+                }
+                
+                availableBidItems = items;
                 
                 if (availableBidItems.length === 0) {
                     showMessage('No bid items available. Please add bid items first.', 'error');
@@ -498,7 +509,7 @@
             };
             
             try {
-                await AuthHelper.apiCall('project-bid-items', {
+                await AuthHelper.apiCall('api/project-bid-items', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
@@ -525,7 +536,7 @@
         
         async function loadProjects() {
             try {
-                const projects = await AuthHelper.apiCall('projects');
+                const projects = await AuthHelper.apiCall('api/projects');
                 const select = document.getElementById('project');
                 
                 // Ensure we have an array
@@ -551,9 +562,9 @@
         
         async function loadProjectData(projectId) {
             try {
-                // Use the correct endpoint paths without 'api/' prefix
-                projectBidItems = await AuthHelper.apiCall(`project-bid-items?project_id=${projectId}`);
-                installedQuantities = await AuthHelper.apiCall(`installed-quantities?project_id=${projectId}`);
+                // Use the correct endpoint paths with 'api/' prefix
+                projectBidItems = await AuthHelper.apiCall(`api/project-bid-items?project_id=${projectId}`);
+                installedQuantities = await AuthHelper.apiCall(`api/installed-quantities?project_id=${projectId}`);
                 
                 // Ensure we have arrays
                 projectBidItems = Array.isArray(projectBidItems) ? projectBidItems : [];
@@ -769,7 +780,7 @@
         async function saveAllChanges() {
             try {
                 for (const id in modifiedItems) {
-                    await AuthHelper.apiCall(`project-bid-items/${id}`, {
+                    await AuthHelper.apiCall(`api/project-bid-items/${id}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(modifiedItems[id])
