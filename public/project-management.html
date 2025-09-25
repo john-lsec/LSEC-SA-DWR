@@ -398,15 +398,31 @@
             
             // Load available bid items
             try {
-                availableBidItems = await AuthHelper.apiCall('api/bid-items');
+                // Try the correct endpoint - just 'bid-items' not 'api/bid-items'
+                const response = await AuthHelper.apiCall('bid-items');
+                
+                // Ensure we have an array
+                availableBidItems = Array.isArray(response) ? response : [];
+                
+                if (availableBidItems.length === 0) {
+                    showMessage('No bid items available. Please add bid items first.', 'error');
+                    return;
+                }
+                
                 const select = document.getElementById('bidItemSelect');
                 select.innerHTML = '<option value="">-- Select Bid Item --</option>';
                 
+                // Filter for active items only
+                const activeItems = availableBidItems.filter(item => 
+                    item.is_active !== false
+                );
+                
                 // Group by category for better organization
                 const grouped = {};
-                availableBidItems.forEach(item => {
-                    if (!grouped[item.category]) grouped[item.category] = [];
-                    grouped[item.category].push(item);
+                activeItems.forEach(item => {
+                    const category = item.category || 'UNCATEGORIZED';
+                    if (!grouped[category]) grouped[category] = [];
+                    grouped[category].push(item);
                 });
                 
                 // Add options grouped by category
@@ -418,7 +434,7 @@
                         const option = document.createElement('option');
                         option.value = item.id;
                         option.textContent = `${item.item_code} - ${item.item_name}`;
-                        option.dataset.category = item.category;
+                        option.dataset.category = item.category || '';
                         option.dataset.unit = item.default_unit || '';
                         option.dataset.materialCost = item.material_cost || '0';
                         optgroup.appendChild(option);
@@ -431,7 +447,8 @@
                 document.getElementById('addBidItemForm').reset();
                 document.getElementById('addBidItemModal').style.display = 'block';
             } catch (error) {
-                showMessage('Error loading bid items: ' + error.message, 'error');
+                console.error('Error loading bid items:', error);
+                showMessage('Error loading bid items. Please check console for details.', 'error');
             }
         }
         
@@ -481,7 +498,7 @@
             };
             
             try {
-                await AuthHelper.apiCall('api/project-bid-items', {
+                await AuthHelper.apiCall('project-bid-items', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
@@ -494,7 +511,8 @@
                 await loadProjectData(selectedProjectId);
                 updateBidStats();
             } catch (error) {
-                showMessage('Error adding bid item: ' + error.message, 'error');
+                console.error('Error adding bid item:', error);
+                showMessage('Error adding bid item. Please check console for details.', 'error');
             }
         });
         
@@ -507,23 +525,39 @@
         
         async function loadProjects() {
             try {
-                const projects = await AuthHelper.apiCall('api/projects');
+                const projects = await AuthHelper.apiCall('projects');
                 const select = document.getElementById('project');
-                projects.forEach(p => {
+                
+                // Ensure we have an array
+                const projectList = Array.isArray(projects) ? projects : [];
+                
+                if (projectList.length === 0) {
+                    select.innerHTML = '<option value="">-- No Projects Available --</option>';
+                    return;
+                }
+                
+                select.innerHTML = '<option value="">-- Select Project --</option>';
+                projectList.forEach(p => {
                     const opt = document.createElement('option');
                     opt.value = p.id;
                     opt.textContent = p.name;
                     select.appendChild(opt);
                 });
             } catch (e) {
-                showMessage('Error loading projects: ' + e.message, 'error');
+                console.error('Error loading projects:', e);
+                showMessage('Error loading projects. Please check console for details.', 'error');
             }
         }
         
         async function loadProjectData(projectId) {
             try {
-                projectBidItems = await AuthHelper.apiCall('api/project-bid-items?project_id=' + projectId);
-                installedQuantities = await AuthHelper.apiCall('api/installed-quantities?project_id=' + projectId);
+                // Use the correct endpoint paths without 'api/' prefix
+                projectBidItems = await AuthHelper.apiCall(`project-bid-items?project_id=${projectId}`);
+                installedQuantities = await AuthHelper.apiCall(`installed-quantities?project_id=${projectId}`);
+                
+                // Ensure we have arrays
+                projectBidItems = Array.isArray(projectBidItems) ? projectBidItems : [];
+                installedQuantities = Array.isArray(installedQuantities) ? installedQuantities : [];
                 
                 originalData = {};
                 projectBidItems.forEach(item => {
@@ -533,7 +567,12 @@
                 populateFilters();
                 refreshCurrentTab();
             } catch (e) {
-                showMessage('Error loading data: ' + e.message, 'error');
+                console.error('Error loading project data:', e);
+                showMessage('Error loading data. Please check console for details.', 'error');
+                // Initialize with empty arrays if error
+                projectBidItems = [];
+                installedQuantities = [];
+                refreshCurrentTab();
             }
         }
         
@@ -730,7 +769,7 @@
         async function saveAllChanges() {
             try {
                 for (const id in modifiedItems) {
-                    await AuthHelper.apiCall(`api/project-bid-items/${id}`, {
+                    await AuthHelper.apiCall(`project-bid-items/${id}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(modifiedItems[id])
@@ -742,7 +781,8 @@
                 updateSaveBar();
                 await loadProjectData(selectedProjectId);
             } catch (e) {
-                showMessage('Error saving changes: ' + e.message, 'error');
+                console.error('Error saving changes:', e);
+                showMessage('Error saving changes. Please check console for details.', 'error');
             }
         }
         
@@ -842,11 +882,12 @@
         async function deleteItem(id) {
             if (confirm('Delete this item?')) {
                 try {
-                    await AuthHelper.apiCall(`api/project-bid-items/${id}`, { method: 'DELETE' });
+                    await AuthHelper.apiCall(`project-bid-items/${id}`, { method: 'DELETE' });
                     showMessage('Item deleted successfully', 'success');
                     await loadProjectData(selectedProjectId);
                 } catch (e) {
-                    showMessage('Error deleting item: ' + e.message, 'error');
+                    console.error('Error deleting item:', e);
+                    showMessage('Error deleting item. Please check console for details.', 'error');
                 }
             }
         }
@@ -854,11 +895,12 @@
         async function deleteInstalledQty(id) {
             if (confirm('Delete this entry?')) {
                 try {
-                    await AuthHelper.apiCall(`api/installed-quantities/${id}`, { method: 'DELETE' });
+                    await AuthHelper.apiCall(`installed-quantities/${id}`, { method: 'DELETE' });
                     showMessage('Entry deleted successfully', 'success');
                     await loadProjectData(selectedProjectId);
                 } catch (e) {
-                    showMessage('Error deleting entry: ' + e.message, 'error');
+                    console.error('Error deleting entry:', e);
+                    showMessage('Error deleting entry. Please check console for details.', 'error');
                 }
             }
         }
