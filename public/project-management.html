@@ -373,7 +373,25 @@
                     
                     <div class="form-group">
                         <label for="bidItemCategory">Category</label>
-                        <input type="text" id="bidItemCategory" readonly>
+                        <select id="bidItemCategory">
+                            <option value="">-- Select Category --</option>
+                            <option value="CLEARING">CLEARING</option>
+                            <option value="DEMOLITION">DEMOLITION</option>
+                            <option value="EARTHWORK">EARTHWORK</option>
+                            <option value="EROSION CONTROL">EROSION CONTROL</option>
+                            <option value="LANDSCAPING">LANDSCAPING</option>
+                            <option value="MASONRY">MASONRY</option>
+                            <option value="MISC METALS">MISC METALS</option>
+                            <option value="PAINTING">PAINTING</option>
+                            <option value="PAVING">PAVING</option>
+                            <option value="SITE CONCRETE">SITE CONCRETE</option>
+                            <option value="SPECIALTIES">SPECIALTIES</option>
+                            <option value="STORM DRAINAGE">STORM DRAINAGE</option>
+                            <option value="STRUCTURES">STRUCTURES</option>
+                            <option value="TRAFFIC">TRAFFIC</option>
+                            <option value="UTILITIES">UTILITIES</option>
+                            <option value="WATERWORKS">WATERWORKS</option>
+                        </select>
                     </div>
                     
                     <div class="form-group">
@@ -700,7 +718,13 @@
             document.getElementById('bidItemId').value = selectedBidItem.id;
             
             // Update form fields
-            document.getElementById('bidItemCategory').value = selectedBidItem.category || '';
+            const categorySelect = document.getElementById('bidItemCategory');
+            if (selectedBidItem.category) {
+                categorySelect.value = selectedBidItem.category;
+            } else {
+                categorySelect.value = '';
+            }
+            
             document.getElementById('bidItemUnit').value = selectedBidItem.default_unit || '';
             document.getElementById('bidItemMaterialCost').value = selectedBidItem.material_cost || '0';
             
@@ -744,7 +768,8 @@
                 rate: parseFloat(document.getElementById('bidItemRate').value) || 0,
                 material_cost: parseFloat(document.getElementById('bidItemMaterialCost').value) || 0,
                 contract_quantity: parseFloat(document.getElementById('bidItemContractQty').value) || 0,
-                notes: document.getElementById('bidItemNotes').value
+                notes: document.getElementById('bidItemNotes').value,
+                category: document.getElementById('bidItemCategory').value || null
             };
             
             try {
