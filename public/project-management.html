@@ -610,6 +610,7 @@
                             <option value="UTILITIES">UTILITIES</option>
                             <option value="WATERWORKS">WATERWORKS</option>
                         </select>
+                        <button type="button" class="btn btn-secondary" onclick="refreshBidItems()">↻ Refresh</button>
                         <button type="button" class="btn btn-secondary" onclick="selectAllVisible()">Select All Visible</button>
                         <button type="button" class="btn btn-secondary" onclick="clearAllSelections()">Clear All</button>
                     </div>
@@ -655,14 +656,23 @@
         });
         
         async function initialize() {
-            // Load data in parallel for better performance
-            const promises = [
-                loadProjects(),
-                loadContractors(),
-                loadBidItems()
-            ];
+            // Start loading in parallel for better performance
+            const loadPromises = [];
             
-            await Promise.all(promises);
+            // Always load these
+            loadPromises.push(loadProjects());
+            loadPromises.push(loadContractors());
+            
+            // Start loading bid items in background
+            loadPromises.push(loadBidItems().catch(error => {
+                console.warn('Failed to preload bid items:', error);
+                // Don't fail initialization if bid items fail to load
+                return [];
+            }));
+            
+            // Wait for critical data
+            await Promise.all(loadPromises);
+            
             setupEventListeners();
         }
         
@@ -716,14 +726,68 @@
             }
         }
         
-        // Load all bid items
+        // Load all bid items (with pagination support)
         async function loadBidItems() {
             try {
-                const response = await AuthHelper.apiCall('api/bid-items');
-                // Ensure we have an array
-                allBidItems = Array.isArray(response) ? response : [];
-                console.log(`Loaded ${allBidItems.length} bid items`);
+                allBidItems = [];
+                let currentPage = 1;
+                let hasMorePages = true;
+                
+                console.log('Loading all bid items...');
+                
+                // Load all pages of bid items
+                while (hasMorePages) {
+                    try {
+                        const response = await AuthHelper.apiCall(`api/bid-items?page=${currentPage}&limit=100`);
+                        
+                        if (Array.isArray(response)) {
+                            // Simple array response
+                            if (currentPage === 1) {
+                                // First page - assume this is all data if no pagination info
+                                allBidItems = response;
+                                hasMorePages = false;
+                            } else {
+                                // Shouldn't reach here with simple array
+                                hasMorePages = false;
+                            }
+                        } else if (response && typeof response === 'object') {
+                            // Paginated response
+                            if (response.data && Array.isArray(response.data)) {
+                                allBidItems = allBidItems.concat(response.data);
+                                hasMorePages = response.hasMore || (response.data.length === 100);
+                            } else if (response.items && Array.isArray(response.items)) {
+                                allBidItems = allBidItems.concat(response.items);
+                                hasMorePages = response.hasMore || (response.items.length === 100);
+                            } else {
+                                // Unknown format, stop
+                                console.warn('Unknown response format:', response);
+                                hasMorePages = false;
+                            }
+                        } else {
+                            // Invalid response
+                            hasMorePages = false;
+                        }
+                        
+                        currentPage++;
+                        
+                        // Safety limit to prevent infinite loop
+                        if (currentPage > 50) {
+                            console.warn('Reached page limit, stopping');
+                            hasMorePages = false;
+                        }
+                    } catch (pageError) {
+                        // If pagination fails, try loading without pagination
+                        if (currentPage === 1) {
+                            const response = await AuthHelper.apiCall('api/bid-items');
+                            allBidItems = Array.isArray(response) ? response : [];
+                        }
+                        hasMorePages = false;
+                    }
+                }
+                
+                console.log(`Loaded ${allBidItems.length} total bid items`);
                 return allBidItems;
+                
             } catch (error) {
                 console.error('Error loading bid items:', error);
                 showMessage('Error loading bid items', 'error');
@@ -734,12 +798,38 @@
         
         // Open new project modal
         async function openNewProjectModal() {
-            // Ensure bid items are loaded before opening
+            // Show modal immediately
+            document.getElementById('newProjectModal').classList.add('show');
+            
+            // Show loading state in bid items container
+            const container = document.getElementById('bidItemsList');
+            container.innerHTML = '<div style="padding: 20px; text-align: center; color: #4a9eff;">Loading bid items...</div>';
+            
+            // Disable search controls while loading
+            const searchInput = document.getElementById('bidItemSearch');
+            const categoryFilter = document.getElementById('bidItemCategoryFilter');
+            searchInput.disabled = true;
+            categoryFilter.disabled = true;
+            searchInput.placeholder = 'Loading bid items...';
+            
+            // Load bid items if not already loaded or refresh them
             if (allBidItems.length === 0) {
                 await loadBidItems();
             }
-            document.getElementById('newProjectModal').classList.add('show');
-            renderBidItemsList();
+            
+            // Re-enable search controls
+            searchInput.disabled = false;
+            categoryFilter.disabled = false;
+            searchInput.placeholder = `Search ${allBidItems.length} bid items...`;
+            
+            // Check if we have bid items
+            if (allBidItems.length === 0) {
+                container.innerHTML = '<div style="padding: 20px; text-align: center; color: #f87171;">No bid items available. Please add bid items to the master list first.</div>';
+                showMessage('No bid items available. Please add bid items to the master list first.', 'error');
+            } else {
+                // Render the bid items list
+                renderBidItemsList();
+            }
         }
         
         // Close new project modal
