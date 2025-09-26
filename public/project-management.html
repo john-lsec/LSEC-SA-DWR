@@ -655,9 +655,14 @@
         });
         
         async function initialize() {
-            await loadProjects();
-            await loadContractors();
-            await loadBidItems();
+            // Load data in parallel for better performance
+            const promises = [
+                loadProjects(),
+                loadContractors(),
+                loadBidItems()
+            ];
+            
+            await Promise.all(promises);
             setupEventListeners();
         }
         
@@ -667,8 +672,11 @@
                 const projects = await AuthHelper.apiCall('api/projects');
                 const select = document.getElementById('project');
                 
+                // Ensure projects is an array
+                const projectList = Array.isArray(projects) ? projects : [];
+                
                 select.innerHTML = '<option value="">-- Select Project --</option>';
-                projects.forEach(project => {
+                projectList.forEach(project => {
                     const option = document.createElement('option');
                     option.value = project.id;
                     option.textContent = project.name;
@@ -683,35 +691,53 @@
         // Load contractors for dropdown
         async function loadContractors() {
             try {
-                contractors = await AuthHelper.apiCall('api/general-contractors');
+                const response = await AuthHelper.apiCall('api/general-contractors');
+                // Ensure we have an array
+                contractors = Array.isArray(response) ? response : [];
+                
                 const select = document.getElementById('newProjectContractor');
                 
                 select.innerHTML = '<option value="">-- Select Contractor --</option>';
                 contractors.forEach(contractor => {
-                    const option = document.createElement('option');
-                    option.value = contractor.id;
-                    option.textContent = contractor.name;
-                    select.appendChild(option);
+                    if (contractor.is_active !== false) {
+                        const option = document.createElement('option');
+                        option.value = contractor.id;
+                        option.textContent = contractor.name;
+                        select.appendChild(option);
+                    }
                 });
+                
+                return contractors;
             } catch (error) {
                 console.error('Error loading contractors:', error);
                 showMessage('Error loading contractors', 'error');
+                contractors = [];
+                return [];
             }
         }
         
         // Load all bid items
         async function loadBidItems() {
             try {
-                allBidItems = await AuthHelper.apiCall('api/bid-items');
+                const response = await AuthHelper.apiCall('api/bid-items');
+                // Ensure we have an array
+                allBidItems = Array.isArray(response) ? response : [];
                 console.log(`Loaded ${allBidItems.length} bid items`);
+                return allBidItems;
             } catch (error) {
                 console.error('Error loading bid items:', error);
                 showMessage('Error loading bid items', 'error');
+                allBidItems = [];
+                return [];
             }
         }
         
         // Open new project modal
-        function openNewProjectModal() {
+        async function openNewProjectModal() {
+            // Ensure bid items are loaded before opening
+            if (allBidItems.length === 0) {
+                await loadBidItems();
+            }
             document.getElementById('newProjectModal').classList.add('show');
             renderBidItemsList();
         }
@@ -757,19 +783,26 @@
             if (contractorId && location && county && !nameField.dataset.manual) {
                 const contractor = contractors.find(c => c.id === contractorId);
                 if (contractor) {
-                    nameField.value = `${contractor.name.toUpperCase()} ${location.toUpperCase()} ${county.toUpperCase()}`;
+                    const generatedName = `${contractor.name.toUpperCase()} ${location.toUpperCase()} ${county.toUpperCase()}`;
+                    nameField.value = generatedName;
+                    return generatedName;
                 }
             }
+            
+            return nameField.value || '';
         }
         
         // Mark name field as manually edited
-        document.getElementById('newProjectName')?.addEventListener('input', function() {
-            if (this.value) {
-                this.dataset.manual = 'true';
-            } else {
-                delete this.dataset.manual;
-            }
-        });
+        const nameField = document.getElementById('newProjectName');
+        if (nameField) {
+            nameField.addEventListener('input', function() {
+                if (this.value) {
+                    this.dataset.manual = 'true';
+                } else {
+                    delete this.dataset.manual;
+                }
+            });
+        }
         
         // Render bid items list in modal
         function renderBidItemsList() {
@@ -777,13 +810,20 @@
             const searchTerm = document.getElementById('bidItemSearch').value.toLowerCase();
             const categoryFilter = document.getElementById('bidItemCategoryFilter').value;
             
-            let filteredItems = allBidItems;
+            // Ensure allBidItems is an array
+            if (!Array.isArray(allBidItems)) {
+                console.error('Bid items not loaded properly');
+                container.innerHTML = '<div style="padding: 20px; text-align: center; color: #f87171;">Error loading bid items. Please refresh the page.</div>';
+                return;
+            }
+            
+            let filteredItems = [...allBidItems]; // Create a copy to avoid mutations
             
             // Apply search filter
             if (searchTerm) {
                 filteredItems = filteredItems.filter(item => 
-                    item.item_code.toLowerCase().includes(searchTerm) ||
-                    item.item_name.toLowerCase().includes(searchTerm)
+                    item.item_code && item.item_code.toLowerCase().includes(searchTerm) ||
+                    item.item_name && item.item_name.toLowerCase().includes(searchTerm)
                 );
             }
             
@@ -817,10 +857,10 @@
                            ${isChecked ? 'checked' : ''} 
                            onchange="toggleBidItem('${item.id}')">
                     <div class="item-info">
-                        <span class="item-code">${item.item_code}</span>
+                        <span class="item-code">${item.item_code || 'N/A'}</span>
                     </div>
                     <div class="item-info">
-                        <span class="item-name">${item.item_name}</span>
+                        <span class="item-name">${item.item_name || 'Unnamed Item'}</span>
                         <span style="color: #666; font-size: 0.75rem;">${item.category || 'Uncategorized'}</span>
                     </div>
                     <input type="text" 
@@ -854,8 +894,17 @@
         
         // Toggle bid item selection
         function toggleBidItem(itemId) {
+            // Ensure allBidItems is an array
+            if (!Array.isArray(allBidItems)) {
+                console.error('Bid items not loaded');
+                return;
+            }
+            
             const item = allBidItems.find(i => i.id === itemId);
-            if (!item) return;
+            if (!item) {
+                console.error('Item not found:', itemId);
+                return;
+            }
             
             if (selectedBidItems.has(itemId)) {
                 selectedBidItems.delete(itemId);
@@ -931,8 +980,10 @@
                 }
                 
                 // Prepare project data
+                const projectName = document.getElementById('newProjectName').value || generateProjectName();
+                
                 const projectData = {
-                    name: document.getElementById('newProjectName').value || generateProjectName(),
+                    name: projectName,
                     project_code: document.getElementById('newProjectCode').value || null,
                     general_contractor_id: contractorId,
                     site_location: location,
